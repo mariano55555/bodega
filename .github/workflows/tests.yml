@@ -14,7 +14,8 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     environment: Testing
-
+    env:
+        FLUXUI_AUTH: ${{ secrets.FLUX_UI }} # <— important
     steps:
       - name: Checkout
         uses: actions/checkout@v4
