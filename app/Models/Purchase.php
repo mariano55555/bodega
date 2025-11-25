@@ -330,6 +330,9 @@ class Purchase extends Model
                 $inventory->is_active = true;
                 $inventory->active_at = $inventory->active_at ?? now();
                 $inventory->save();
+
+                // Update or create product-supplier relationship
+                $this->syncProductSupplier($detail);
             }
 
             \DB::commit();
@@ -352,5 +355,56 @@ class Purchase extends Model
         $this->status = 'cancelado';
 
         return $this->save();
+    }
+
+    /**
+     * Sync product-supplier relationship when receiving a purchase.
+     * Creates or updates the relationship with purchase information.
+     */
+    protected function syncProductSupplier(PurchaseDetail $detail): void
+    {
+        if (! $this->supplier_id) {
+            return;
+        }
+
+        // Find existing relationship or create new one
+        $productSupplier = ProductSupplier::withTrashed()
+            ->where('company_id', $this->company_id)
+            ->where('product_id', $detail->product_id)
+            ->where('supplier_id', $this->supplier_id)
+            ->first();
+
+        if ($productSupplier) {
+            // Restore if soft deleted
+            if ($productSupplier->trashed()) {
+                $productSupplier->restore();
+            }
+
+            // Update existing relationship
+            $productSupplier->update([
+                'last_purchase_at' => $this->received_at ?? now(),
+                'last_purchase_price' => $detail->unit_cost,
+                'supplier_cost' => $detail->unit_cost,
+                'is_active' => true,
+                'active_at' => $productSupplier->active_at ?? now(),
+            ]);
+        } else {
+            // Create new relationship
+            $product = Product::find($detail->product_id);
+
+            ProductSupplier::create([
+                'company_id' => $this->company_id,
+                'product_id' => $detail->product_id,
+                'supplier_id' => $this->supplier_id,
+                'supplier_code' => $product?->sku ?? 'SKU-'.$detail->product_id,
+                'supplier_description' => $product?->name,
+                'supplier_cost' => $detail->unit_cost,
+                'last_purchase_at' => $this->received_at ?? now(),
+                'last_purchase_price' => $detail->unit_cost,
+                'is_preferred' => false,
+                'is_active' => true,
+                'active_at' => now(),
+            ]);
+        }
     }
 }
