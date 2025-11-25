@@ -109,6 +109,13 @@ new #[Layout('components.layouts.app')] class extends Component
                 'description' => 'Registro de compras e ingreso de productos al inventario',
                 'group' => 'Operaciones de Bodega'
             ],
+            'dte-imports' => [
+                'title' => 'Importar DTE',
+                'icon' => 'document-arrow-up',
+                'color' => 'violet',
+                'description' => 'Importación de facturas electrónicas desde archivos JSON del Ministerio de Hacienda',
+                'group' => 'Operaciones de Bodega'
+            ],
             'donations' => [
                 'title' => 'Donaciones',
                 'icon' => 'gift',
@@ -473,6 +480,8 @@ new #[Layout('components.layouts.app')] class extends Component
                         @include('livewire.help.modules.notifications')
                     @elseif($activeModule === 'purchases')
                         @include('livewire.help.modules.purchases')
+                    @elseif($activeModule === 'dte-imports')
+                        @include('livewire.help.modules.dte-imports')
                     @elseif($activeModule === 'donations')
                         @include('livewire.help.modules.donations')
                     @elseif($activeModule === 'transfers')

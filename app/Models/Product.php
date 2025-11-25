@@ -27,6 +27,7 @@ class Product extends Model
         'sku',
         'description',
         'category_id',
+        'primary_supplier_id',
         'unit_of_measure',
         'unit_of_measure_id',
         'company_id',
@@ -137,6 +138,14 @@ class Product extends Model
     public function unitOfMeasure(): BelongsTo
     {
         return $this->belongsTo(UnitOfMeasure::class, 'unit_of_measure_id');
+    }
+
+    /**
+     * Get the primary supplier for this product.
+     */
+    public function primarySupplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class, 'primary_supplier_id');
     }
 
     /**

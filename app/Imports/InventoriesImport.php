@@ -26,7 +26,7 @@ class InventoriesImport implements SkipsOnError, SkipsOnFailure, ToCollection, W
 
     protected int $userId;
 
-    protected array $errors = [];
+    protected array $importErrors = [];
 
     protected int $successCount = 0;
 
@@ -45,7 +45,7 @@ class InventoriesImport implements SkipsOnError, SkipsOnFailure, ToCollection, W
                 try {
                     $this->processRow($row, $index + 2);
                 } catch (\Exception $e) {
-                    $this->errors[] = [
+                    $this->importErrors[] = [
                         'row' => $index + 2,
                         'error' => $e->getMessage(),
                         'data' => $row->toArray(),
@@ -88,22 +88,25 @@ class InventoriesImport implements SkipsOnError, SkipsOnFailure, ToCollection, W
         }
 
         $quantity = (float) $row['cantidad'];
-        $cost = isset($row['costo']) ? (float) $row['costo'] : $product->cost;
+        $unitCost = isset($row['costo_unitario']) ? (float) $row['costo_unitario'] : (isset($row['costo']) ? (float) $row['costo'] : $product->cost);
 
         // Create or update inventory
         $inventory = Inventory::updateOrCreate(
             [
                 'product_id' => $product->id,
                 'warehouse_id' => $warehouse->id,
+                'lot_number' => $row['numero_lote'] ?? $row['lote'] ?? null,
             ],
             [
                 'quantity' => $quantity,
-                'reserved_quantity' => $row['reservada'] ?? 0,
-                'minimum_stock' => $row['stock_minimo'] ?? $product->minimum_stock,
-                'maximum_stock' => $row['stock_maximo'] ?? $product->maximum_stock,
-                'cost' => $cost,
-                'total_value' => $quantity * $cost,
+                'reserved_quantity' => $row['cantidad_reservada'] ?? $row['reservada'] ?? 0,
+                'unit_cost' => $unitCost,
+                'total_value' => $quantity * $unitCost,
                 'location' => $row['ubicacion'] ?? null,
+                'lot_number' => $row['numero_lote'] ?? $row['lote'] ?? null,
+                'expiration_date' => isset($row['fecha_vencimiento']) ? \Carbon\Carbon::parse($row['fecha_vencimiento']) : null,
+                'is_active' => true,
+                'active_at' => now(),
                 'created_by' => $this->userId,
                 'updated_by' => $this->userId,
             ]
@@ -111,17 +114,27 @@ class InventoriesImport implements SkipsOnError, SkipsOnFailure, ToCollection, W
 
         // Create initial movement record
         InventoryMovement::create([
+            'company_id' => $this->companyId,
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
-            'movement_type' => 'initial_import',
+            'movement_type' => 'initial_stock',
             'quantity' => $quantity,
-            'cost' => $cost,
-            'total_value' => $quantity * $cost,
-            'balance_before' => 0,
-            'balance_after' => $quantity,
-            'movement_date' => now(),
-            'reference' => 'Importación inicial de inventarios',
-            'notes' => isset($row['notas']) ? $row['notas'] : 'Importado desde Excel',
+            'quantity_in' => $quantity,
+            'quantity_out' => 0,
+            'balance_quantity' => $quantity,
+            'previous_quantity' => 0,
+            'new_quantity' => $quantity,
+            'unit_cost' => $unitCost,
+            'total_cost' => $quantity * $unitCost,
+            'movement_date' => now()->toDateString(),
+            'reference_number' => 'IMP-'.now()->format('YmdHis'),
+            'notes' => $row['notas'] ?? 'Importado desde Excel',
+            'status' => 'completed',
+            'is_confirmed' => true,
+            'confirmed_at' => now(),
+            'completed_at' => now(),
+            'is_active' => true,
+            'active_at' => now(),
             'created_by' => $this->userId,
         ]);
 
@@ -140,7 +153,7 @@ class InventoriesImport implements SkipsOnError, SkipsOnFailure, ToCollection, W
 
     public function getErrors(): array
     {
-        return $this->errors;
+        return $this->importErrors;
     }
 
     public function getSuccessCount(): int
@@ -158,7 +171,7 @@ class InventoriesImport implements SkipsOnError, SkipsOnFailure, ToCollection, W
         return [
             'success' => $this->successCount,
             'skipped' => $this->skippedCount,
-            'errors' => $this->errors,
+            'errors' => $this->importErrors,
         ];
     }
 }

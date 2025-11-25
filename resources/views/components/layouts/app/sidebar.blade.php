@@ -26,6 +26,7 @@
                 <flux:navlist.group :heading="__('Operaciones de Bodega')" class="grid">
                     <flux:navlist.item icon="cube" :href="route('inventory.products.index')" :current="request()->routeIs('inventory.products.*')" wire:navigate>{{ __('Catálogo de Productos') }}</flux:navlist.item>
                     <flux:navlist.item icon="shopping-cart" :href="route('purchases.index')" :current="request()->routeIs('purchases.index') || request()->routeIs('purchases.create') || request()->routeIs('purchases.show') || request()->routeIs('purchases.edit')" wire:navigate>{{ __('Compras') }}</flux:navlist.item>
+                    <flux:navlist.item icon="document-arrow-up" :href="route('dte-imports.index')" :current="request()->routeIs('dte-imports.*')" wire:navigate>{{ __('Importar DTE') }}</flux:navlist.item>
                     <flux:navlist.item icon="gift" :href="route('donations.index')" :current="request()->routeIs('donations.*')" wire:navigate>{{ __('Donaciones') }}</flux:navlist.item>
                     <flux:navlist.item icon="arrow-path" :href="route('transfers.index')" :current="request()->routeIs('transfers.*')" wire:navigate>{{ __('Traslados') }}</flux:navlist.item>
                     <flux:navlist.item icon="truck" :href="route('dispatches.index')" :current="request()->routeIs('dispatches.*')" wire:navigate>{{ __('Despachos') }}</flux:navlist.item>

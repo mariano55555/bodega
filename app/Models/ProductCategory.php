@@ -20,6 +20,7 @@ class ProductCategory extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'company_id',
         'name',
         'slug',
         'description',

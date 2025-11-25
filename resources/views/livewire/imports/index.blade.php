@@ -1,11 +1,13 @@
 <?php
 
+use App\Models\Company;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 use Livewire\Attributes\Computed;
 use App\Imports\ProductsImport;
 use App\Imports\InventoriesImport;
 use App\Exports\ProductsTemplateExport;
+use App\Exports\InventoriesTemplateExport;
 use Maatwebsite\Excel\Facades\Excel;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
@@ -13,6 +15,7 @@ new class extends Component {
     use WithFileUploads;
 
     public string $importType = 'products';
+    public ?int $selectedCompanyId = null;
     public ?TemporaryUploadedFile $file = null;
     public bool $importing = false;
     public bool $previewing = false;
@@ -20,6 +23,30 @@ new class extends Component {
     public array $previewResults = [];
     public bool $showResults = false;
     public bool $showPreview = false;
+
+    public function mount(): void
+    {
+        $user = auth()->user();
+        // Set default company for non-super admins
+        if ($user->company_id) {
+            $this->selectedCompanyId = $user->company_id;
+        }
+    }
+
+    #[Computed]
+    public function isSuperAdmin(): bool
+    {
+        return auth()->user()->isSuperAdmin();
+    }
+
+    #[Computed]
+    public function companies()
+    {
+        return Company::query()
+            ->whereNotNull('active_at')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+    }
 
     public function updatedFile(): void
     {
@@ -36,11 +63,39 @@ new class extends Component {
         $this->previewResults = [];
     }
 
+    protected function getCompanyId(): int
+    {
+        $user = auth()->user();
+
+        // Super admin uses selected company
+        if ($user->isSuperAdmin()) {
+            if (!$this->selectedCompanyId) {
+                throw new \Exception('Debe seleccionar una compañía.');
+            }
+            return $this->selectedCompanyId;
+        }
+
+        // Regular users use their assigned company
+        if (!$user->company_id) {
+            throw new \Exception('No tiene una compañía asignada. Contacte al administrador.');
+        }
+
+        return $user->company_id;
+    }
+
     public function preview(): void
     {
-        $this->validate([
+        $validationRules = [
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
             'importType' => 'required|in:products,inventories,adjustments',
+        ];
+
+        if (auth()->user()->isSuperAdmin()) {
+            $validationRules['selectedCompanyId'] = 'required|exists:companies,id';
+        }
+
+        $this->validate($validationRules, [
+            'selectedCompanyId.required' => 'Debe seleccionar una compañía.',
         ]);
 
         $this->previewing = true;
@@ -48,9 +103,8 @@ new class extends Component {
         $this->showResults = false;
 
         try {
-            $user = auth()->user();
-            $companyId = $user->company_id;
-            $userId = $user->id;
+            $companyId = $this->getCompanyId();
+            $userId = auth()->id();
 
             $import = match ($this->importType) {
                 'products' => new ProductsImport($companyId, $userId, true), // preview mode
@@ -86,19 +140,24 @@ new class extends Component {
 
     public function confirmImport(): void
     {
-        $this->validate([
+        $validationRules = [
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
             'importType' => 'required|in:products,inventories,adjustments',
-        ]);
+        ];
+
+        if (auth()->user()->isSuperAdmin()) {
+            $validationRules['selectedCompanyId'] = 'required|exists:companies,id';
+        }
+
+        $this->validate($validationRules);
 
         $this->importing = true;
         $this->showPreview = false;
         $this->showResults = false;
 
         try {
-            $user = auth()->user();
-            $companyId = $user->company_id;
-            $userId = $user->id;
+            $companyId = $this->getCompanyId();
+            $userId = auth()->id();
 
             $import = match ($this->importType) {
                 'products' => new ProductsImport($companyId, $userId, false), // import mode
@@ -143,6 +202,7 @@ new class extends Component {
 
         return match ($type) {
             'products' => Excel::download(new ProductsTemplateExport, $filename),
+            'inventories' => Excel::download(new InventoriesTemplateExport, $filename),
             default => Excel::download(new ProductsTemplateExport, $filename),
         };
     }
@@ -177,6 +237,21 @@ new class extends Component {
             </div>
 
             <div class="space-y-6 p-6">
+                {{-- Company Selector (Super Admin only) --}}
+                @if($this->isSuperAdmin)
+                    <flux:field>
+                        <flux:label>Compañía</flux:label>
+                        <flux:select wire:model.live="selectedCompanyId" variant="listbox" placeholder="Seleccione una compañía...">
+                            @foreach($this->companies as $company)
+                                <flux:select.option value="{{ $company->id }}">{{ $company->name }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                        @error('selectedCompanyId')
+                            <flux:text size="sm" class="text-red-600 dark:text-red-400">{{ $message }}</flux:text>
+                        @enderror
+                    </flux:field>
+                @endif
+
                 {{-- Import Type Selector --}}
                 <flux:field>
                     <flux:label>Tipo de Importación</flux:label>
@@ -462,7 +537,7 @@ new class extends Component {
                                             <td class="px-4 py-3 text-sm">
                                                 @if(isset($row['mappings']['unit']))
                                                     @if($row['mappings']['unit']['action'] === 'use_existing')
-                                                        <flux:badge color="green" size="sm">{{ $row['mappings']['unit']['symbol'] ?? $row['unidad_medida'] }}</flux:badge>
+                                                        <flux:badge color="green" size="sm">{{ $row['mappings']['unit']['abbreviation'] ?? $row['unidad_medida'] }}</flux:badge>
                                                     @else
                                                         <flux:badge color="yellow" size="sm">+ {{ $row['unidad_medida'] }}</flux:badge>
                                                     @endif

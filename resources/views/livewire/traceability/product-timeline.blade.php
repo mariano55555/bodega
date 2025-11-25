@@ -2,24 +2,39 @@
 
 use Livewire\Volt\Component;
 use App\Models\{Product, InventoryMovement, Warehouse};
-use Livewire\Attributes\{Computed, Layout};
+use Livewire\Attributes\{Computed, Layout, Url};
 use Livewire\WithPagination;
 
 new #[Layout('components.layouts.app')] class extends Component
 {
     use WithPagination;
 
+    #[Url]
     public ?int $productId = null;
+
+    #[Url]
     public ?int $warehouseId = null;
+
+    #[Url]
     public string $dateFrom = '';
+
+    #[Url]
     public string $dateTo = '';
+
+    #[Url]
     public string $movementType = '';
+
     public bool $showTimeline = true;
 
     public function mount(): void
     {
-        $this->dateFrom = now()->subMonths(3)->format('Y-m-d');
-        $this->dateTo = now()->format('Y-m-d');
+        // Only set defaults if not already set from URL
+        if (empty($this->dateFrom)) {
+            $this->dateFrom = now()->subMonths(3)->format('Y-m-d');
+        }
+        if (empty($this->dateTo)) {
+            $this->dateTo = now()->format('Y-m-d');
+        }
     }
 
     #[Computed]
@@ -42,7 +57,7 @@ new #[Layout('components.layouts.app')] class extends Component
         }
 
         $query = InventoryMovement::query()
-            ->with(['product', 'warehouse', 'user', 'movementable', 'purchase', 'dispatch', 'donation', 'transfer'])
+            ->with(['product', 'warehouse', 'creator', 'purchase', 'dispatch', 'donation', 'transfer'])
             ->where('product_id', $this->productId);
 
         if ($this->warehouseId) {
@@ -261,10 +276,10 @@ new #[Layout('components.layouts.app')] class extends Component
                             <flux:text class="font-medium text-lg">{{ $location->warehouse->name }}</flux:text>
                             <div class="mt-2 space-y-1">
                                 <flux:text class="text-sm text-zinc-600">
-                                    Primera visita: {{ $location->first_seen->format('d/m/Y H:i') }}
+                                    Primera visita: {{ \Carbon\Carbon::parse($location->first_seen)->format('d/m/Y H:i') }}
                                 </flux:text>
                                 <flux:text class="text-sm text-zinc-600">
-                                    Última visita: {{ $location->last_seen->format('d/m/Y H:i') }}
+                                    Última visita: {{ \Carbon\Carbon::parse($location->last_seen)->format('d/m/Y H:i') }}
                                 </flux:text>
                                 <flux:badge color="blue" size="sm">{{ $location->movement_count }} movimientos</flux:badge>
                             </div>
@@ -316,7 +331,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                         <flux:text class="text-sm font-medium">{{ $movement->warehouse->name }}</flux:text>
                                     </div>
                                     <flux:text class="text-xs text-zinc-500">
-                                        {{ $movement->movement_date->format('d/m/Y H:i') }} • {{ $movement->user->name ?? 'N/A' }}
+                                        {{ \Carbon\Carbon::parse($movement->movement_date)->format('d/m/Y H:i') }} • {{ $movement->creator->name ?? 'N/A' }}
                                     </flux:text>
                                 </div>
                                 <div class="text-right">

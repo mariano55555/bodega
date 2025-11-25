@@ -2,8 +2,8 @@
 
 namespace App\Imports;
 
-use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\Supplier;
 use App\Models\UnitOfMeasure;
 use Illuminate\Support\Collection;
@@ -26,7 +26,7 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
 
     protected int $userId;
 
-    protected array $errors = [];
+    protected array $importErrors = [];
 
     protected int $successCount = 0;
 
@@ -55,7 +55,7 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
                     $this->processRow($row, $index + 2); // +2 because of header row and 0-based index
                 }
             } catch (\Exception $e) {
-                $this->errors[] = [
+                $this->importErrors[] = [
                     'row' => $index + 2,
                     'error' => $e->getMessage(),
                     'data' => $row->toArray(),
@@ -67,20 +67,27 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
 
     protected function validateRow(Collection $row, int $rowNumber): void
     {
+        // Normalize column names (handle variations like "unidad_de_medida" or "unidad_medida")
+        $unidadMedida = $row['unidad_de_medida'] ?? $row['unidad_medida'] ?? null;
+
         $rowData = [
             'row' => $rowNumber,
             'sku' => $row['sku'] ?? null,
             'nombre' => $row['nombre'] ?? null,
             'categoria' => $row['categoria'] ?? null,
-            'unidad_medida' => $row['unidad_medida'] ?? null,
+            'unidad_medida' => $unidadMedida,
             'status' => 'valid',
             'errors' => [],
             'warnings' => [],
             'mappings' => [],
         ];
 
+        // Prepare data for validation with normalized keys
+        $dataToValidate = $row->toArray();
+        $dataToValidate['unidad_medida'] = $unidadMedida;
+
         // Validate required fields
-        $validator = Validator::make($row->toArray(), [
+        $validator = Validator::make($dataToValidate, [
             'sku' => 'required|string|max:100',
             'nombre' => 'required|string|max:255',
             'categoria' => 'required|string',
@@ -128,9 +135,9 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
         // Check unit of measure - find exact or similar match
         $unitMatch = $this->findUnitMatch($row['unidad_medida']);
         if ($unitMatch['exact']) {
-            $rowData['mappings']['unit'] = ['id' => $unitMatch['unit']->id, 'name' => $unitMatch['unit']->name, 'symbol' => $unitMatch['unit']->symbol, 'action' => 'use_existing'];
+            $rowData['mappings']['unit'] = ['id' => $unitMatch['unit']->id, 'name' => $unitMatch['unit']->name, 'abbreviation' => $unitMatch['unit']->abbreviation, 'action' => 'use_existing'];
         } elseif ($unitMatch['similar']) {
-            $rowData['warnings'][] = "Unidad '{$row['unidad_medida']}' similar a '{$unitMatch['similar']->name}' ({$unitMatch['similar']->symbol}). Se creará nueva si no coincide exactamente.";
+            $rowData['warnings'][] = "Unidad '{$row['unidad_medida']}' similar a '{$unitMatch['similar']->name}' ({$unitMatch['similar']->abbreviation}). Se creará nueva si no coincide exactamente.";
             $rowData['mappings']['unit'] = ['action' => 'create', 'similar' => $unitMatch['similar']->name];
         } else {
             $rowData['warnings'][] = "Unidad de medida '{$row['unidad_medida']}' no existe - se creará automáticamente";
@@ -159,7 +166,7 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
     protected function findCategoryMatch(string $name): array
     {
         // Try exact match first (case-insensitive)
-        $exact = Category::where('company_id', $this->companyId)
+        $exact = ProductCategory::where('company_id', $this->companyId)
             ->whereRaw('LOWER(name) = ?', [strtolower(trim($name))])
             ->first();
 
@@ -168,8 +175,8 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
         }
 
         // Try similar match using LIKE
-        $similar = Category::where('company_id', $this->companyId)
-            ->whereRaw('LOWER(name) LIKE ?', ['%' . strtolower(trim($name)) . '%'])
+        $similar = ProductCategory::where('company_id', $this->companyId)
+            ->whereRaw('LOWER(name) LIKE ?', ['%'.strtolower(trim($name)).'%'])
             ->first();
 
         return ['exact' => null, 'similar' => $similar, 'category' => null];
@@ -183,7 +190,7 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
         $exact = UnitOfMeasure::where('company_id', $this->companyId)
             ->where(function ($q) use ($normalizedName) {
                 $q->whereRaw('LOWER(name) = ?', [$normalizedName])
-                    ->orWhereRaw('LOWER(symbol) = ?', [$normalizedName]);
+                    ->orWhereRaw('LOWER(abbreviation) = ?', [$normalizedName]);
             })
             ->first();
 
@@ -197,8 +204,8 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
         foreach ($variations as $variation) {
             $similar = UnitOfMeasure::where('company_id', $this->companyId)
                 ->where(function ($q) use ($variation) {
-                    $q->whereRaw('LOWER(name) LIKE ?', ['%' . $variation . '%'])
-                        ->orWhereRaw('LOWER(symbol) LIKE ?', ['%' . $variation . '%']);
+                    $q->whereRaw('LOWER(name) LIKE ?', ['%'.$variation.'%'])
+                        ->orWhereRaw('LOWER(abbreviation) LIKE ?', ['%'.$variation.'%']);
                 })
                 ->first();
 
@@ -270,8 +277,15 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
 
     protected function processRow(Collection $row, int $rowNumber): void
     {
+        // Normalize column names (handle variations like "unidad_de_medida" or "unidad_medida")
+        $unidadMedida = $row['unidad_de_medida'] ?? $row['unidad_medida'] ?? null;
+
+        // Prepare data for validation with normalized keys
+        $dataToValidate = $row->toArray();
+        $dataToValidate['unidad_medida'] = $unidadMedida;
+
         // Validate required fields
-        $validator = Validator::make($row->toArray(), [
+        $validator = Validator::make($dataToValidate, [
             'sku' => 'required|string|max:100',
             'nombre' => 'required|string|max:255',
             'categoria' => 'required|string',
@@ -283,7 +297,7 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
         }
 
         // Find or create category
-        $category = Category::firstOrCreate(
+        $category = ProductCategory::firstOrCreate(
             [
                 'name' => $row['categoria'],
                 'company_id' => $this->companyId,
@@ -299,12 +313,12 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
         // Find or create unit of measure
         $unitOfMeasure = UnitOfMeasure::firstOrCreate(
             [
-                'name' => $row['unidad_medida'],
+                'name' => $unidadMedida,
                 'company_id' => $this->companyId,
             ],
             [
-                'slug' => Str::slug($row['unidad_medida']),
-                'abbreviation' => substr($row['unidad_medida'], 0, 10),
+                'slug' => Str::slug($unidadMedida),
+                'abbreviation' => substr($unidadMedida, 0, 10),
                 'active_at' => now(),
                 'created_by' => $this->userId,
             ]
@@ -322,6 +336,13 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
             }
         }
 
+        // Normalize track_inventory field
+        $trackInventory = true; // default to true
+        $seguirInventario = $row['seguir_inventario_sino'] ?? $row['seguir_inventario'] ?? null;
+        if ($seguirInventario !== null) {
+            $trackInventory = in_array(strtolower((string) $seguirInventario), ['si', 'sí', 'yes', '1', 'true']);
+        }
+
         // Create or update product
         $product = Product::updateOrCreate(
             [
@@ -334,20 +355,14 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
                 'description' => $row['descripcion'] ?? null,
                 'category_id' => $category->id,
                 'unit_of_measure_id' => $unitOfMeasure->id,
-                'supplier_id' => $supplierId,
+                'primary_supplier_id' => $supplierId,
                 'cost' => $row['costo'] ?? 0,
                 'price' => $row['precio'] ?? 0,
                 'minimum_stock' => $row['stock_minimo'] ?? 0,
                 'maximum_stock' => $row['stock_maximo'] ?? null,
-                'reorder_point' => $row['punto_reorden'] ?? null,
-                'barcode' => $row['codigo_barras'] ?? null,
-                'internal_code' => $row['codigo_interno'] ?? null,
-                'brand' => $row['marca'] ?? null,
-                'model' => $row['modelo'] ?? null,
-                'is_perishable' => ! empty($row['perecedero']) && in_array(strtolower($row['perecedero']), ['si', 'yes', '1', 'true']),
-                'shelf_life_days' => $row['vida_util_dias'] ?? null,
-                'requires_serial' => ! empty($row['requiere_serie']) && in_array(strtolower($row['requiere_serie']), ['si', 'yes', '1', 'true']),
-                'requires_lot' => ! empty($row['requiere_lote']) && in_array(strtolower($row['requiere_lote']), ['si', 'yes', '1', 'true']),
+                'barcode' => $row['codigo_de_barras'] ?? $row['codigo_barras'] ?? null,
+                'track_inventory' => $trackInventory,
+                'is_active' => true,
                 'active_at' => now(),
                 'created_by' => $this->userId,
                 'updated_by' => $this->userId,
@@ -367,9 +382,9 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
         return 100;
     }
 
-    public function getErrors(): array
+    public function getImportErrors(): array
     {
-        return $this->errors;
+        return $this->importErrors;
     }
 
     public function getSuccessCount(): int
@@ -387,7 +402,7 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
         return [
             'success' => $this->successCount,
             'skipped' => $this->skippedCount,
-            'errors' => $this->errors,
+            'errors' => $this->importErrors,
         ];
     }
 
@@ -406,10 +421,11 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
         $unitsToCreate = collect($this->previewData)
             ->pluck('unidad_medida')
             ->filter()
-            ->map(fn($u) => strtolower(trim($u)))
+            ->map(fn ($u) => strtolower(trim($u)))
             ->unique()
             ->filter(function ($unit) {
                 $match = $this->findUnitMatch($unit);
+
                 return ! $match['exact'];
             })
             ->values()
@@ -419,10 +435,11 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
         $categoriesToCreate = collect($this->previewData)
             ->pluck('categoria')
             ->filter()
-            ->map(fn($c) => strtolower(trim($c)))
+            ->map(fn ($c) => strtolower(trim($c)))
             ->unique()
             ->filter(function ($cat) {
                 $match = $this->findCategoryMatch($cat);
+
                 return ! $match['exact'];
             })
             ->values()

@@ -9,7 +9,11 @@ use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
 Route::get('/', function () {
-    return view('welcome');
+    if (auth()->check()) {
+        return redirect()->route('dashboard');
+    }
+
+    return redirect()->route('login');
 })->name('home');
 
 Route::view('dashboard', 'dashboard')
@@ -219,6 +223,12 @@ Route::middleware(['auth'])->group(function () {
     // Import/Export Routes
     Route::prefix('imports')->name('imports.')->group(function () {
         Volt::route('/', 'imports.index')->name('index');
+    });
+
+    // DTE Import Routes
+    Route::prefix('dte-imports')->name('dte-imports.')->group(function () {
+        Volt::route('/', 'dte-imports.index')->name('index');
+        Volt::route('{dteImport:slug}', 'dte-imports.review')->name('review');
     });
 
     // Document Management Routes
