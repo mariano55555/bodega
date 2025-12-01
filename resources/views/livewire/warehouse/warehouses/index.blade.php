@@ -399,12 +399,11 @@ new #[Layout('components.layouts.app')] class extends Component
                             <div class="text-center">
                                 @php
                                     $utilizationColor = 'green';
-                                    if ($warehouse->total_capacity) {
-                                        $utilization = ($warehouse->storage_locations_count / ($warehouse->total_capacity / 100)) * 100;
+                                    $utilization = 0;
+                                    if ($warehouse->total_capacity && $warehouse->total_capacity > 0) {
+                                        $utilization = ($warehouse->storage_locations_count / $warehouse->total_capacity) * 100;
                                         if ($utilization > 80) $utilizationColor = 'red';
                                         elseif ($utilization > 60) $utilizationColor = 'yellow';
-                                    } else {
-                                        $utilization = 0;
                                     }
                                 @endphp
                                 <flux:heading size="lg" class="text-{{ $utilizationColor }}-600 dark:text-{{ $utilizationColor }}-400">

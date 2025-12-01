@@ -325,11 +325,11 @@ new #[Layout('components.layouts.app')] class extends Component
                         </flux:table.cell>
 
                         <flux:table.cell>
-                            {{ $purchase->supplier->name }}
+                            {{ $purchase->supplier?->name ?? 'Proveedor eliminado' }}
                         </flux:table.cell>
 
                         <flux:table.cell>
-                            {{ $purchase->warehouse->name }}
+                            {{ $purchase->warehouse?->name ?? 'Bodega eliminada' }}
                         </flux:table.cell>
 
                         <flux:table.cell>

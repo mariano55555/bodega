@@ -27,6 +27,8 @@ class UpdateProductCategoryRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'code' => ['nullable', 'string', 'max:50', 'alpha_dash', Rule::unique('product_categories', 'code')->ignore($categoryId)],
+            'legacy_code' => ['nullable', 'string', 'max:10'],
+            'parent_id' => ['nullable', 'integer', 'exists:product_categories,id'],
             'description' => ['nullable', 'string', 'max:1000'],
             'is_active' => ['nullable', 'boolean'],
         ];
@@ -48,6 +50,12 @@ class UpdateProductCategoryRequest extends FormRequest
             'code.max' => 'El código no puede tener más de :max caracteres.',
             'code.alpha_dash' => 'El código solo puede contener letras, números, guiones y guiones bajos.',
             'code.unique' => 'Este código de categoría ya existe.',
+
+            'legacy_code.string' => 'El código legacy debe ser una cadena de texto.',
+            'legacy_code.max' => 'El código legacy no puede tener más de :max caracteres.',
+
+            'parent_id.integer' => 'La categoría padre debe ser un número entero.',
+            'parent_id.exists' => 'La categoría padre seleccionada no existe.',
 
             'description.string' => 'La descripción debe ser una cadena de texto.',
             'description.max' => 'La descripción no puede tener más de :max caracteres.',

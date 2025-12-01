@@ -3,18 +3,35 @@
 use Livewire\Volt\Component;
 use App\Models\ProductCategory;
 use App\Http\Requests\StoreProductCategoryRequest;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 
 new #[Layout('components.layouts.app')] class extends Component
 {
     public $name = '';
     public $code = '';
+    public $legacy_code = '';
+    public $parent_id = '';
     public $description = '';
     public $is_active = true;
+
+    #[Computed]
+    public function parentCategories()
+    {
+        return ProductCategory::active()
+            ->parents()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+    }
 
     public function save(): void
     {
         $validated = $this->validate((new StoreProductCategoryRequest())->rules(), (new StoreProductCategoryRequest())->messages());
+
+        // Convert empty string to null for parent_id
+        if (empty($validated['parent_id'])) {
+            $validated['parent_id'] = null;
+        }
 
         ProductCategory::create($validated);
 
@@ -49,19 +66,43 @@ new #[Layout('components.layouts.app')] class extends Component
 
     <form wire:submit="save">
         <flux:card class="space-y-6">
+            <!-- Categoría Padre -->
+            <flux:field>
+                <flux:label>Categoría Padre (Opcional)</flux:label>
+                <flux:select wire:model="parent_id" placeholder="Seleccione una categoría padre">
+                    <flux:select.option value="">Sin categoría padre (es categoría principal)</flux:select.option>
+                    @foreach($this->parentCategories as $category)
+                        <flux:select.option value="{{ $category->id }}">{{ $category->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:description>Si selecciona una categoría padre, esta será una subcategoría</flux:description>
+                <flux:error name="parent_id" />
+            </flux:field>
+
             <!-- Nombre -->
             <flux:field>
-                <flux:label>Nombre de la Categoría</flux:label>
-                <flux:input wire:model="name" placeholder="Ej: Alimentos para Ganado" />
+                <flux:label badge="Requerido">Nombre de la Categoría</flux:label>
+                <flux:input wire:model="name" placeholder="Ej: Productos Agropecuarios" />
                 <flux:error name="name" />
             </flux:field>
 
-            <!-- Código -->
-            <flux:field>
-                <flux:label>Código (Opcional)</flux:label>
-                <flux:input wire:model="code" placeholder="Ej: ALM-GAN" description="Código único para identificar la categoría internamente" />
-                <flux:error name="code" />
-            </flux:field>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Código -->
+                <flux:field>
+                    <flux:label>Código (Opcional)</flux:label>
+                    <flux:input wire:model="code" placeholder="Ej: PROD-AGRO" />
+                    <flux:description>Código único interno</flux:description>
+                    <flux:error name="code" />
+                </flux:field>
+
+                <!-- Código Legacy -->
+                <flux:field>
+                    <flux:label>Código Legacy (Opcional)</flux:label>
+                    <flux:input wire:model="legacy_code" placeholder="Ej: 54102" />
+                    <flux:description>Código del sistema anterior</flux:description>
+                    <flux:error name="legacy_code" />
+                </flux:field>
+            </div>
 
             <!-- Descripción -->
             <flux:field>

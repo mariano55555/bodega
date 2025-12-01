@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,10 +22,12 @@ class ProductCategory extends Model
      */
     protected $fillable = [
         'company_id',
+        'parent_id',
         'name',
         'slug',
         'description',
         'code',
+        'legacy_code',
         'is_active',
         'active_at',
         'created_by',
@@ -116,11 +119,69 @@ class ProductCategory extends Model
     }
 
     /**
+     * Get the parent category.
+     */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(ProductCategory::class, 'parent_id');
+    }
+
+    /**
+     * Get the child categories (subcategories).
+     */
+    public function children(): HasMany
+    {
+        return $this->hasMany(ProductCategory::class, 'parent_id');
+    }
+
+    /**
      * Scope a query to only include active categories.
      */
-    public function scopeActive($query)
+    public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true)->whereNotNull('active_at');
+    }
+
+    /**
+     * Scope a query to only include parent categories (no parent_id).
+     */
+    public function scopeParents(Builder $query): Builder
+    {
+        return $query->whereNull('parent_id');
+    }
+
+    /**
+     * Scope a query to only include subcategories (has parent_id).
+     */
+    public function scopeSubcategories(Builder $query): Builder
+    {
+        return $query->whereNotNull('parent_id');
+    }
+
+    /**
+     * Get the full name including parent category.
+     */
+    public function getFullNameAttribute(): string
+    {
+        return $this->parent
+            ? "{$this->parent->name} > {$this->name}"
+            : $this->name;
+    }
+
+    /**
+     * Check if this is a parent category (has no parent).
+     */
+    public function isParent(): bool
+    {
+        return is_null($this->parent_id);
+    }
+
+    /**
+     * Check if this is a subcategory (has a parent).
+     */
+    public function isSubcategory(): bool
+    {
+        return ! is_null($this->parent_id);
     }
 
     /**

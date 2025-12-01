@@ -8,6 +8,7 @@ use Livewire\Attributes\Validate;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Computed;
 use Spatie\Permission\Models\Role;
+use Flux\Flux;
 
 new #[Layout('components.layouts.app')] class extends Component
 {
@@ -83,19 +84,27 @@ new #[Layout('components.layouts.app')] class extends Component
     {
         $this->authorize('update', $this->user);
 
-        $rules = $this->rules();
-
-        // Adjust unique validation for email to exclude current user
-        $rules['email'] = 'required|string|email|max:255|unique:users,email,' . $this->user->id;
-
-        $validated = $this->validate($rules);
+        $validated = $this->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $this->user->id,
+            'company_id' => 'nullable|exists:companies,id',
+            'branch_id' => 'nullable|exists:branches,id',
+            'password' => 'nullable|string|min:8',
+            'password_confirmation' => 'nullable|string|same:password',
+        ]);
 
         // Remove empty password fields
         if (empty($this->password)) {
             unset($validated['password']);
+            unset($validated['password_confirmation']);
         } else {
             $validated['password'] = bcrypt($this->password);
+            unset($validated['password_confirmation']);
         }
+
+        // Handle empty company_id and branch_id
+        $validated['company_id'] = !empty($validated['company_id']) ? $validated['company_id'] : null;
+        $validated['branch_id'] = !empty($validated['branch_id']) ? $validated['branch_id'] : null;
 
         // Handle active status
         if ($this->is_active && !$this->user->active_at) {
@@ -109,10 +118,11 @@ new #[Layout('components.layouts.app')] class extends Component
         // Update roles
         $this->user->syncRoles($this->selectedRoles);
 
-        $this->dispatch('user-updated', [
-            'message' => 'Usuario actualizado exitosamente',
-            'user' => $this->user->name
-        ]);
+        Flux::toast(
+            variant: 'success',
+            heading: 'Usuario Actualizado',
+            text: "Los datos de {$this->user->name} han sido actualizados exitosamente.",
+        );
 
         $this->redirect(route('admin.users.index'), navigate: true);
     }
@@ -124,9 +134,11 @@ new #[Layout('components.layouts.app')] class extends Component
         $userName = $this->user->name;
         $this->user->delete();
 
-        $this->dispatch('user-deleted', [
-            'message' => "Usuario '{$userName}' eliminado exitosamente"
-        ]);
+        Flux::toast(
+            variant: 'success',
+            heading: 'Usuario Eliminado',
+            text: "El usuario '{$userName}' ha sido eliminado exitosamente.",
+        );
 
         $this->redirect(route('admin.users.index'), navigate: true);
     }

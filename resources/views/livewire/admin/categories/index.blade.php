@@ -16,11 +16,13 @@ new #[Layout('components.layouts.app')] class extends Component
     public function categories()
     {
         return ProductCategory::query()
+            ->with('parent')
             ->when($this->search, fn($q) => $q->where('name', 'like', "%{$this->search}%")
-                ->orWhere('code', 'like', "%{$this->search}%"))
-            ->withCount('products')
-            ->orderBy('name')
-            ->paginate(15);
+                ->orWhere('code', 'like', "%{$this->search}%")
+                ->orWhere('legacy_code', 'like', "%{$this->search}%"))
+            ->withCount(['products', 'children'])
+            ->orderByRaw('COALESCE(parent_id, id), parent_id IS NOT NULL, name')
+            ->paginate(20);
     }
 
     public function delete(ProductCategory $category): void
@@ -84,7 +86,9 @@ new #[Layout('components.layouts.app')] class extends Component
         <flux:table>
             <flux:table.columns>
                 <flux:table.column>Nombre</flux:table.column>
+                <flux:table.column>Categoría Padre</flux:table.column>
                 <flux:table.column>Código</flux:table.column>
+                <flux:table.column>Código Legacy</flux:table.column>
                 <flux:table.column>Productos</flux:table.column>
                 <flux:table.column>Estado</flux:table.column>
                 <flux:table.column>Acciones</flux:table.column>
@@ -94,30 +98,51 @@ new #[Layout('components.layouts.app')] class extends Component
                 @forelse($this->categories as $category)
                 <flux:table.row wire:key="category-{{ $category->id }}">
                     <flux:table.cell>
-                        <flux:text class="font-medium">{{ $category->name }}</flux:text>
-                        @if($category->description)
-                        <flux:text class="text-sm text-zinc-500 block">{{ Str::limit($category->description, 50) }}</flux:text>
+                        <div class="{{ $category->parent_id ? 'pl-4' : '' }}">
+                            @if($category->parent_id)
+                                <span class="text-zinc-400 mr-1">└</span>
+                            @endif
+                            <flux:text class="font-medium {{ !$category->parent_id ? 'text-blue-600 dark:text-blue-400' : '' }}">
+                                {{ $category->name }}
+                            </flux:text>
+                            @if($category->children_count > 0)
+                                <flux:badge size="sm" color="sky" class="ml-2">{{ $category->children_count }} sub</flux:badge>
+                            @endif
+                        </div>
+                    </flux:table.cell>
+                    <flux:table.cell>
+                        @if($category->parent)
+                            <flux:badge color="blue">{{ $category->parent->name }}</flux:badge>
+                        @else
+                            <flux:text class="text-zinc-400 text-sm">— Principal —</flux:text>
                         @endif
                     </flux:table.cell>
                     <flux:table.cell>
                         @if($category->code)
-                        <flux:badge color="zinc">{{ $category->code }}</flux:badge>
+                            <flux:badge color="zinc">{{ $category->code }}</flux:badge>
                         @else
-                        <flux:text class="text-zinc-400 text-sm">Sin código</flux:text>
+                            <flux:text class="text-zinc-400 text-sm">—</flux:text>
                         @endif
                     </flux:table.cell>
                     <flux:table.cell>
-                        <flux:text>{{ $category->products_count }} productos</flux:text>
+                        @if($category->legacy_code)
+                            <flux:badge color="amber">{{ $category->legacy_code }}</flux:badge>
+                        @else
+                            <flux:text class="text-zinc-400 text-sm">—</flux:text>
+                        @endif
+                    </flux:table.cell>
+                    <flux:table.cell>
+                        <flux:text>{{ $category->products_count }}</flux:text>
                     </flux:table.cell>
                     <flux:table.cell>
                         @if($category->is_active)
-                        <flux:badge color="green">Activo</flux:badge>
+                            <flux:badge color="green">Activo</flux:badge>
                         @else
-                        <flux:badge color="red">Inactivo</flux:badge>
+                            <flux:badge color="red">Inactivo</flux:badge>
                         @endif
                     </flux:table.cell>
                     <flux:table.cell>
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-1">
                             <flux:button variant="ghost" size="sm" icon="pencil" href="{{ route('admin.categories.edit', $category->slug) }}" wire:navigate title="Editar" />
                             <flux:button
                                 size="sm"
@@ -126,13 +151,15 @@ new #[Layout('components.layouts.app')] class extends Component
                                 wire:click="toggleStatus({{ $category->id }})"
                                 :title="$category->is_active ? 'Desactivar' : 'Activar'"
                             />
-                            <flux:button variant="ghost" size="sm" icon="trash" wire:click="delete({{ $category->id }})" wire:confirm="¿Estás seguro de eliminar esta categoría?" title="Eliminar" class="text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400" />
+                            @if($category->products_count === 0 && $category->children_count === 0)
+                                <flux:button variant="ghost" size="sm" icon="trash" wire:click="delete({{ $category->id }})" wire:confirm="¿Estás seguro de eliminar esta categoría?" title="Eliminar" class="text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400" />
+                            @endif
                         </div>
                     </flux:table.cell>
                 </flux:table.row>
                 @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="5" class="text-center py-12">
+                    <flux:table.cell colspan="7" class="text-center py-12">
                         <flux:text class="text-zinc-500">No se encontraron categorías</flux:text>
                     </flux:table.cell>
                 </flux:table.row>

@@ -605,24 +605,19 @@ new #[Layout('components.layouts.app')] class extends Component {
                 </flux:field>
 
                 <flux:field>
-                    <flux:label badge="Requerido">Tipo de Despacho</flux:label>
-                    <flux:select wire:model="dispatch_type">
-                        <option value="venta">Venta</option>
-                        <option value="interno">Interno</option>
-                        <option value="externo">Externo</option>
-                        <option value="donacion">Donación</option>
-                    </flux:select>
-                    <flux:error name="dispatch_type" />
+                    <flux:label>Tipo de Despacho</flux:label>
+                    <flux:input value="Interno" disabled />
+                    <flux:description>Los despachos rápidos siempre son internos</flux:description>
                 </flux:field>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <flux:field>
-                    <flux:label>Cliente</flux:label>
+                    <flux:label>Destinatario</flux:label>
                     <flux:select wire:model="customer_id" :disabled="$this->isSuperAdmin() && !$company_id">
-                        <option value="">Sin cliente</option>
+                        <option value="">Sin destinatario</option>
                         @foreach ($this->customers as $customer)
-                            <option value="{{ $customer->id }}">{{ $customer->name }}</option>
+                            <option value="{{ $customer->id }}">{{ $customer->name }}{{ $customer->type ? ' - ' . $customer->type : '' }}</option>
                         @endforeach
                     </flux:select>
                 </flux:field>

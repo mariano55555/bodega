@@ -14,6 +14,7 @@ new #[Layout('components.layouts.app')] class extends Component
     public $name = '';
     public $sku = '';
     public $description = '';
+    public $parent_category_id = '';
     public $category_id = '';
     public $unit_of_measure_id = '';
     public $company_id = '';
@@ -38,7 +39,14 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function updatedCompanyId(): void
     {
-        // Reset category when company changes
+        // Reset categories when company changes
+        $this->parent_category_id = '';
+        $this->category_id = '';
+    }
+
+    public function updatedParentCategoryId(): void
+    {
+        // Reset subcategory when parent changes
         $this->category_id = '';
     }
 
@@ -58,15 +66,28 @@ new #[Layout('components.layouts.app')] class extends Component
     }
 
     #[Computed]
-    public function categories()
+    public function parentCategories()
     {
-        $query = ProductCategory::active();
+        $query = ProductCategory::active()->parents();
 
         if ($this->company_id) {
             $query->where('company_id', $this->company_id);
         }
 
         return $query->orderBy('name')->get(['id', 'name']);
+    }
+
+    #[Computed]
+    public function subcategories()
+    {
+        if (!$this->parent_category_id) {
+            return collect([]);
+        }
+
+        return ProductCategory::active()
+            ->where('parent_id', $this->parent_category_id)
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 
     #[Computed]
@@ -207,7 +228,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         </div>
                     @endif
 
-                    <!-- Categoría -->
+                    <!-- Categoría Padre -->
                     <div>
                         <flux:field>
                             <div class="flex items-center justify-between">
@@ -217,10 +238,24 @@ new #[Layout('components.layouts.app')] class extends Component
                                     Nueva categoría
                                 </a>
                             </div>
-                            <flux:select wire:model="category_id" placeholder="Selecciona una categoría" :disabled="$this->isSuperAdmin() && !$company_id">
-                                <option value="">Seleccione una categoría</option>
-                                @foreach($this->categories as $category)
+                            <flux:select wire:model.live="parent_category_id" placeholder="Selecciona una categoría" :disabled="$this->isSuperAdmin() && !$company_id">
+                                <flux:select.option value="">Seleccione una categoría</flux:select.option>
+                                @foreach($this->parentCategories as $category)
                                 <flux:select.option value="{{ $category->id }}">{{ $category->name }}</flux:select.option>
+                                @endforeach
+                            </flux:select>
+                            <flux:error name="parent_category_id" />
+                        </flux:field>
+                    </div>
+
+                    <!-- Subcategoría -->
+                    <div>
+                        <flux:field>
+                            <flux:label badge="Requerido">Subcategoría</flux:label>
+                            <flux:select wire:model="category_id" placeholder="Selecciona una subcategoría" :disabled="!$parent_category_id">
+                                <flux:select.option value="">Seleccione una subcategoría</flux:select.option>
+                                @foreach($this->subcategories as $subcategory)
+                                <flux:select.option value="{{ $subcategory->id }}">{{ $subcategory->name }}</flux:select.option>
                                 @endforeach
                             </flux:select>
                             <flux:error name="category_id" />

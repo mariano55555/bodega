@@ -22,6 +22,8 @@ class MovementReason extends Model
      */
     protected $fillable = [
         'code',
+        'legacy_code',
+        'legacy_name',
         'name',
         'slug',
         'description',
@@ -29,6 +31,7 @@ class MovementReason extends Model
         'movement_type',
         'requires_approval',
         'requires_documentation',
+        'affects_cost',
         'approval_threshold',
         'required_fields',
         'validation_rules',
@@ -50,6 +53,7 @@ class MovementReason extends Model
         return [
             'requires_approval' => 'boolean',
             'requires_documentation' => 'boolean',
+            'affects_cost' => 'boolean',
             'approval_threshold' => 'decimal:2',
             'required_fields' => 'array',
             'validation_rules' => 'array',

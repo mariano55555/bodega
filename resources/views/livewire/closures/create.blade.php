@@ -229,182 +229,41 @@ new #[Layout('components.layouts.app')] class extends Component
             </div>
         </flux:card>
 
-        <!-- Proceso de Cierre - Visual Guide -->
-        <flux:card class="!p-0 overflow-hidden">
-            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 px-6 py-4 border-b border-zinc-200 dark:border-zinc-700">
-                <div class="flex items-center gap-3">
-                    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/50">
-                        <flux:icon.document-text class="size-5 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div>
-                        <flux:heading size="lg">Proceso de Cierre de Inventario</flux:heading>
-                        <flux:text class="text-sm">Guía paso a paso del flujo de trabajo</flux:text>
-                    </div>
-                </div>
+        <!-- Flujo de Trabajo -->
+        <flux:card>
+            <div class="flex items-center justify-between mb-4">
+                <flux:heading size="lg">Flujo de Trabajo</flux:heading>
+                <flux:button variant="ghost" size="sm" icon="question-mark-circle" :href="route('help.index', ['seccion' => 'closures'])" wire:navigate>
+                    Ver guía completa
+                </flux:button>
             </div>
 
-            <div class="p-6 space-y-6">
-                {{-- Step 1: Crear --}}
-                <div class="flex gap-4">
-                    <div class="flex flex-col items-center">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-white font-bold text-sm shadow-sm">
-                            1
-                        </div>
-                        <div class="w-0.5 flex-1 bg-zinc-200 dark:bg-zinc-700 mt-2"></div>
-                    </div>
-                    <div class="flex-1 pb-6">
-                        <div class="flex items-center gap-2 mb-1">
-                            <flux:badge color="blue" size="sm">Actual</flux:badge>
-                            <span class="font-semibold text-zinc-900 dark:text-white">Crear Cierre</span>
-                        </div>
-                        <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-3">
-                            Selecciona la bodega y el período mensual. El sistema verificará que no exista un cierre previo para evitar duplicados.
-                        </p>
-                        <div class="flex flex-wrap gap-2">
-                            <div class="inline-flex items-center gap-1.5 rounded-md bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 text-xs">
-                                <flux:icon.building-storefront class="size-3.5 text-zinc-500" />
-                                <span>Bodega</span>
-                            </div>
-                            <div class="inline-flex items-center gap-1.5 rounded-md bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 text-xs">
-                                <flux:icon.calendar class="size-3.5 text-zinc-500" />
-                                <span>Período</span>
-                            </div>
-                            <div class="inline-flex items-center gap-1.5 rounded-md bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 text-xs">
-                                <flux:icon.document-text class="size-3.5 text-zinc-500" />
-                                <span>Notas</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <ul class="space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
+                <li class="flex items-center gap-2">
+                    <flux:badge color="blue" size="sm">1</flux:badge>
+                    <span><strong>Crear:</strong> Selecciona bodega y período mensual</span>
+                </li>
+                <li class="flex items-center gap-2">
+                    <flux:badge color="amber" size="sm">2</flux:badge>
+                    <span><strong>Procesar:</strong> El sistema calcula saldos automáticamente</span>
+                </li>
+                <li class="flex items-center gap-2">
+                    <flux:badge color="cyan" size="sm">3</flux:badge>
+                    <span><strong>Revisar:</strong> Valida saldos y registra conteos físicos</span>
+                </li>
+                <li class="flex items-center gap-2">
+                    <flux:badge color="lime" size="sm">4</flux:badge>
+                    <span><strong>Aprobar:</strong> Un supervisor aprueba el cierre</span>
+                </li>
+                <li class="flex items-center gap-2">
+                    <flux:badge color="green" size="sm">5</flux:badge>
+                    <span><strong>Cerrar:</strong> El período queda bloqueado para auditoría</span>
+                </li>
+            </ul>
 
-                {{-- Step 2: Procesar --}}
-                <div class="flex gap-4">
-                    <div class="flex flex-col items-center">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 font-bold text-sm">
-                            2
-                        </div>
-                        <div class="w-0.5 flex-1 bg-zinc-200 dark:bg-zinc-700 mt-2"></div>
-                    </div>
-                    <div class="flex-1 pb-6">
-                        <div class="flex items-center gap-2 mb-1">
-                            <flux:badge color="amber" size="sm">En Proceso</flux:badge>
-                            <span class="font-semibold text-zinc-900 dark:text-white">Procesar Saldos</span>
-                        </div>
-                        <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-3">
-                            El sistema calculará automáticamente los saldos iniciales, entradas, salidas y saldos finales de cada producto en la bodega.
-                        </p>
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            <div class="rounded-lg border border-zinc-200 dark:border-zinc-700 p-2 text-center">
-                                <flux:icon.arrow-down-tray class="size-4 mx-auto text-green-500 mb-1" />
-                                <span class="text-xs text-zinc-600 dark:text-zinc-400">Entradas</span>
-                            </div>
-                            <div class="rounded-lg border border-zinc-200 dark:border-zinc-700 p-2 text-center">
-                                <flux:icon.arrow-up-tray class="size-4 mx-auto text-red-500 mb-1" />
-                                <span class="text-xs text-zinc-600 dark:text-zinc-400">Salidas</span>
-                            </div>
-                            <div class="rounded-lg border border-zinc-200 dark:border-zinc-700 p-2 text-center">
-                                <flux:icon.scale class="size-4 mx-auto text-blue-500 mb-1" />
-                                <span class="text-xs text-zinc-600 dark:text-zinc-400">Ajustes</span>
-                            </div>
-                            <div class="rounded-lg border border-zinc-200 dark:border-zinc-700 p-2 text-center">
-                                <flux:icon.calculator class="size-4 mx-auto text-purple-500 mb-1" />
-                                <span class="text-xs text-zinc-600 dark:text-zinc-400">Saldo Final</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {{-- Step 3: Revisar --}}
-                <div class="flex gap-4">
-                    <div class="flex flex-col items-center">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 font-bold text-sm">
-                            3
-                        </div>
-                        <div class="w-0.5 flex-1 bg-zinc-200 dark:bg-zinc-700 mt-2"></div>
-                    </div>
-                    <div class="flex-1 pb-6">
-                        <div class="flex items-center gap-2 mb-1">
-                            <flux:badge color="cyan" size="sm">Revisión</flux:badge>
-                            <span class="font-semibold text-zinc-900 dark:text-white">Revisar y Validar</span>
-                        </div>
-                        <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-3">
-                            Revisa los saldos calculados. Puedes registrar conteos físicos para detectar diferencias y realizar ajustes antes de cerrar.
-                        </p>
-                        <div class="flex flex-wrap gap-2">
-                            <div class="inline-flex items-center gap-1.5 rounded-md bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300 px-2.5 py-1 text-xs">
-                                <flux:icon.clipboard-document-check class="size-3.5" />
-                                <span>Conteo Físico</span>
-                            </div>
-                            <div class="inline-flex items-center gap-1.5 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 px-2.5 py-1 text-xs">
-                                <flux:icon.exclamation-triangle class="size-3.5" />
-                                <span>Detectar Diferencias</span>
-                            </div>
-                            <div class="inline-flex items-center gap-1.5 rounded-md bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 px-2.5 py-1 text-xs">
-                                <flux:icon.adjustments-horizontal class="size-3.5" />
-                                <span>Ajustes</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {{-- Step 4: Aprobar --}}
-                <div class="flex gap-4">
-                    <div class="flex flex-col items-center">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 font-bold text-sm">
-                            4
-                        </div>
-                        <div class="w-0.5 flex-1 bg-zinc-200 dark:bg-zinc-700 mt-2"></div>
-                    </div>
-                    <div class="flex-1 pb-6">
-                        <div class="flex items-center gap-2 mb-1">
-                            <flux:badge color="lime" size="sm">Aprobación</flux:badge>
-                            <span class="font-semibold text-zinc-900 dark:text-white">Aprobar Cierre</span>
-                        </div>
-                        <p class="text-sm text-zinc-600 dark:text-zinc-400">
-                            Una vez validados los saldos, un supervisor puede aprobar el cierre. Este paso es requerido antes del cierre final.
-                        </p>
-                    </div>
-                </div>
-
-                {{-- Step 5: Cerrar --}}
-                <div class="flex gap-4">
-                    <div class="flex flex-col items-center">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 font-bold text-sm">
-                            5
-                        </div>
-                    </div>
-                    <div class="flex-1">
-                        <div class="flex items-center gap-2 mb-1">
-                            <flux:badge color="green" size="sm">Cerrado</flux:badge>
-                            <span class="font-semibold text-zinc-900 dark:text-white">Cerrar Período</span>
-                        </div>
-                        <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-3">
-                            El cierre queda registrado. Los saldos finales se convierten en saldos iniciales del siguiente período.
-                        </p>
-                        <div class="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3">
-                            <div class="flex items-start gap-2">
-                                <flux:icon.check-circle class="size-5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
-                                <div class="text-sm text-green-700 dark:text-green-300">
-                                    <span class="font-medium">Una vez cerrado:</span> Los movimientos del período quedan bloqueados y el historial se preserva para auditorías.
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Footer with important notes --}}
-            <div class="bg-amber-50 dark:bg-amber-950/30 border-t border-amber-200 dark:border-amber-900 px-6 py-4">
-                <div class="flex gap-3">
-                    <flux:icon.exclamation-triangle class="size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                    <div class="text-sm">
-                        <span class="font-medium text-amber-800 dark:text-amber-200">Importante:</span>
-                        <span class="text-amber-700 dark:text-amber-300">
-                            Se recomienda procesar todos los movimientos pendientes (entradas, salidas, ajustes) antes de crear el cierre del período.
-                        </span>
-                    </div>
-                </div>
-            </div>
+            <flux:callout variant="warning" icon="exclamation-triangle" class="mt-4">
+                Procese todos los movimientos pendientes antes de crear el cierre.
+            </flux:callout>
         </flux:card>
 
         <!-- Botones de Acción -->
