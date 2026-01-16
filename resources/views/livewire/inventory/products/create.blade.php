@@ -614,7 +614,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 <!-- Abreviatura -->
                 <flux:field>
                     <flux:label badge="Requerido">Abreviatura</flux:label>
-                    <flux:input wire:model="newUnitAbbreviation" placeholder="Ej: kg, L, pza" maxlength="10" />
+                    <flux:input wire:model.blur="newUnitAbbreviation" placeholder="Ej: kg, L, pza" maxlength="10" />
                     <flux:error name="newUnitAbbreviation" />
                     <flux:text class="text-xs text-gray-500 dark:text-gray-400">Máximo 10 caracteres</flux:text>
                 </flux:field>

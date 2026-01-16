@@ -26,7 +26,7 @@ class UnitOfMeasure extends Model
      */
     protected $fillable = [
         'name',
-        'symbol',
+        'abbreviation',
         'slug',
         'description',
         'type',
@@ -232,10 +232,10 @@ class UnitOfMeasure extends Model
     }
 
     /**
-     * Get the display name with symbol.
+     * Get the display name with abbreviation.
      */
     public function getDisplayNameAttribute(): string
     {
-        return "{$this->name} ({$this->symbol})";
+        return "{$this->name} ({$this->abbreviation})";
     }
 }
