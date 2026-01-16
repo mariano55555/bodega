@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Requests\StorePurchaseRequest;
+use App\Models\AcquisitionType;
 use App\Models\Company;
+use App\Models\FundSource;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseDetail;
@@ -27,19 +29,29 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public $due_date = '';
 
-    public $purchase_type = 'efectivo';
+    public $purchase_type = 'credito';
 
-    public $payment_method = '';
+    public $payment_method = null; // Comentado en UI por petición del cliente
 
-    public $acquisition_type = 'normal';
+    public $acquisition_type_id = '';
 
     public $project_name = '';
 
     public $agreement_number = '';
 
-    public $fund_source = '';
+    public $fund_source_id = '';
 
     public $shipping_cost = 0;
+
+    // Modal para crear origen de fondos
+    public $newFundSourceName = '';
+
+    public $newFundSourceDescription = '';
+
+    // Modal para crear tipo de adquisición
+    public $newAcquisitionTypeName = '';
+
+    public $newAcquisitionTypeDescription = '';
 
     public $notes = '';
 
@@ -121,11 +133,11 @@ new #[Layout('components.layouts.app')] class extends Component
             'due_date' => $validated['due_date'] ?? null,
             'purchase_type' => $validated['purchase_type'],
             'payment_method' => $validated['payment_method'] ?? null,
-            'acquisition_type' => $validated['acquisition_type'],
+            'acquisition_type_id' => $validated['acquisition_type_id'],
             'project_name' => $validated['project_name'] ?? null,
             'agreement_number' => $validated['agreement_number'] ?? null,
             'is_retroactive' => $isRetroactive,
-            'fund_source' => $validated['fund_source'] ?? null,
+            'fund_source_id' => $validated['fund_source_id'] ?? null,
             'shipping_cost' => $validated['shipping_cost'] ?? 0,
             'notes' => $validated['notes'] ?? null,
             'admin_notes' => $validated['admin_notes'] ?? null,
@@ -232,6 +244,112 @@ new #[Layout('components.layouts.app')] class extends Component
             ->get();
     }
 
+    #[Computed]
+    public function fundSources()
+    {
+        return FundSource::active()->orderBy('name')->get();
+    }
+
+    #[Computed]
+    public function acquisitionTypes()
+    {
+        return AcquisitionType::active()->orderBy('name')->get();
+    }
+
+    public function openFundSourceModal(): void
+    {
+        $this->resetFundSourceForm();
+        $this->modal('fund-source-modal')->show();
+    }
+
+    public function closeFundSourceModal(): void
+    {
+        $this->modal('fund-source-modal')->close();
+        $this->resetFundSourceForm();
+    }
+
+    public function resetFundSourceForm(): void
+    {
+        $this->newFundSourceName = '';
+        $this->newFundSourceDescription = '';
+        $this->resetValidation(['newFundSourceName']);
+    }
+
+    public function saveFundSource(): void
+    {
+        $this->validate([
+            'newFundSourceName' => ['required', 'string', 'max:255', 'unique:fund_sources,name'],
+            'newFundSourceDescription' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'newFundSourceName.required' => 'El nombre es obligatorio.',
+            'newFundSourceName.unique' => 'Este origen de fondos ya existe.',
+        ]);
+
+        $fundSource = FundSource::create([
+            'name' => $this->newFundSourceName,
+            'description' => $this->newFundSourceDescription,
+            'is_active' => true,
+            'active_at' => now(),
+            'created_by' => auth()->id(),
+        ]);
+
+        $this->fund_source_id = $fundSource->id;
+        $this->closeFundSourceModal();
+
+        \Flux::toast(
+            variant: 'success',
+            heading: '¡Éxito!',
+            text: 'Origen de fondos creado exitosamente.',
+        );
+    }
+
+    public function openAcquisitionTypeModal(): void
+    {
+        $this->resetAcquisitionTypeForm();
+        $this->modal('acquisition-type-modal')->show();
+    }
+
+    public function closeAcquisitionTypeModal(): void
+    {
+        $this->modal('acquisition-type-modal')->close();
+        $this->resetAcquisitionTypeForm();
+    }
+
+    public function resetAcquisitionTypeForm(): void
+    {
+        $this->newAcquisitionTypeName = '';
+        $this->newAcquisitionTypeDescription = '';
+        $this->resetValidation(['newAcquisitionTypeName']);
+    }
+
+    public function saveAcquisitionType(): void
+    {
+        $this->validate([
+            'newAcquisitionTypeName' => ['required', 'string', 'max:255', 'unique:acquisition_types,name'],
+            'newAcquisitionTypeDescription' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'newAcquisitionTypeName.required' => 'El nombre es obligatorio.',
+            'newAcquisitionTypeName.unique' => 'Este tipo de adquisición ya existe.',
+        ]);
+
+        $acquisitionType = AcquisitionType::create([
+            'name' => $this->newAcquisitionTypeName,
+            'description' => $this->newAcquisitionTypeDescription,
+            'is_active' => true,
+            'active_at' => now(),
+            'created_by' => auth()->id(),
+        ]);
+
+        $this->acquisition_type_id = $acquisitionType->id;
+        $this->closeAcquisitionTypeModal();
+
+        \Flux::toast(
+            variant: 'success',
+            heading: '¡Éxito!',
+            text: 'Tipo de adquisición creado exitosamente.',
+        );
+    }
+
     public function getProductUnit($productId): array
     {
         if (! $productId) {
@@ -263,10 +381,9 @@ new #[Layout('components.layouts.app')] class extends Component
                 @if($this->isSuperAdmin())
                     <flux:field class="md:col-span-3">
                         <flux:label badge="Requerido">Empresa</flux:label>
-                        <flux:select wire:model.live="company_id">
-                            <option value="">Seleccione una empresa</option>
+                        <flux:select wire:model.live="company_id" variant="listbox" searchable placeholder="Buscar empresa...">
                             @foreach ($this->companies as $company)
-                                <option value="{{ $company->id }}">{{ $company->name }}</option>
+                                <flux:select.option value="{{ $company->id }}">{{ $company->name }}</flux:select.option>
                             @endforeach
                         </flux:select>
                         <flux:error name="company_id" />
@@ -275,10 +392,9 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label badge="Requerido">Bodega Destino</flux:label>
-                    <flux:select wire:model="warehouse_id" :disabled="$this->isSuperAdmin() && !$company_id">
-                        <option value="">Seleccione una bodega</option>
+                    <flux:select wire:model="warehouse_id" variant="listbox" searchable placeholder="Buscar bodega..." :disabled="$this->isSuperAdmin() && !$company_id">
                         @foreach ($this->warehouses as $warehouse)
-                            <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
+                            <flux:select.option value="{{ $warehouse->id }}">{{ $warehouse->name }}</flux:select.option>
                         @endforeach
                     </flux:select>
                     <flux:error name="warehouse_id" />
@@ -286,10 +402,9 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label badge="Requerido">Proveedor</flux:label>
-                    <flux:select wire:model="supplier_id" :disabled="$this->isSuperAdmin() && !$company_id">
-                        <option value="">Seleccione un proveedor</option>
+                    <flux:select wire:model="supplier_id" variant="listbox" searchable placeholder="Buscar proveedor..." :disabled="$this->isSuperAdmin() && !$company_id">
                         @foreach ($this->suppliers as $supplier)
-                            <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
+                            <flux:select.option value="{{ $supplier->id }}">{{ $supplier->name }}</flux:select.option>
                         @endforeach
                     </flux:select>
                     <flux:error name="supplier_id" />
@@ -333,13 +448,14 @@ new #[Layout('components.layouts.app')] class extends Component
                 <flux:field>
                     <flux:label badge="Requerido">Tipo de Compra</flux:label>
                     <flux:select wire:model="purchase_type">
-                        <option value="efectivo">Efectivo</option>
+                        <option value="contado">Contado</option>
                         <option value="credito">Crédito</option>
                     </flux:select>
                     <flux:error name="purchase_type" />
                 </flux:field>
 
-                <flux:field>
+                {{-- Método de Pago - Comentado por petición del cliente --}}
+                {{-- <flux:field>
                     <flux:label>Método de Pago</flux:label>
                     <flux:select wire:model="payment_method">
                         <option value="">Seleccione un método</option>
@@ -349,12 +465,22 @@ new #[Layout('components.layouts.app')] class extends Component
                         <option value="tarjeta">Tarjeta</option>
                     </flux:select>
                     <flux:error name="payment_method" />
-                </flux:field>
+                </flux:field> --}}
 
                 <flux:field>
-                    <flux:label>Origen de Fondos</flux:label>
-                    <flux:input wire:model="fund_source" placeholder="Ej: Fondos propios, Donación" />
-                    <flux:error name="fund_source" />
+                    <div class="flex items-center justify-between">
+                        <flux:label>Origen de Fondos</flux:label>
+                        <button type="button" wire:click="openFundSourceModal" class="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1">
+                            <flux:icon name="plus" class="h-3 w-3" />
+                            Nuevo origen
+                        </button>
+                    </div>
+                    <flux:select wire:model="fund_source_id" variant="listbox" searchable placeholder="Buscar origen de fondos...">
+                        @foreach ($this->fundSources as $fundSource)
+                            <flux:select.option value="{{ $fundSource->id }}">{{ $fundSource->name }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:error name="fund_source_id" />
                 </flux:field>
 
                 <flux:field>
@@ -370,31 +496,32 @@ new #[Layout('components.layouts.app')] class extends Component
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <flux:field>
-                    <flux:label badge="Requerido">Tipo de Adquisición</flux:label>
-                    <flux:select wire:model.live="acquisition_type">
-                        <option value="normal">Compra Normal</option>
-                        <option value="convenio">Convenio</option>
-                        <option value="proyecto">Proyecto</option>
-                        <option value="otro">Otro</option>
+                    <div class="flex items-center justify-between">
+                        <flux:label badge="Requerido">Tipo de Adquisición</flux:label>
+                        <button type="button" wire:click="openAcquisitionTypeModal" class="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1">
+                            <flux:icon name="plus" class="h-3 w-3" />
+                            Nuevo tipo
+                        </button>
+                    </div>
+                    <flux:select wire:model.live="acquisition_type_id" variant="listbox" searchable placeholder="Buscar tipo de adquisición...">
+                        @foreach ($this->acquisitionTypes as $acquisitionType)
+                            <flux:select.option value="{{ $acquisitionType->id }}">{{ $acquisitionType->name }}</flux:select.option>
+                        @endforeach
                     </flux:select>
-                    <flux:error name="acquisition_type" />
+                    <flux:error name="acquisition_type_id" />
                 </flux:field>
 
-                @if($acquisition_type === 'proyecto')
-                    <flux:field>
-                        <flux:label badge="Requerido">Nombre del Proyecto</flux:label>
-                        <flux:input wire:model="project_name" placeholder="Ej: Proyecto Infraestructura 2025" />
-                        <flux:error name="project_name" />
-                    </flux:field>
-                @endif
+                <flux:field>
+                    <flux:label>Nombre del Proyecto</flux:label>
+                    <flux:input wire:model="project_name" placeholder="Ej: Proyecto Infraestructura 2025" />
+                    <flux:error name="project_name" />
+                </flux:field>
 
-                @if($acquisition_type === 'convenio')
-                    <flux:field>
-                        <flux:label badge="Requerido">Número de Convenio</flux:label>
-                        <flux:input wire:model="agreement_number" placeholder="Ej: CONV-2025-001" />
-                        <flux:error name="agreement_number" />
-                    </flux:field>
-                @endif
+                <flux:field>
+                    <flux:label>Número de Convenio</flux:label>
+                    <flux:input wire:model="agreement_number" placeholder="Ej: CONV-2025-001" />
+                    <flux:error name="agreement_number" />
+                </flux:field>
             </div>
 
             @if(\Carbon\Carbon::parse($document_date ?? now())->isBefore(now()->startOfMonth()))
@@ -433,10 +560,9 @@ new #[Layout('components.layouts.app')] class extends Component
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <flux:field class="md:col-span-2">
                                 <flux:label badge="Requerido">Producto</flux:label>
-                                <flux:select wire:model.live="details.{{ $index }}.product_id" :disabled="$this->isSuperAdmin() && !$company_id">
-                                    <option value="">Seleccione un producto</option>
+                                <flux:select wire:model.live="details.{{ $index }}.product_id" variant="listbox" searchable placeholder="Buscar producto..." :disabled="$this->isSuperAdmin() && !$company_id">
                                     @foreach ($this->products as $product)
-                                        <option value="{{ $product->id }}">{{ $product->name }} - {{ $product->sku }}</option>
+                                        <flux:select.option value="{{ $product->id }}">{{ $product->name }} - {{ $product->sku }}</flux:select.option>
                                     @endforeach
                                 </flux:select>
                                 <flux:error name="details.{{ $index }}.product_id" />
@@ -529,4 +655,72 @@ new #[Layout('components.layouts.app')] class extends Component
             </flux:button>
         </div>
     </form>
+
+    <!-- Modal para crear origen de fondos -->
+    <flux:modal name="fund-source-modal" class="min-w-[30rem]">
+        <form wire:submit="saveFundSource" class="space-y-6">
+            <div>
+                <flux:heading size="lg">Nuevo Origen de Fondos</flux:heading>
+                <flux:subheading>Completa la información para crear un nuevo origen de fondos</flux:subheading>
+            </div>
+
+            <div class="space-y-6">
+                <!-- Nombre -->
+                <flux:field>
+                    <flux:label badge="Requerido">Nombre</flux:label>
+                    <flux:input wire:model="newFundSourceName" placeholder="Ej: Fondos Propios, Fondos GOES" />
+                    <flux:error name="newFundSourceName" />
+                </flux:field>
+
+                <!-- Descripción -->
+                <flux:field>
+                    <flux:label>Descripción (Opcional)</flux:label>
+                    <flux:textarea wire:model="newFundSourceDescription" rows="3" placeholder="Descripción adicional..." />
+                    <flux:error name="newFundSourceDescription" />
+                </flux:field>
+            </div>
+
+            <div class="flex gap-2">
+                <flux:spacer />
+                <flux:modal.close>
+                    <flux:button variant="ghost">Cancelar</flux:button>
+                </flux:modal.close>
+                <flux:button type="submit" variant="primary">Guardar</flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
+    <!-- Modal para crear tipo de adquisición -->
+    <flux:modal name="acquisition-type-modal" class="min-w-[30rem]">
+        <form wire:submit="saveAcquisitionType" class="space-y-6">
+            <div>
+                <flux:heading size="lg">Nuevo Tipo de Adquisición</flux:heading>
+                <flux:subheading>Completa la información para crear un nuevo tipo de adquisición</flux:subheading>
+            </div>
+
+            <div class="space-y-6">
+                <!-- Nombre -->
+                <flux:field>
+                    <flux:label badge="Requerido">Nombre</flux:label>
+                    <flux:input wire:model="newAcquisitionTypeName" placeholder="Ej: Compra Normal, Convenio, Proyecto" />
+                    <flux:error name="newAcquisitionTypeName" />
+                </flux:field>
+
+                <!-- Descripción -->
+                <flux:field>
+                    <flux:label>Descripción (Opcional)</flux:label>
+                    <flux:textarea wire:model="newAcquisitionTypeDescription" rows="3" placeholder="Descripción adicional..." />
+                    <flux:error name="newAcquisitionTypeDescription" />
+                </flux:field>
+            </div>
+
+            <div class="flex gap-2">
+                <flux:spacer />
+                <flux:modal.close>
+                    <flux:button variant="ghost">Cancelar</flux:button>
+                </flux:modal.close>
+                <flux:button type="submit" variant="primary">Guardar</flux:button>
+            </div>
+        </form>
+    </flux:modal>
 </div>

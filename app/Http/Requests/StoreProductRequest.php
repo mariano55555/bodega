@@ -25,7 +25,17 @@ class StoreProductRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'sku' => [
-                'required',
+                function ($attribute, $value, $fail) {
+                    $companyId = request()->input('company_id');
+                    $company = \App\Models\Company::find($companyId);
+                    $autoGenerate = $company && ($company->settings['auto_generate_sku'] ?? false);
+
+                    // Only require SKU if auto-generation is disabled
+                    if (! $autoGenerate && empty($value)) {
+                        $fail('El código SKU es obligatorio.');
+                    }
+                },
+                'nullable',
                 'string',
                 'max:100',
                 Rule::unique('products', 'sku')->where(function ($query) {
@@ -37,12 +47,12 @@ class StoreProductRequest extends FormRequest
             'unit_of_measure_id' => ['required', 'integer', 'exists:units_of_measure,id'],
             'company_id' => ['required', 'integer', 'exists:companies,id'],
             'cost' => ['required', 'numeric', 'min:0', 'max:999999999.99'],
-            'price' => ['required', 'numeric', 'min:0', 'max:999999999.99'],
+            'price' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'], // Comentado en UI por petición del cliente
             'barcode' => ['nullable', 'string', 'max:255'],
             'image_path' => ['nullable', 'string', 'max:500'],
             'track_inventory' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
-            'valuation_method' => ['required', 'string', 'in:fifo,lifo,average'],
+            'valuation_method' => ['nullable', 'string', 'in:fifo,lifo,average'], // Comentado en UI por petición del cliente
             'minimum_stock' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
             'maximum_stock' => ['nullable', 'numeric', 'min:0', 'max:999999999.99', 'gte:minimum_stock'],
             'attributes' => ['nullable', 'array'],

@@ -39,12 +39,12 @@ class UpdateProductRequest extends FormRequest
             'unit_of_measure_id' => ['required', 'integer', 'exists:units_of_measure,id'],
             'company_id' => ['required', 'integer', 'exists:companies,id'],
             'cost' => ['required', 'numeric', 'min:0', 'max:999999999.99'],
-            'price' => ['required', 'numeric', 'min:0', 'max:999999999.99'],
+            'price' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'], // Comentado en UI por petición del cliente
             'barcode' => ['nullable', 'string', 'max:255'],
             'image_path' => ['nullable', 'string', 'max:500'],
             'track_inventory' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
-            'valuation_method' => ['required', 'string', 'in:fifo,lifo,average'],
+            'valuation_method' => ['nullable', 'string', 'in:fifo,lifo,average'], // Comentado en UI por petición del cliente
             'minimum_stock' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
             'maximum_stock' => ['nullable', 'numeric', 'min:0', 'max:999999999.99', 'gte:minimum_stock'],
             'attributes' => ['nullable', 'array'],

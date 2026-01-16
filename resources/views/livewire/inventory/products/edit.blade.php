@@ -69,7 +69,7 @@ new #[Layout('components.layouts.app')] class extends Component
             $query->where('company_id', $this->company_id);
         }
 
-        return $query->orderBy('name')->get(['id', 'name']);
+        return $query->orderBy('name')->get(['id', 'name', 'code', 'legacy_code']);
     }
 
     #[Computed]
@@ -82,7 +82,7 @@ new #[Layout('components.layouts.app')] class extends Component
         return ProductCategory::active()
             ->where('parent_id', $this->parent_category_id)
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'code', 'legacy_code']);
     }
 
     #[Computed]
@@ -223,7 +223,7 @@ new #[Layout('components.layouts.app')] class extends Component
                             <flux:select wire:model.live="parent_category_id" placeholder="Selecciona una categoría">
                                 <flux:select.option value="">Seleccione una categoría</flux:select.option>
                                 @foreach($this->parentCategories as $category)
-                                <flux:select.option value="{{ $category->id }}">{{ $category->name }}</flux:select.option>
+                                <flux:select.option value="{{ $category->id }}">{{ $category->legacy_code ?? $category->code }} - {{ $category->name }}</flux:select.option>
                                 @endforeach
                             </flux:select>
                             <flux:error name="parent_category_id" />
@@ -237,7 +237,7 @@ new #[Layout('components.layouts.app')] class extends Component
                             <flux:select wire:model="category_id" placeholder="Selecciona una subcategoría" :disabled="!$parent_category_id">
                                 <flux:select.option value="">Seleccione una subcategoría</flux:select.option>
                                 @foreach($this->subcategories as $subcategory)
-                                <flux:select.option value="{{ $subcategory->id }}">{{ $subcategory->name }}</flux:select.option>
+                                <flux:select.option value="{{ $subcategory->id }}">{{ $subcategory->legacy_code ?? $subcategory->code }} - {{ $subcategory->name }}</flux:select.option>
                                 @endforeach
                             </flux:select>
                             <flux:error name="category_id" />
@@ -259,8 +259,8 @@ new #[Layout('components.layouts.app')] class extends Component
                         </flux:field>
                     </div>
 
-                    <!-- Método de Valuación -->
-                    <div>
+                    {{-- Método de Valuación - Comentado por petición del cliente --}}
+                    {{-- <div>
                         <flux:field>
                             <flux:label>Método de Valuación</flux:label>
                             <flux:select wire:model="valuation_method">
@@ -270,7 +270,7 @@ new #[Layout('components.layouts.app')] class extends Component
                             </flux:select>
                             <flux:error name="valuation_method" />
                         </flux:field>
-                    </div>
+                    </div> --}}
                 </div>
             </flux:card>
 
@@ -288,17 +288,18 @@ new #[Layout('components.layouts.app')] class extends Component
                         </flux:field>
                     </div>
 
-                    <!-- Precio de Venta -->
-                    <div>
+                    {{-- Precio de Venta - Comentado por petición del cliente --}}
+                    {{-- <div>
                         <flux:field>
                             <flux:label>Precio de Venta ($)</flux:label>
                             <flux:input type="number" step="0.01" min="0" wire:model="price" placeholder="0.00" />
                             <flux:error name="price" />
                         </flux:field>
-                    </div>
+                    </div> --}}
                 </div>
 
-                @if($cost && $price && $cost > 0)
+                {{-- Margen de Ganancia - Comentado por petición del cliente --}}
+                {{-- @if($cost && $price && $cost > 0)
                 <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                     <flux:text class="text-sm text-blue-700 dark:text-blue-300">
                         <strong>Margen de Ganancia:</strong>
@@ -306,7 +307,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         (${{ number_format($price - $cost, 2) }})
                     </flux:text>
                 </div>
-                @endif
+                @endif --}}
             </flux:card>
 
             <!-- Control de Inventario -->

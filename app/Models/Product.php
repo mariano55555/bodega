@@ -85,6 +85,21 @@ class Product extends Model
         parent::boot();
 
         static::creating(function ($product) {
+            // Auto-generar SKU si está configurado y no se proporcionó
+            if (empty($product->sku) && $product->company_id) {
+                $company = \App\Models\Company::find($product->company_id);
+                if ($company && ($company->settings['auto_generate_sku'] ?? false)) {
+                    // Generar SKU único: PRO-XXXXXX
+                    do {
+                        $product->sku = 'PRO-'.strtoupper(Str::random(6));
+                        // Verificar unicidad por empresa
+                        $exists = static::where('company_id', $product->company_id)
+                            ->where('sku', $product->sku)
+                            ->exists();
+                    } while ($exists);
+                }
+            }
+
             if (empty($product->slug)) {
                 $product->slug = Str::slug($product->name);
             }

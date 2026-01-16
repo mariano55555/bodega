@@ -29,11 +29,11 @@ class Purchase extends Model
         'purchase_type',
         'payment_status',
         'payment_method',
-        'acquisition_type',
+        'acquisition_type_id',
         'project_name',
         'agreement_number',
         'is_retroactive',
-        'fund_source',
+        'fund_source_id',
         'subtotal',
         'tax_amount',
         'discount_amount',
@@ -163,6 +163,16 @@ class Purchase extends Model
     public function deleter(): BelongsTo
     {
         return $this->belongsTo(User::class, 'deleted_by');
+    }
+
+    public function fundSource(): BelongsTo
+    {
+        return $this->belongsTo(FundSource::class);
+    }
+
+    public function acquisitionType(): BelongsTo
+    {
+        return $this->belongsTo(AcquisitionType::class);
     }
 
     public function inventoryMovements(): HasMany

@@ -158,12 +158,42 @@ class DteImportService
             return ['supplier' => $supplier, 'created' => false];
         }
 
+        // Try to find by name in case tax_id doesn't match but supplier exists
+        $name = $emisor['nombreComercial'] ?? $emisor['nombre'];
+        $slug = \Illuminate\Support\Str::slug($name);
+
+        $supplier = Supplier::withTrashed()
+            ->forCompany($companyId)
+            ->where('slug', $slug)
+            ->first();
+
+        if ($supplier) {
+            // If found but soft deleted, restore it
+            if ($supplier->trashed()) {
+                $supplier->restore();
+            }
+
+            // Update the supplier information
+            $direccion = $emisor['direccion'] ?? [];
+            $supplier->update([
+                'name' => $name,
+                'legal_name' => $emisor['nombre'],
+                'tax_id' => $emisor['nit'],
+                'email' => $emisor['correo'] ?? $supplier->email,
+                'phone' => $emisor['telefono'] ?? $supplier->phone,
+                'address' => $direccion['complemento'] ?? $supplier->address,
+                'is_active' => true,
+            ]);
+
+            return ['supplier' => $supplier, 'created' => false];
+        }
+
         // Create new supplier
         $direccion = $emisor['direccion'] ?? [];
 
         $supplier = Supplier::create([
             'company_id' => $companyId,
-            'name' => $emisor['nombreComercial'] ?? $emisor['nombre'],
+            'name' => $name,
             'legal_name' => $emisor['nombre'],
             'tax_id' => $emisor['nit'],
             'email' => $emisor['correo'] ?? null,
