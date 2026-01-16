@@ -184,7 +184,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'company_id' => $this->company_id,
             'cost' => $this->cost,
             'price' => $this->price,
-            'barcode' => $this->barcode,
+            'barcode' => $this->barcode ?: null, // Convert empty string to null
             'image_path' => $this->image_path,
             'track_inventory' => $this->track_inventory,
             'is_active' => $this->is_active,
