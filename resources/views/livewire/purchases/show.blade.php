@@ -124,7 +124,7 @@ new #[Layout('components.layouts.app')] class extends Component
     <div class="flex items-center justify-between">
         <div>
             <flux:heading size="xl">Compra {{ $purchase->purchase_number }}</flux:heading>
-            <flux:text class="mt-1">{{ $purchase->supplier->name }}</flux:text>
+            <flux:text class="mt-1">{{ $purchase->supplier?->name ?? 'Proveedor no disponible' }}</flux:text>
         </div>
 
         <div class="flex items-center gap-2">
@@ -245,7 +245,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                     <div>
                         <flux:text class="text-sm text-gray-500 dark:text-gray-400">Proveedor</flux:text>
-                        <flux:text class="font-semibold">{{ $purchase->supplier->name }}</flux:text>
+                        <flux:text class="font-semibold">{{ $purchase->supplier?->name ?? 'Proveedor no disponible' }}</flux:text>
                     </div>
 
                     <div>

@@ -100,6 +100,10 @@ new #[Layout('components.layouts.app')] class extends Component
         // Add attributes from renamed property
         $validated['attributes'] = $this->productAttributes;
 
+        // Convert empty strings to null for decimal fields
+        $validated['minimum_stock'] = $validated['minimum_stock'] !== '' ? $validated['minimum_stock'] : null;
+        $validated['maximum_stock'] = $validated['maximum_stock'] !== '' ? $validated['maximum_stock'] : null;
+
         $this->product->update($validated);
 
         //session()->flash('success', 'Producto actualizado exitosamente.');

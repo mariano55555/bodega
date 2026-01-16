@@ -128,8 +128,8 @@ new #[Layout('components.layouts.app')] class extends Component
             'track_inventory' => $this->track_inventory,
             'is_active' => $this->is_active,
             'valuation_method' => $this->valuation_method,
-            'minimum_stock' => $this->minimum_stock,
-            'maximum_stock' => $this->maximum_stock,
+            'minimum_stock' => $this->minimum_stock !== '' ? $this->minimum_stock : null,
+            'maximum_stock' => $this->maximum_stock !== '' ? $this->maximum_stock : null,
             'attributes' => $this->product_attributes,
         ];
 
