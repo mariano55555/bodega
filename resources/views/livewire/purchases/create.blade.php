@@ -130,7 +130,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'document_type' => $validated['document_type'],
             'document_number' => $validated['document_number'] ?? null,
             'document_date' => $validated['document_date'],
-            'due_date' => $validated['due_date'] ?? null,
+            'due_date' => ! empty($validated['due_date']) ? $validated['due_date'] : null,
             'purchase_type' => $validated['purchase_type'],
             'payment_method' => $validated['payment_method'] ?? null,
             'acquisition_type_id' => $validated['acquisition_type_id'],
@@ -153,7 +153,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 'discount_percentage' => $detail['discount_percentage'] ?? 0,
                 'tax_percentage' => $detail['tax_percentage'] ?? 0,
                 'lot_number' => $detail['lot_number'] ?? null,
-                'expiration_date' => $detail['expiration_date'] ?? null,
+                'expiration_date' => ! empty($detail['expiration_date']) ? $detail['expiration_date'] : null,
                 'notes' => $detail['notes'] ?? null,
             ]);
         }
