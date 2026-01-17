@@ -339,7 +339,7 @@ class DteImportService
                 'company_id' => $companyId,
                 'product_id' => $product->id,
                 'supplier_id' => $supplierId,
-                'supplier_code' => ! empty($itemData['supplier_code']) ? $itemData['supplier_code'] : null,
+                'supplier_code' => ! empty($itemData['supplier_code']) ? $itemData['supplier_code'] : $this->generateSupplierCode($product->id, $supplierId),
                 'supplier_description' => $itemData['supplier_description'],
                 'supplier_cost' => $itemData['unit_price'],
                 'supplier_unit_measure_code' => $itemData['unit_measure_code'],
@@ -365,14 +365,16 @@ class DteImportService
         array $itemData,
         int $companyId
     ): ProductSupplier {
+        $supplierCode = ! empty($itemData['supplier_code']) ? $itemData['supplier_code'] : $this->generateSupplierCode($productId, $supplierId);
+
         return ProductSupplier::updateOrCreate(
             [
                 'company_id' => $companyId,
+                'product_id' => $productId,
                 'supplier_id' => $supplierId,
-                'supplier_code' => ! empty($itemData['supplier_code']) ? $itemData['supplier_code'] : null,
             ],
             [
-                'product_id' => $productId,
+                'supplier_code' => $supplierCode,
                 'supplier_description' => $itemData['supplier_description'],
                 'supplier_cost' => $itemData['unit_price'],
                 'supplier_unit_measure_code' => $itemData['unit_measure_code'],
@@ -413,6 +415,18 @@ class DteImportService
         } while ($exists);
 
         return $sku;
+    }
+
+    /**
+     * Generate unique supplier code for a product-supplier relationship.
+     *
+     * @param  int  $productId  Product ID
+     * @param  int  $supplierId  Supplier ID
+     */
+    private function generateSupplierCode(int $productId, int $supplierId): string
+    {
+        // Generate a unique code using product and supplier IDs with timestamp
+        return 'AUTO-'.strtoupper(substr(md5($productId.$supplierId.microtime()), 0, 8));
     }
 
     /**
