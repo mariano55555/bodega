@@ -339,7 +339,7 @@ class DteImportService
                 'company_id' => $companyId,
                 'product_id' => $product->id,
                 'supplier_id' => $supplierId,
-                'supplier_code' => $itemData['supplier_code'],
+                'supplier_code' => ! empty($itemData['supplier_code']) ? $itemData['supplier_code'] : null,
                 'supplier_description' => $itemData['supplier_description'],
                 'supplier_cost' => $itemData['unit_price'],
                 'supplier_unit_measure_code' => $itemData['unit_measure_code'],
@@ -369,7 +369,7 @@ class DteImportService
             [
                 'company_id' => $companyId,
                 'supplier_id' => $supplierId,
-                'supplier_code' => $itemData['supplier_code'],
+                'supplier_code' => ! empty($itemData['supplier_code']) ? $itemData['supplier_code'] : null,
             ],
             [
                 'product_id' => $productId,
