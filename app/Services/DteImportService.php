@@ -212,7 +212,7 @@ class DteImportService
      * @param  int  $supplierId  Supplier ID
      * @return array Array of item analysis results
      */
-    public function analyzeItems(DteImport $dteImport, int $supplierId): array
+    public function analyzeItems(DteImport $dteImport, ?int $supplierId): array
     {
         $items = $dteImport->items;
         $companyId = $dteImport->company_id;
@@ -238,20 +238,24 @@ class DteImportService
                 'needs_creation' => true,
             ];
 
-            // Try to find product by supplier code
-            $productSupplier = ProductSupplier::forCompany($companyId)
-                ->forSupplier($supplierId)
-                ->bySupplierCode($parsed['code'])
-                ->with('product')
-                ->first();
+            // Try to find product by supplier code (only if supplierId is provided)
+            if ($supplierId) {
+                $productSupplier = ProductSupplier::forCompany($companyId)
+                    ->forSupplier($supplierId)
+                    ->bySupplierCode($parsed['code'])
+                    ->with('product')
+                    ->first();
 
-            if ($productSupplier) {
-                $result['product_id'] = $productSupplier->product_id;
-                $result['product'] = $productSupplier->product;
-                $result['match_type'] = 'supplier_code';
-                $result['needs_creation'] = false;
-            } else {
-                // Try to find by name similarity
+                if ($productSupplier) {
+                    $result['product_id'] = $productSupplier->product_id;
+                    $result['product'] = $productSupplier->product;
+                    $result['match_type'] = 'supplier_code';
+                    $result['needs_creation'] = false;
+                }
+            }
+
+            // If not found by supplier code, try to find by name similarity
+            if (! isset($productSupplier) || ! $productSupplier) {
                 $product = Product::query()
                     ->where('company_id', $companyId)
                     ->where(function ($query) use ($parsed) {

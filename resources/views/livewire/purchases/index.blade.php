@@ -98,12 +98,21 @@ new #[Layout('components.layouts.app')] class extends Component
             ->get(['id', 'name']);
     }
 
+    #[Computed]
+    public function acquisitionTypes()
+    {
+        return \App\Models\AcquisitionType::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+    }
+
     public function with(): array
     {
         $user = auth()->user();
 
         $query = Purchase::query()
-            ->with(['supplier', 'warehouse'])
+            ->with(['supplier', 'warehouse', 'acquisitionType'])
             ->when(! $user->isSuperAdmin(), fn ($q) => $q->where('company_id', $user->company_id))
             ->when($this->search, function ($q) {
                 $q->where(function ($query) {
@@ -114,7 +123,7 @@ new #[Layout('components.layouts.app')] class extends Component
             })
             ->when($this->statusFilter, fn ($q) => $q->where('status', $this->statusFilter))
             ->when($this->typeFilter, fn ($q) => $q->where('purchase_type', $this->typeFilter))
-            ->when($this->acquisitionTypeFilter, fn ($q) => $q->where('acquisition_type', $this->acquisitionTypeFilter))
+            ->when($this->acquisitionTypeFilter, fn ($q) => $q->where('acquisition_type_id', $this->acquisitionTypeFilter))
             ->when($this->warehouseFilter, fn ($q) => $q->where('warehouse_id', $this->warehouseFilter))
             ->latest('document_date');
 
@@ -238,16 +247,15 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:select wire:model.live="typeFilter" placeholder="Tipo de pago">
                     <flux:select.option value="">Tipo de pago</flux:select.option>
-                    <flux:select.option value="efectivo">Efectivo</flux:select.option>
+                    <flux:select.option value="contado">Contado</flux:select.option>
                     <flux:select.option value="credito">Crédito</flux:select.option>
                 </flux:select>
 
                 <flux:select wire:model.live="acquisitionTypeFilter" placeholder="Tipo de adquisición">
                     <flux:select.option value="">Tipo adquisición</flux:select.option>
-                    <flux:select.option value="normal">Compra Normal</flux:select.option>
-                    <flux:select.option value="convenio">Convenio</flux:select.option>
-                    <flux:select.option value="proyecto">Proyecto</flux:select.option>
-                    <flux:select.option value="otro">Otro</flux:select.option>
+                    @foreach($this->acquisitionTypes as $type)
+                        <flux:select.option value="{{ $type->id }}">{{ $type->name }}</flux:select.option>
+                    @endforeach
                 </flux:select>
 
                 <flux:select wire:model.live="warehouseFilter" placeholder="Todas las bodegas">
@@ -335,8 +343,8 @@ new #[Layout('components.layouts.app')] class extends Component
                         <flux:table.cell>
                             <flux:badge
                                 size="sm"
-                                :color="$purchase->purchase_type === 'efectivo' ? 'emerald' : 'amber'"
-                                :icon="$purchase->purchase_type === 'efectivo' ? 'banknotes' : 'credit-card'"
+                                :color="$purchase->purchase_type === 'contado' ? 'emerald' : 'amber'"
+                                :icon="$purchase->purchase_type === 'contado' ? 'banknotes' : 'credit-card'"
                             >
                                 {{ ucfirst($purchase->purchase_type) }}
                             </flux:badge>
@@ -344,17 +352,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
                         <flux:table.cell>
                             <div class="flex items-center gap-1">
-                                <flux:badge
-                                    size="sm"
-                                    :color="match($purchase->acquisition_type) {
-                                        'normal' => 'zinc',
-                                        'convenio' => 'sky',
-                                        'proyecto' => 'violet',
-                                        'otro' => 'amber',
-                                        default => 'zinc'
-                                    }"
-                                >
-                                    {{ $purchase->getAcquisitionTypeLabel() }}
+                                <flux:badge size="sm" color="zinc">
+                                    {{ $purchase->acquisitionType?->name ?? 'N/A' }}
                                 </flux:badge>
                                 @if ($purchase->is_retroactive)
                                     <flux:tooltip content="Compra Retroactiva">

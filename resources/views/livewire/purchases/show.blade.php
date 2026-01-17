@@ -127,7 +127,7 @@ new #[Layout('components.layouts.app')] class extends Component
             <flux:text class="mt-1">{{ $purchase->supplier?->name ?? 'Proveedor no disponible' }}</flux:text>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2" wire:key="purchase-actions-{{ $purchase->id }}-{{ $purchase->status }}">
             @can('update', $purchase)
                 <flux:button variant="primary" icon="pencil" href="{{ route('purchases.edit', $purchase) }}" wire:navigate>
                     Editar
