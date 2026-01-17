@@ -288,7 +288,7 @@ class Purchase extends Model
             $this->save();
 
             // Get the purchase receive movement reason
-            $movementReason = MovementReason::where('code', 'PURCH_RCV')->firstOrFail();
+            $movementReason = MovementReason::where('code', 'PURCH_LOCAL')->firstOrFail();
 
             // Create inventory movements for each purchase detail
             foreach ($this->details as $detail) {
