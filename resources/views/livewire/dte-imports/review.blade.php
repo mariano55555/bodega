@@ -3,27 +3,33 @@
 use App\Models\DteImport;
 use App\Models\Product;
 use App\Models\ProductCategory;
-use App\Models\ProductSupplier;
 use App\Models\Purchase;
 use App\Models\PurchaseDetail;
 use App\Models\UnitOfMeasure;
 use App\Models\Warehouse;
 use App\Services\DteImportService;
-use Livewire\Volt\Component;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
-use Illuminate\Support\Facades\DB;
+use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     #[Locked]
     public int $dteImportId;
 
     public array $itemMappings = [];
+
     public bool $showCreateProductModal = false;
+
     public bool $showCreatePurchaseModal = false;
+
     public int $currentItemIndex = -1;
+
     public array $newProduct = [];
+
     public ?int $selectedWarehouseId = null;
+
     public bool $autoReceive = true;
 
     public function mount(DteImport $dteImport): void
@@ -31,7 +37,7 @@ new class extends Component {
         $user = auth()->user();
 
         // Verify ownership (super admin can access all)
-        if (!$user->isSuperAdmin() && $dteImport->company_id !== $user->company_id) {
+        if (! $user->isSuperAdmin() && $dteImport->company_id !== $user->company_id) {
             abort(403);
         }
 
@@ -68,7 +74,7 @@ new class extends Component {
         return UnitOfMeasure::query()
             ->where(function ($query) {
                 $query->where('company_id', $this->getCompanyId())
-                      ->orWhereNull('company_id');
+                    ->orWhereNull('company_id');
             })
             ->whereNotNull('active_at')
             ->orderBy('name')
@@ -101,8 +107,9 @@ new class extends Component {
         $dteImport = $this->dteImport;
 
         // If we have saved mappings, use them
-        if (!empty($dteImport->mapping_data)) {
+        if (! empty($dteImport->mapping_data)) {
             $this->itemMappings = $dteImport->mapping_data;
+
             return;
         }
 
@@ -137,14 +144,14 @@ new class extends Component {
     public function openCreateProductModal(int $index): void
     {
         $item = $this->itemMappings[$index] ?? null;
-        if (!$item) {
+        if (! $item) {
             return;
         }
 
         $this->currentItemIndex = $index;
         $this->newProduct = [
             'name' => $item['parsed_name'],
-            'sku' => 'PROD-' . $item['supplier_code'],
+            'sku' => 'PROD-'.$item['supplier_code'],
             'description' => '',
             'category_id' => null,
             'unit_of_measure_id' => null,
@@ -217,7 +224,7 @@ new class extends Component {
             session()->flash('success', "Producto '{$product->name}' creado exitosamente.");
 
         } catch (\Exception $e) {
-            $this->addError('newProduct.name', 'Error al crear producto: ' . $e->getMessage());
+            $this->addError('newProduct.name', 'Error al crear producto: '.$e->getMessage());
         }
     }
 
@@ -278,6 +285,7 @@ new class extends Component {
                 return false;
             }
         }
+
         return true;
     }
 
@@ -291,7 +299,7 @@ new class extends Component {
         foreach ($this->itemMappings as $item) {
             if ($item['action'] === 'skip') {
                 $skipped++;
-            } elseif (!empty($item['product_id'])) {
+            } elseif (! empty($item['product_id'])) {
                 $linked++;
             } else {
                 $toCreate++;
@@ -308,8 +316,9 @@ new class extends Component {
 
     public function markAsReady(): void
     {
-        if (!$this->canFinalize) {
+        if (! $this->canFinalize) {
             session()->flash('error', 'Todos los productos deben estar mapeados o marcados para omitir.');
+
             return;
         }
 
@@ -321,8 +330,9 @@ new class extends Component {
 
     public function openCreatePurchaseModal(): void
     {
-        if (!$this->canFinalize) {
+        if (! $this->canFinalize) {
             session()->flash('error', 'Todos los productos deben estar mapeados antes de crear la compra.');
+
             return;
         }
 
@@ -344,8 +354,9 @@ new class extends Component {
             'selectedWarehouseId.required' => 'Debe seleccionar una bodega destino',
         ]);
 
-        if (!$this->canFinalize) {
+        if (! $this->canFinalize) {
             $this->addError('selectedWarehouseId', 'Todos los productos deben estar mapeados.');
+
             return;
         }
 
@@ -353,6 +364,9 @@ new class extends Component {
 
         try {
             DB::beginTransaction();
+
+            // Get default acquisition type
+            $defaultAcquisitionType = \App\Models\AcquisitionType::where('is_active', true)->first();
 
             // Create the purchase
             $purchase = Purchase::create([
@@ -362,9 +376,9 @@ new class extends Component {
                 'document_type' => 'factura',
                 'document_number' => $dteImport->numero_control,
                 'document_date' => $dteImport->fecha_emision,
-                'purchase_type' => 'efectivo',
+                'purchase_type' => 'contado',
                 'payment_status' => 'pendiente',
-                'acquisition_type' => 'normal',
+                'acquisition_type_id' => $defaultAcquisitionType?->id,
                 'subtotal' => $dteImport->total_gravado,
                 'tax_amount' => $dteImport->total_iva,
                 'discount_amount' => 0,
@@ -420,7 +434,7 @@ new class extends Component {
 
         } catch (\Exception $e) {
             DB::rollBack();
-            $this->addError('selectedWarehouseId', 'Error al crear la compra: ' . $e->getMessage());
+            $this->addError('selectedWarehouseId', 'Error al crear la compra: '.$e->getMessage());
         }
     }
 
