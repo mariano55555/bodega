@@ -525,6 +525,26 @@ new class extends Component
         }
 
         $dteImport = $this->dteImport;
+        $companyId = $this->getCompanyId();
+
+        // Get supplier_id, trying to find it if not set
+        $supplierId = $dteImport->supplier_id;
+        if (! $supplierId && $dteImport->emisor_nit) {
+            $supplier = \App\Models\Supplier::forCompany($companyId)
+                ->where('tax_id', $dteImport->emisor_nit)
+                ->first();
+            if ($supplier) {
+                $supplierId = $supplier->id;
+                // Update DTE with found supplier for future use
+                $dteImport->update(['supplier_id' => $supplierId]);
+            }
+        }
+
+        // Validate supplier exists
+        if (! $supplierId) {
+            $this->addError('selectedWarehouseId', 'No se encontró el proveedor asociado al DTE. Verifique que el proveedor exista en el sistema.');
+            return;
+        }
 
         try {
             DB::beginTransaction();
@@ -534,9 +554,9 @@ new class extends Component
 
             // Create the purchase
             $purchase = Purchase::create([
-                'company_id' => $this->getCompanyId(),
+                'company_id' => $companyId,
                 'warehouse_id' => $this->selectedWarehouseId,
-                'supplier_id' => $dteImport->supplier_id,
+                'supplier_id' => $supplierId,
                 'document_type' => 'factura',
                 'document_number' => $dteImport->numero_control,
                 'document_date' => $dteImport->fecha_emision,
