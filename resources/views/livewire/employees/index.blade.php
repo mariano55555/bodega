@@ -13,8 +13,6 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public string $statusFilter = '';
 
-    public ?int $employeeToDelete = null;
-
     public bool $showFilters = false;
 
     public int $perPage = 15;
@@ -32,16 +30,6 @@ new #[Layout('components.layouts.app')] class extends Component
     public function toggleFilters(): void
     {
         $this->showFilters = ! $this->showFilters;
-    }
-
-    public function confirmDelete(int $employeeId): void
-    {
-        $this->employeeToDelete = $employeeId;
-    }
-
-    public function cancelDelete(): void
-    {
-        $this->employeeToDelete = null;
     }
 
     public function with(): array
@@ -73,24 +61,18 @@ new #[Layout('components.layouts.app')] class extends Component
         ];
     }
 
-    public function delete(): void
+    public function delete(int $employeeId): void
     {
-        if (! $this->employeeToDelete) {
-            return;
-        }
-
-        $employee = Employee::find($this->employeeToDelete);
+        $employee = Employee::find($employeeId);
 
         if (! $employee) {
             \Flux\Flux::toast('Empleado no encontrado.', variant: 'danger');
-            $this->employeeToDelete = null;
 
             return;
         }
 
         $employee->delete();
         \Flux\Flux::toast('Empleado eliminado exitosamente.', variant: 'success');
-        $this->employeeToDelete = null;
     }
 
     public function toggleStatus(int $employeeId): void
@@ -271,7 +253,7 @@ new #[Layout('components.layouts.app')] class extends Component
     <!-- Delete Confirmation Modals -->
     @foreach ($employees as $employee)
         <flux:modal name="delete-employee-{{ $employee->id }}" class="min-w-[22rem]">
-            <form wire:submit="delete" class="space-y-6">
+            <div class="space-y-6">
                 <div>
                     <flux:heading size="lg">Confirmar eliminación</flux:heading>
                     <flux:text class="mt-2">
@@ -285,16 +267,17 @@ new #[Layout('components.layouts.app')] class extends Component
                     <flux:modal.close>
                         <flux:button variant="ghost">Cancelar</flux:button>
                     </flux:modal.close>
-                    <flux:button
-                        type="button"
-                        variant="danger"
-                        wire:click="confirmDelete({{ $employee->id }})"
-                        wire:then="delete"
-                    >
-                        Eliminar empleado
-                    </flux:button>
+                    <flux:modal.close>
+                        <flux:button
+                            type="button"
+                            variant="danger"
+                            wire:click="delete({{ $employee->id }})"
+                        >
+                            Eliminar empleado
+                        </flux:button>
+                    </flux:modal.close>
                 </div>
-            </form>
+            </div>
         </flux:modal>
     @endforeach
 </div>

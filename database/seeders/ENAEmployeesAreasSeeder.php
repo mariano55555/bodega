@@ -30,8 +30,9 @@ class ENAEmployeesAreasSeeder extends Seeder
         array_shift($data);
 
         // Índices de columnas relevantes
-        $tipoIndex = 2;   // Tipo * (Unidad/Depto)
+        $codigoIndex = 0; // Código *
         $nombreIndex = 1; // Nombre *
+        $tipoIndex = 2;   // Tipo * (Unidad/Depto)
         $emailIndex = 3;  // Correo Electrónico
 
         // Obtener la primera compañía disponible
@@ -78,9 +79,10 @@ class ENAEmployeesAreasSeeder extends Seeder
         $creados = 0;
 
         foreach ($data as $row) {
+            $codigo = trim($row[$codigoIndex] ?? '');
             $nombre = trim($row[$nombreIndex] ?? '');
-            $email = trim($row[$emailIndex] ?? '');
             $tipo = trim($row[$tipoIndex] ?? '');
+            $email = trim($row[$emailIndex] ?? '');
 
             if (empty($nombre) || empty($tipo)) {
                 continue;
@@ -109,18 +111,20 @@ class ENAEmployeesAreasSeeder extends Seeder
 
             if ($employee) {
                 $employee->update([
+                    'employee_code' => $codigo ?: $employee->employee_code,
                     'area_id' => $areaId,
                     'is_active' => true,
                     'active_at' => $employee->active_at ?? now(),
                 ]);
                 $employee->restore(); // Por si estaba soft deleted
                 $actualizados++;
-                $this->command->info("Empleado actualizado: {$employee->name} ({$employee->email}) -> Área: {$tipo}");
+                $this->command->info("Empleado actualizado: {$codigo} - {$employee->name} ({$employee->email}) -> Área: {$tipo}");
             } else {
                 // Crear nuevo empleado
-                $newEmployee = Employee::create([
+                Employee::create([
                     'company_id' => $companyId,
                     'area_id' => $areaId,
+                    'employee_code' => $codigo ?: null,
                     'name' => $nombre,
                     'email' => $email ?: null,
                     'slug' => Str::slug($nombre),
@@ -128,7 +132,7 @@ class ENAEmployeesAreasSeeder extends Seeder
                     'active_at' => now(),
                 ]);
                 $creados++;
-                $this->command->warn("Empleado CREADO: {$nombre} ({$email}) -> Área: {$tipo}");
+                $this->command->warn("Empleado CREADO: {$codigo} - {$nombre} ({$email}) -> Área: {$tipo}");
             }
         }
 
