@@ -34,6 +34,16 @@ class ENAEmployeesAreasSeeder extends Seeder
         $nombreIndex = 1; // Nombre *
         $emailIndex = 3;  // Correo Electrónico
 
+        // Obtener la primera compañía disponible
+        $company = \App\Models\Company::first();
+        if (! $company) {
+            $this->command->error('No hay compañías registradas en el sistema.');
+
+            return;
+        }
+        $companyId = $company->id;
+        $this->command->info("Usando compañía: {$company->name} (ID: {$companyId})");
+
         // 1. Eliminar áreas con soft delete (restaurar y luego limpiar)
         $this->command->info('Eliminando áreas existentes con soft delete...');
         Area::withTrashed()->forceDelete();
@@ -53,7 +63,7 @@ class ENAEmployeesAreasSeeder extends Seeder
         $areasMap = []; // nombre => id
         foreach ($areasUnicas as $areaNombre) {
             $area = Area::create([
-                'company_id' => 1, // Ajustar según corresponda
+                'company_id' => $companyId,
                 'name' => $areaNombre,
                 'slug' => Str::slug($areaNombre),
                 'is_active' => true,
@@ -63,9 +73,9 @@ class ENAEmployeesAreasSeeder extends Seeder
             $this->command->info("Área creada: {$areaNombre}");
         }
 
-        // 4. Actualizar empleados según nombre o email
+        // 4. Actualizar o crear empleados según nombre o email
         $actualizados = 0;
-        $noEncontrados = [];
+        $creados = 0;
 
         foreach ($data as $row) {
             $nombre = trim($row[$nombreIndex] ?? '');
@@ -105,9 +115,20 @@ class ENAEmployeesAreasSeeder extends Seeder
                 ]);
                 $employee->restore(); // Por si estaba soft deleted
                 $actualizados++;
-                $this->command->info("Empleado actualizado: {$employee->name} -> Área: {$tipo}");
+                $this->command->info("Empleado actualizado: {$employee->name} ({$employee->email}) -> Área: {$tipo}");
             } else {
-                $noEncontrados[] = "{$nombre} ({$email})";
+                // Crear nuevo empleado
+                $newEmployee = Employee::create([
+                    'company_id' => $companyId,
+                    'area_id' => $areaId,
+                    'name' => $nombre,
+                    'email' => $email ?: null,
+                    'slug' => Str::slug($nombre),
+                    'is_active' => true,
+                    'active_at' => now(),
+                ]);
+                $creados++;
+                $this->command->warn("Empleado CREADO: {$nombre} ({$email}) -> Área: {$tipo}");
             }
         }
 
@@ -115,12 +136,6 @@ class ENAEmployeesAreasSeeder extends Seeder
         $this->command->info('Resumen:');
         $this->command->info('- Áreas creadas: '.count($areasUnicas));
         $this->command->info("- Empleados actualizados: {$actualizados}");
-
-        if (! empty($noEncontrados)) {
-            $this->command->warn('Empleados no encontrados ('.count($noEncontrados).'):');
-            foreach ($noEncontrados as $nf) {
-                $this->command->warn("  - {$nf}");
-            }
-        }
+        $this->command->info("- Empleados creados: {$creados}");
     }
 }
