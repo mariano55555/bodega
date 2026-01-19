@@ -468,10 +468,17 @@ new #[Layout('components.layouts.app')] class extends Component
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <flux:field class="md:col-span-2">
                                 <flux:label badge="Requerido">Producto</flux:label>
-                                <flux:select wire:model.live="details.{{ $index }}.product_id" :disabled="$this->isSuperAdmin() && !$company_id">
-                                    <option value="">Seleccione producto</option>
+                                <flux:select
+                                    variant="listbox"
+                                    searchable
+                                    wire:model.live="details.{{ $index }}.product_id"
+                                    :disabled="$this->isSuperAdmin() && !$company_id"
+                                    placeholder="Buscar producto..."
+                                >
                                     @foreach ($this->products as $product)
-                                        <option value="{{ $product->id }}">{{ $product->name }}</option>
+                                        <flux:select.option value="{{ $product->id }}">
+                                            {{ $product->name }}{{ $product->sku ? ' - ' . $product->sku : '' }}
+                                        </flux:select.option>
                                     @endforeach
                                 </flux:select>
                                 @if (isset($stockInfo[$index]) && $warehouse_id)
