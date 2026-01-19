@@ -325,11 +325,12 @@ new #[Layout('components.layouts.app')] class extends Component
                     @error('fund_source') <flux:error>{{ $message }}</flux:error> @enderror
                 </flux:field>
 
-                <flux:field>
+                {{-- Costo de Envío - Comentado por petición del cliente --}}
+                {{-- <flux:field>
                     <flux:label>Costo de Envío</flux:label>
                     <flux:input type="number" step="0.01" wire:model="shipping_cost" />
                     @error('shipping_cost') <flux:error>{{ $message }}</flux:error> @enderror
-                </flux:field>
+                </flux:field> --}}
             </div>
         </flux:card>
 

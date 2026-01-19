@@ -306,18 +306,18 @@ class DteImportService
      *
      * @param  array  $itemData  Analyzed item data
      * @param  int  $companyId  Company ID
-     * @param  int  $supplierId  Supplier ID
+     * @param  int|null  $supplierId  Supplier ID (optional)
      * @param  array  $additionalData  Additional product data (category_id, unit_of_measure_id, etc.)
      */
     public function createProductFromItem(
         array $itemData,
         int $companyId,
-        int $supplierId,
+        ?int $supplierId,
         array $additionalData = []
     ): Product {
         return DB::transaction(function () use ($itemData, $companyId, $supplierId, $additionalData) {
             // Generate unique SKU
-            $sku = $additionalData['sku'] ?? $this->generateSku($itemData['supplier_code'], $companyId);
+            $sku = $additionalData['sku'] ?? $this->generateSku($itemData['supplier_code'] ?? '', $companyId);
 
             $product = Product::create([
                 'company_id' => $companyId,
@@ -327,25 +327,27 @@ class DteImportService
                 'category_id' => $additionalData['category_id'] ?? null,
                 'unit_of_measure_id' => $additionalData['unit_of_measure_id'] ?? null,
                 'unit_of_measure' => $additionalData['unit_of_measure'] ?? 'unidad',
-                'cost' => $itemData['unit_price'],
+                'cost' => $itemData['unit_price'] ?? 0,
                 'price' => $additionalData['price'] ?? null,
                 'primary_supplier_id' => $supplierId,
                 'track_inventory' => true,
                 'is_active' => true,
             ]);
 
-            // Create product-supplier mapping
-            ProductSupplier::create([
-                'company_id' => $companyId,
-                'product_id' => $product->id,
-                'supplier_id' => $supplierId,
-                'supplier_code' => ! empty($itemData['supplier_code']) ? $itemData['supplier_code'] : $this->generateSupplierCode($product->id, $supplierId),
-                'supplier_description' => $itemData['supplier_description'],
-                'supplier_cost' => $itemData['unit_price'],
-                'supplier_unit_measure_code' => $itemData['unit_measure_code'],
-                'is_preferred' => true,
-                'is_active' => true,
-            ]);
+            // Create product-supplier mapping only if supplier is provided
+            if ($supplierId) {
+                ProductSupplier::create([
+                    'company_id' => $companyId,
+                    'product_id' => $product->id,
+                    'supplier_id' => $supplierId,
+                    'supplier_code' => ! empty($itemData['supplier_code']) ? $itemData['supplier_code'] : $this->generateSupplierCode($product->id, $supplierId),
+                    'supplier_description' => $itemData['supplier_description'] ?? null,
+                    'supplier_cost' => $itemData['unit_price'] ?? 0,
+                    'supplier_unit_measure_code' => $itemData['unit_measure_code'] ?? null,
+                    'is_preferred' => true,
+                    'is_active' => true,
+                ]);
+            }
 
             return $product;
         });

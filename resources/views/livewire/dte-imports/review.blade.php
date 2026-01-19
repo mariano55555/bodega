@@ -277,6 +277,19 @@ new class extends Component
         $service = app(DteImportService::class);
         $companyId = $this->getCompanyId();
 
+        // Get supplier_id, trying to find it if not set
+        $supplierId = $dteImport->supplier_id;
+        if (! $supplierId && $dteImport->emisor_nit) {
+            $supplier = \App\Models\Supplier::forCompany($companyId)
+                ->where('tax_id', $dteImport->emisor_nit)
+                ->first();
+            if ($supplier) {
+                $supplierId = $supplier->id;
+                // Update DTE with found supplier for future use
+                $dteImport->update(['supplier_id' => $supplierId]);
+            }
+        }
+
         try {
             // Get unit of measure name
             $unitName = 'unidad';
@@ -288,7 +301,7 @@ new class extends Component
             $product = $service->createProductFromItem(
                 $item,
                 $companyId,
-                $dteImport->supplier_id,
+                $supplierId,
                 [
                     'name' => $this->newProductName,
                     'sku' => $this->newProductSku ?: null,

@@ -483,11 +483,12 @@ new #[Layout('components.layouts.app')] class extends Component
                     <flux:error name="fund_source_id" />
                 </flux:field>
 
-                <flux:field>
+                {{-- Costo de Envío - Comentado por petición del cliente --}}
+                {{-- <flux:field>
                     <flux:label>Costo de Envío ($)</flux:label>
                     <flux:input type="number" step="0.01" wire:model="shipping_cost" />
                     <flux:error name="shipping_cost" />
-                </flux:field>
+                </flux:field> --}}
             </div>
         </flux:card>
 
@@ -511,17 +512,26 @@ new #[Layout('components.layouts.app')] class extends Component
                     <flux:error name="acquisition_type_id" />
                 </flux:field>
 
-                <flux:field>
-                    <flux:label>Nombre del Proyecto</flux:label>
-                    <flux:input wire:model="project_name" placeholder="Ej: Proyecto Infraestructura 2025" />
-                    <flux:error name="project_name" />
-                </flux:field>
+                @php
+                    $selectedAcquisitionType = $this->acquisitionTypes->firstWhere('id', $acquisition_type_id);
+                    $acquisitionSlug = $selectedAcquisitionType?->slug ?? '';
+                @endphp
 
-                <flux:field>
-                    <flux:label>Número de Convenio</flux:label>
-                    <flux:input wire:model="agreement_number" placeholder="Ej: CONV-2025-001" />
-                    <flux:error name="agreement_number" />
-                </flux:field>
+                @if($acquisitionSlug === 'proyecto')
+                    <flux:field>
+                        <flux:label>Nombre del Proyecto</flux:label>
+                        <flux:input wire:model="project_name" placeholder="Ej: Proyecto Infraestructura 2025" />
+                        <flux:error name="project_name" />
+                    </flux:field>
+                @endif
+
+                @if($acquisitionSlug === 'convenio')
+                    <flux:field>
+                        <flux:label>Número de Convenio</flux:label>
+                        <flux:input wire:model="agreement_number" placeholder="Ej: CONV-2025-001" />
+                        <flux:error name="agreement_number" />
+                    </flux:field>
+                @endif
             </div>
 
             @if(\Carbon\Carbon::parse($document_date ?? now())->isBefore(now()->startOfMonth()))
