@@ -167,23 +167,46 @@ class DteImportService
             ->where('slug', $slug)
             ->first();
 
+        // If not found by slug, try partial name match
+        if (! $supplier) {
+            $supplier = Supplier::withTrashed()
+                ->forCompany($companyId)
+                ->where(function ($query) use ($name, $emisor) {
+                    $query->where('name', 'like', '%'.$name.'%')
+                        ->orWhere('legal_name', 'like', '%'.$name.'%')
+                        ->orWhere('name', 'like', '%'.$emisor['nombre'].'%')
+                        ->orWhere('legal_name', 'like', '%'.$emisor['nombre'].'%');
+                })
+                ->first();
+        }
+
         if ($supplier) {
             // If found but soft deleted, restore it
             if ($supplier->trashed()) {
                 $supplier->restore();
             }
 
-            // Update the supplier information
+            // Update the supplier information (including tax_id if empty)
             $direccion = $emisor['direccion'] ?? [];
-            $supplier->update([
-                'name' => $name,
+            $updateData = [
                 'legal_name' => $emisor['nombre'],
-                'tax_id' => $emisor['nit'],
                 'email' => $emisor['correo'] ?? $supplier->email,
                 'phone' => $emisor['telefono'] ?? $supplier->phone,
                 'address' => $direccion['complemento'] ?? $supplier->address,
                 'is_active' => true,
-            ]);
+            ];
+
+            // Only update tax_id (NIT) if it's empty or too short
+            if (empty($supplier->tax_id) || strlen($supplier->tax_id) < 10) {
+                $updateData['tax_id'] = $emisor['nit'];
+            }
+
+            // Update NRC if available and empty
+            if (! empty($emisor['nrc']) && empty($supplier->nrc)) {
+                $updateData['nrc'] = $emisor['nrc'];
+            }
+
+            $supplier->update($updateData);
 
             return ['supplier' => $supplier, 'created' => false];
         }
@@ -196,6 +219,7 @@ class DteImportService
             'name' => $name,
             'legal_name' => $emisor['nombre'],
             'tax_id' => $emisor['nit'],
+            'nrc' => $emisor['nrc'] ?? null,
             'email' => $emisor['correo'] ?? null,
             'phone' => $emisor['telefono'] ?? null,
             'address' => $direccion['complemento'] ?? null,

@@ -368,6 +368,54 @@ class Purchase extends Model
     }
 
     /**
+     * Check if the purchase can be edited (only in borrador status)
+     */
+    public function canBeEdited(): bool
+    {
+        return $this->status === 'borrador';
+    }
+
+    /**
+     * Check if the purchase can be submitted for approval
+     */
+    public function canBeSubmitted(): bool
+    {
+        return $this->status === 'borrador';
+    }
+
+    /**
+     * Check if the purchase can be approved
+     */
+    public function canBeApproved(): bool
+    {
+        return $this->status === 'pendiente';
+    }
+
+    /**
+     * Check if the purchase can be received
+     */
+    public function canBeReceived(): bool
+    {
+        return $this->status === 'aprobado';
+    }
+
+    /**
+     * Check if the purchase can be cancelled
+     */
+    public function canBeCancelled(): bool
+    {
+        return ! in_array($this->status, ['recibido', 'cancelado']);
+    }
+
+    /**
+     * Check if the purchase can be deleted
+     */
+    public function canBeDeleted(): bool
+    {
+        return $this->status === 'borrador';
+    }
+
+    /**
      * Sync product-supplier relationship when receiving a purchase.
      * Creates or updates the relationship with purchase information.
      */

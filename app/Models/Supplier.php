@@ -27,6 +27,7 @@ class Supplier extends Model
         'legal_name',
         'company_id',
         'tax_id',
+        'nrc',
         'email',
         'phone',
         'website',
@@ -108,7 +109,7 @@ class Supplier extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'tax_id', 'email', 'phone', 'is_active', 'credit_limit'])
+            ->logOnly(['name', 'tax_id', 'nrc', 'email', 'phone', 'is_active', 'credit_limit'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->setDescriptionForEvent(fn (string $eventName) => "Proveedor '{$this->name}' {$eventName}");

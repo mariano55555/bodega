@@ -13,6 +13,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public ?string $tax_id = '';
 
+    public ?string $nrc = '';
+
     public ?string $email = '';
 
     public ?string $phone = '';
@@ -182,9 +184,16 @@ new #[Layout('components.layouts.app')] class extends Component
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>NIT/DUI</flux:label>
+                    <flux:label>NIT</flux:label>
                     <flux:input wire:model="tax_id" placeholder="0000-000000-000-0" />
                     <flux:error name="tax_id" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>NRC</flux:label>
+                    <flux:input wire:model="nrc" placeholder="000000-0" />
+                    <flux:description>Número de Registro de Contribuyente</flux:description>
+                    <flux:error name="nrc" />
                 </flux:field>
 
                 <flux:field>

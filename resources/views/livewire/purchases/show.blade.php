@@ -127,52 +127,52 @@ new #[Layout('components.layouts.app')] class extends Component
             <flux:text class="mt-1">{{ $purchase->supplier?->name ?? 'Proveedor no disponible' }}</flux:text>
         </div>
 
-        <div class="flex items-center gap-2" wire:key="purchase-actions-{{ $purchase->id }}-{{ $purchase->status }}">
-            @can('update', $purchase)
+        <div class="flex items-center gap-2">
+            @if ($purchase->canBeEdited())
                 <flux:button variant="primary" icon="pencil" href="{{ route('purchases.edit', $purchase) }}" wire:navigate>
                     Editar
                 </flux:button>
-            @endcan
+            @endif
 
-            @can('submit', $purchase)
+            @if ($purchase->canBeSubmitted())
                 <flux:modal.trigger name="submit-modal">
                     <flux:button variant="primary" icon="paper-airplane">
                         Enviar
                     </flux:button>
                 </flux:modal.trigger>
-            @endcan
+            @endif
 
-            @can('approve', $purchase)
+            @if ($purchase->canBeApproved())
                 <flux:modal.trigger name="approve-modal">
                     <flux:button variant="primary" icon="check">
                         Aprobar
                     </flux:button>
                 </flux:modal.trigger>
-            @endcan
+            @endif
 
-            @can('receive', $purchase)
+            @if ($purchase->canBeReceived())
                 <flux:modal.trigger name="receive-modal">
                     <flux:button variant="filled" icon="check-circle">
                         Recibir
                     </flux:button>
                 </flux:modal.trigger>
-            @endcan
+            @endif
 
-            @can('cancel', $purchase)
+            @if ($purchase->canBeCancelled())
                 <flux:modal.trigger name="cancel-modal">
                     <flux:button variant="danger" icon="x-circle">
                         Cancelar
                     </flux:button>
                 </flux:modal.trigger>
-            @endcan
+            @endif
 
-            @can('delete', $purchase)
+            @if ($purchase->canBeDeleted())
                 <flux:modal.trigger name="delete-modal">
                     <flux:button variant="danger" icon="trash">
                         Eliminar
                     </flux:button>
                 </flux:modal.trigger>
-            @endcan
+            @endif
 
             <flux:button variant="ghost" icon="arrow-left" href="{{ route('purchases.index') }}" wire:navigate>
                 Volver
@@ -482,7 +482,7 @@ new #[Layout('components.layouts.app')] class extends Component
     </div>
 
     {{-- Submit Confirmation Modal --}}
-    @can('submit', $purchase)
+    @if ($purchase->canBeSubmitted())
         <flux:modal name="submit-modal" class="min-w-[22rem]">
             <div class="space-y-6">
                 <div>
@@ -501,10 +501,10 @@ new #[Layout('components.layouts.app')] class extends Component
                 </div>
             </div>
         </flux:modal>
-    @endcan
+    @endif
 
     {{-- Approve Confirmation Modal --}}
-    @can('approve', $purchase)
+    @if ($purchase->canBeApproved())
         <flux:modal name="approve-modal" class="min-w-[22rem]">
             <div class="space-y-6">
                 <div>
@@ -523,10 +523,10 @@ new #[Layout('components.layouts.app')] class extends Component
                 </div>
             </div>
         </flux:modal>
-    @endcan
+    @endif
 
     {{-- Receive Confirmation Modal --}}
-    @can('receive', $purchase)
+    @if ($purchase->canBeReceived())
         <flux:modal name="receive-modal" class="min-w-[22rem]">
             <div class="space-y-6">
                 <div>
@@ -545,10 +545,10 @@ new #[Layout('components.layouts.app')] class extends Component
                 </div>
             </div>
         </flux:modal>
-    @endcan
+    @endif
 
     {{-- Cancel Confirmation Modal --}}
-    @can('cancel', $purchase)
+    @if ($purchase->canBeCancelled())
         <flux:modal name="cancel-modal" class="min-w-[22rem]">
             <div class="space-y-6">
                 <div>
@@ -567,10 +567,10 @@ new #[Layout('components.layouts.app')] class extends Component
                 </div>
             </div>
         </flux:modal>
-    @endcan
+    @endif
 
     {{-- Delete Confirmation Modal --}}
-    @can('delete', $purchase)
+    @if ($purchase->canBeDeleted())
         <flux:modal name="delete-modal" class="min-w-[22rem]">
             <div class="space-y-6">
                 <div>
@@ -589,5 +589,5 @@ new #[Layout('components.layouts.app')] class extends Component
                 </div>
             </div>
         </flux:modal>
-    @endcan
+    @endif
 </div>

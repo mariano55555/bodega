@@ -280,9 +280,24 @@ new class extends Component
         // Get supplier_id, trying to find it if not set
         $supplierId = $dteImport->supplier_id;
         if (! $supplierId && $dteImport->emisor_nit) {
+            // Clean NIT for comparison (remove dashes, spaces)
+            $cleanNit = preg_replace('/[^0-9]/', '', $dteImport->emisor_nit);
+
             $supplier = \App\Models\Supplier::forCompany($companyId)
-                ->where('tax_id', $dteImport->emisor_nit)
+                ->where(function ($query) use ($dteImport, $cleanNit) {
+                    $query->where('tax_id', $dteImport->emisor_nit)
+                        ->orWhereRaw("REPLACE(REPLACE(tax_id, '-', ''), ' ', '') = ?", [$cleanNit]);
+                })
                 ->first();
+
+            // If not found by NIT, try by name
+            if (! $supplier && $dteImport->emisor_nombre) {
+                $supplier = \App\Models\Supplier::forCompany($companyId)
+                    ->where('name', 'like', '%' . $dteImport->emisor_nombre . '%')
+                    ->orWhere('legal_name', 'like', '%' . $dteImport->emisor_nombre . '%')
+                    ->first();
+            }
+
             if ($supplier) {
                 $supplierId = $supplier->id;
                 // Update DTE with found supplier for future use
@@ -530,9 +545,24 @@ new class extends Component
         // Get supplier_id, trying to find it if not set
         $supplierId = $dteImport->supplier_id;
         if (! $supplierId && $dteImport->emisor_nit) {
+            // Clean NIT for comparison (remove dashes, spaces)
+            $cleanNit = preg_replace('/[^0-9]/', '', $dteImport->emisor_nit);
+
             $supplier = \App\Models\Supplier::forCompany($companyId)
-                ->where('tax_id', $dteImport->emisor_nit)
+                ->where(function ($query) use ($dteImport, $cleanNit) {
+                    $query->where('tax_id', $dteImport->emisor_nit)
+                        ->orWhereRaw("REPLACE(REPLACE(tax_id, '-', ''), ' ', '') = ?", [$cleanNit]);
+                })
                 ->first();
+
+            // If not found by NIT, try by name
+            if (! $supplier && $dteImport->emisor_nombre) {
+                $supplier = \App\Models\Supplier::forCompany($companyId)
+                    ->where('name', 'like', '%' . $dteImport->emisor_nombre . '%')
+                    ->orWhere('legal_name', 'like', '%' . $dteImport->emisor_nombre . '%')
+                    ->first();
+            }
+
             if ($supplier) {
                 $supplierId = $supplier->id;
                 // Update DTE with found supplier for future use
@@ -542,7 +572,7 @@ new class extends Component
 
         // Validate supplier exists
         if (! $supplierId) {
-            $this->addError('selectedWarehouseId', 'No se encontró el proveedor asociado al DTE. Verifique que el proveedor exista en el sistema.');
+            $this->addError('selectedWarehouseId', "No se encontró el proveedor '{$dteImport->emisor_nombre}' (NIT: {$dteImport->emisor_nit}) en el sistema. Debe crearlo primero.");
             return;
         }
 
