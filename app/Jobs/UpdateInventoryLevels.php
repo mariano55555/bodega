@@ -175,18 +175,18 @@ class UpdateInventoryLevels implements ShouldQueue
      */
     private function calculateQuantityChange(): float
     {
-        $inboundTypes = ['in', 'transfer'];
-        $adjustmentTypes = ['adjustment'];
+        $inboundTypes = ['in', 'transfer', 'transfer_in'];
+        $outboundTypes = ['out', 'transfer_out'];
 
         if (in_array($this->movement->movement_type, $inboundTypes)) {
-            return $this->movement->quantity;
+            return abs($this->movement->quantity);
         }
 
-        if ($this->movement->movement_type === 'out') {
-            return -$this->movement->quantity;
+        if (in_array($this->movement->movement_type, $outboundTypes)) {
+            return -abs($this->movement->quantity);
         }
 
-        if (in_array($this->movement->movement_type, $adjustmentTypes)) {
+        if ($this->movement->movement_type === 'adjustment') {
             // For adjustments, quantity can be positive or negative
             return $this->movement->quantity;
         }
@@ -199,7 +199,7 @@ class UpdateInventoryLevels implements ShouldQueue
      */
     private function isInboundMovement(): bool
     {
-        return in_array($this->movement->movement_type, ['in', 'transfer']);
+        return in_array($this->movement->movement_type, ['in', 'transfer', 'transfer_in']);
     }
 
     /**

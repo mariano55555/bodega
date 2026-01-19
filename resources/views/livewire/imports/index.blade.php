@@ -4,8 +4,10 @@ use App\Models\Company;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 use Livewire\Attributes\Computed;
+use App\Imports\CategoriesImport;
 use App\Imports\ProductsImport;
 use App\Imports\InventoriesImport;
+use App\Exports\ProductCategoriesTemplateExport;
 use App\Exports\ProductsTemplateExport;
 use App\Exports\InventoriesTemplateExport;
 use Maatwebsite\Excel\Facades\Excel;
@@ -14,7 +16,7 @@ use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 new class extends Component {
     use WithFileUploads;
 
-    public string $importType = 'products';
+    public string $importType = 'categories';
     public ?int $selectedCompanyId = null;
     public ?TemporaryUploadedFile $file = null;
     public bool $importing = false;
@@ -87,7 +89,7 @@ new class extends Component {
     {
         $validationRules = [
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
-            'importType' => 'required|in:products,inventories,adjustments',
+            'importType' => 'required|in:categories,products,inventories,adjustments',
         ];
 
         if (auth()->user()->isSuperAdmin()) {
@@ -107,6 +109,7 @@ new class extends Component {
             $userId = auth()->id();
 
             $import = match ($this->importType) {
+                'categories' => new CategoriesImport($companyId, $userId, true), // preview mode
                 'products' => new ProductsImport($companyId, $userId, true), // preview mode
                 'inventories' => new InventoriesImport($companyId, $userId),
                 default => throw new \Exception('Tipo de importación no válido'),
@@ -114,7 +117,7 @@ new class extends Component {
 
             Excel::import($import, $this->file->getRealPath());
 
-            if ($this->importType === 'products') {
+            if (in_array($this->importType, ['categories', 'products'])) {
                 $this->previewResults = $import->getPreviewSummary();
             } else {
                 // For other imports, show basic preview
@@ -142,7 +145,7 @@ new class extends Component {
     {
         $validationRules = [
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
-            'importType' => 'required|in:products,inventories,adjustments',
+            'importType' => 'required|in:categories,products,inventories,adjustments',
         ];
 
         if (auth()->user()->isSuperAdmin()) {
@@ -160,6 +163,7 @@ new class extends Component {
             $userId = auth()->id();
 
             $import = match ($this->importType) {
+                'categories' => new CategoriesImport($companyId, $userId, false), // import mode
                 'products' => new ProductsImport($companyId, $userId, false), // import mode
                 'inventories' => new InventoriesImport($companyId, $userId),
                 default => throw new \Exception('Tipo de importación no válido'),
@@ -194,6 +198,7 @@ new class extends Component {
     public function downloadTemplate(string $type): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         $filename = match ($type) {
+            'categories' => 'plantilla_categorias.xlsx',
             'products' => 'plantilla_productos.xlsx',
             'inventories' => 'plantilla_inventarios.xlsx',
             'adjustments' => 'plantilla_ajustes.xlsx',
@@ -201,6 +206,7 @@ new class extends Component {
         };
 
         return match ($type) {
+            'categories' => Excel::download(new ProductCategoriesTemplateExport, $filename),
             'products' => Excel::download(new ProductsTemplateExport, $filename),
             'inventories' => Excel::download(new InventoriesTemplateExport, $filename),
             default => Excel::download(new ProductsTemplateExport, $filename),
@@ -256,10 +262,14 @@ new class extends Component {
                 <flux:field>
                     <flux:label>Tipo de Importación</flux:label>
                     <flux:select wire:model.live="importType" variant="listbox">
-                        <flux:select.option value="products">Productos</flux:select.option>
-                        <flux:select.option value="inventories">Inventarios Iniciales</flux:select.option>
-                        <flux:select.option value="adjustments">Ajustes de Inventario</flux:select.option>
+                        <flux:select.option value="categories">1. Categorías</flux:select.option>
+                        <flux:select.option value="products">2. Productos</flux:select.option>
+                        <flux:select.option value="inventories">3. Inventarios Iniciales</flux:select.option>
+                        <flux:select.option value="adjustments">4. Ajustes de Inventario</flux:select.option>
                     </flux:select>
+                    <flux:text size="sm" class="text-zinc-500 dark:text-zinc-400">
+                        Orden recomendado: Categorías → Productos → Inventarios
+                    </flux:text>
                 </flux:field>
 
                 {{-- File Upload --}}
@@ -282,10 +292,19 @@ new class extends Component {
                 <flux:callout variant="info">
                     <div class="space-y-2">
                         <flux:heading size="sm">Instrucciones</flux:heading>
-                        @if($importType === 'products')
+                        @if($importType === 'categories')
+                            <ul class="list-inside list-disc space-y-1 text-sm">
+                                <li>Descarga la plantilla de categorías</li>
+                                <li>El código debe ser único (ej: CAT-001)</li>
+                                <li>Para subcategorías, indica el código padre (ej: CAT-001 para crear CAT-001-01)</li>
+                                <li>Las categorías padre deben estar antes que las hijas en el archivo</li>
+                                <li>Este paso es opcional si ya tienes categorías</li>
+                            </ul>
+                        @elseif($importType === 'products')
                             <ul class="list-inside list-disc space-y-1 text-sm">
                                 <li>Descarga la plantilla de productos</li>
                                 <li>Llena los datos requeridos (marcados con *)</li>
+                                <li>Usa el código de categoría del paso anterior (ej: CAT-001-01)</li>
                                 <li>Las categorías y unidades se crearán automáticamente si no existen</li>
                                 <li>El SKU debe ser único por compañía</li>
                             </ul>
@@ -488,10 +507,16 @@ new class extends Component {
                                     <tr>
                                         <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Fila</th>
                                         <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Estado</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">SKU</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Nombre</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Categoría</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Unidad</th>
+                                        @if($importType === 'categories')
+                                            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Código</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Nombre</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Código Padre</th>
+                                        @else
+                                            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">SKU</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Nombre</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Categoría</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Unidad</th>
+                                        @endif
                                         <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Mensajes</th>
                                     </tr>
                                 </thead>
@@ -517,34 +542,54 @@ new class extends Component {
                                                     <flux:badge color="red" size="sm">Error</flux:badge>
                                                 @endif
                                             </td>
-                                            <td class="whitespace-nowrap px-4 py-3 text-sm font-mono text-zinc-900 dark:text-zinc-100">
-                                                {{ $row['sku'] ?? '-' }}
-                                            </td>
-                                            <td class="px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100">
-                                                {{ Str::limit($row['nombre'] ?? '-', 30) }}
-                                            </td>
-                                            <td class="px-4 py-3 text-sm">
-                                                @if(isset($row['mappings']['category']))
-                                                    @if($row['mappings']['category']['action'] === 'use_existing')
-                                                        <flux:badge color="green" size="sm">{{ $row['categoria'] }}</flux:badge>
+                                            @if($importType === 'categories')
+                                                <td class="whitespace-nowrap px-4 py-3 text-sm font-mono text-zinc-900 dark:text-zinc-100">
+                                                    {{ $row['codigo'] ?? '-' }}
+                                                </td>
+                                                <td class="px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100">
+                                                    {{ Str::limit($row['nombre'] ?? '-', 30) }}
+                                                </td>
+                                                <td class="px-4 py-3 text-sm">
+                                                    @if(!empty($row['codigo_padre']))
+                                                        @if(isset($row['mappings']['parent']) && $row['mappings']['parent']['action'] === 'use_existing')
+                                                            <flux:badge color="green" size="sm">{{ $row['codigo_padre'] }}</flux:badge>
+                                                        @else
+                                                            <flux:badge color="yellow" size="sm">{{ $row['codigo_padre'] }}</flux:badge>
+                                                        @endif
                                                     @else
-                                                        <flux:badge color="yellow" size="sm">+ {{ $row['categoria'] }}</flux:badge>
+                                                        <flux:text class="text-zinc-400">Sin padre</flux:text>
                                                     @endif
-                                                @else
-                                                    {{ $row['categoria'] ?? '-' }}
-                                                @endif
-                                            </td>
-                                            <td class="px-4 py-3 text-sm">
-                                                @if(isset($row['mappings']['unit']))
-                                                    @if($row['mappings']['unit']['action'] === 'use_existing')
-                                                        <flux:badge color="green" size="sm">{{ $row['mappings']['unit']['abbreviation'] ?? $row['unidad_medida'] }}</flux:badge>
+                                                </td>
+                                            @else
+                                                <td class="whitespace-nowrap px-4 py-3 text-sm font-mono text-zinc-900 dark:text-zinc-100">
+                                                    {{ $row['sku'] ?? '-' }}
+                                                </td>
+                                                <td class="px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100">
+                                                    {{ Str::limit($row['nombre'] ?? '-', 30) }}
+                                                </td>
+                                                <td class="px-4 py-3 text-sm">
+                                                    @if(isset($row['mappings']['category']))
+                                                        @if($row['mappings']['category']['action'] === 'use_existing')
+                                                            <flux:badge color="green" size="sm">{{ $row['categoria'] }}</flux:badge>
+                                                        @else
+                                                            <flux:badge color="yellow" size="sm">+ {{ $row['categoria'] }}</flux:badge>
+                                                        @endif
                                                     @else
-                                                        <flux:badge color="yellow" size="sm">+ {{ $row['unidad_medida'] }}</flux:badge>
+                                                        {{ $row['categoria'] ?? '-' }}
                                                     @endif
-                                                @else
-                                                    {{ $row['unidad_medida'] ?? '-' }}
-                                                @endif
-                                            </td>
+                                                </td>
+                                                <td class="px-4 py-3 text-sm">
+                                                    @if(isset($row['mappings']['unit']))
+                                                        @if($row['mappings']['unit']['action'] === 'use_existing')
+                                                            <flux:badge color="green" size="sm">{{ $row['mappings']['unit']['abbreviation'] ?? $row['unidad_medida'] }}</flux:badge>
+                                                        @else
+                                                            <flux:badge color="yellow" size="sm">+ {{ $row['unidad_medida'] }}</flux:badge>
+                                                        @endif
+                                                    @else
+                                                        {{ $row['unidad_medida'] ?? '-' }}
+                                                    @endif
+                                                </td>
+                                            @endif
                                             <td class="px-4 py-3 text-sm">
                                                 @if(!empty($row['errors']))
                                                     <ul class="list-disc list-inside text-red-600 dark:text-red-400">

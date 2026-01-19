@@ -331,13 +331,21 @@ new #[Layout('components.layouts.app')] class extends Component
 
                     <!-- Product Selection -->
                     <flux:field>
-                        <flux:label badge="Requerido">{{ __('Product') }}</flux:label>
-                        <flux:select wire:model.live="selectedProductId" placeholder="{{ __('Select a product') }}" :disabled="$this->isSuperAdmin() && !$company_id">
-                            @foreach($this->products as $product)
+                        <flux:label badge="Requerido">Producto</flux:label>
+                        <flux:select
+                            wire:model.live="selectedProductId"
+                            variant="listbox"
+                            searchable
+                            placeholder="Buscar por nombre o SKU..."
+                            :disabled="$this->isSuperAdmin() && !$company_id"
+                        >
+                            @forelse($this->products as $product)
                                 <flux:select.option value="{{ $product->id }}">
                                     {{ $product->name }} ({{ $product->sku }})
                                 </flux:select.option>
-                            @endforeach
+                            @empty
+                                <flux:select.option value="" disabled>No hay productos disponibles</flux:select.option>
+                            @endforelse
                         </flux:select>
                         <flux:error name="selectedProductId" />
                     </flux:field>

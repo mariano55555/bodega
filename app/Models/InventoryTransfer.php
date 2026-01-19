@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Jobs\UpdateInventoryLevels;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -258,7 +259,7 @@ class InventoryTransfer extends Model
                 $newBalance = $previousBalance - $detail->quantity;
 
                 // Create outbound movement (subtract from origin)
-                InventoryMovement::create([
+                $movement = InventoryMovement::create([
                     'company_id' => $this->fromWarehouse->company_id,
                     'warehouse_id' => $this->from_warehouse_id,
                     'product_id' => $detail->product_id,
@@ -277,6 +278,9 @@ class InventoryTransfer extends Model
                     'active_at' => now(),
                     'created_by' => $userId,
                 ]);
+
+                // Update inventory levels synchronously
+                UpdateInventoryLevels::dispatchSync($movement);
             }
 
             \DB::commit();
@@ -335,7 +339,7 @@ class InventoryTransfer extends Model
                     $newBalance = $previousBalance + $receivedQuantity;
 
                     // Create inbound movement at destination
-                    InventoryMovement::create([
+                    $movement = InventoryMovement::create([
                         'company_id' => $outboundMovement->company_id,
                         'warehouse_id' => $this->to_warehouse_id,
                         'product_id' => $outboundMovement->product_id,
@@ -356,6 +360,9 @@ class InventoryTransfer extends Model
                         'active_at' => now(),
                         'created_by' => $userId,
                     ]);
+
+                    // Update inventory levels synchronously
+                    UpdateInventoryLevels::dispatchSync($movement);
                 }
             }
 

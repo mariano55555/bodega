@@ -14,36 +14,49 @@ class ProductCategoriesTemplateExport implements FromArray, ShouldAutoSize, With
 {
     public function array(): array
     {
+        // Ejemplos mostrando categorías padre e hijas
         return [
             [
                 'CAT-001',
-                'Alimentos',
-                'Productos alimenticios y comestibles',
+                'Insumos Agrícolas',
+                '',
+                'Fertilizantes, semillas y agroquímicos',
             ],
             [
                 'CAT-002',
-                'Bebidas',
-                'Bebidas y líquidos para consumo',
+                'Alimentos para Ganado',
+                '',
+                'Concentrados y suplementos',
             ],
             [
-                'CAT-003',
-                'Limpieza',
-                'Productos de limpieza y aseo',
+                'CAT-001-01',
+                'Fertilizantes',
+                'CAT-001',
+                'Fertilizantes orgánicos e inorgánicos',
             ],
             [
-                'CAT-004',
-                'Oficina',
-                'Artículos de oficina y papelería',
+                'CAT-001-02',
+                'Semillas',
+                'CAT-001',
+                'Semillas certificadas',
             ],
             [
-                'CAT-005',
-                'Electrónicos',
-                'Equipos y dispositivos electrónicos',
+                'CAT-001-03',
+                'Agroquímicos',
+                'CAT-001',
+                'Insecticidas, herbicidas y fungicidas',
             ],
             [
-                'CAT-006',
-                'Herramientas',
-                'Herramientas manuales y eléctricas',
+                'CAT-002-01',
+                'Concentrados',
+                'CAT-002',
+                'Alimentos balanceados',
+            ],
+            [
+                'CAT-002-02',
+                'Suplementos',
+                'CAT-002',
+                'Sales minerales y vitaminas',
             ],
         ];
     }
@@ -53,6 +66,7 @@ class ProductCategoriesTemplateExport implements FromArray, ShouldAutoSize, With
         return [
             'Código *',
             'Nombre *',
+            'Código Padre',
             'Descripción',
         ];
     }

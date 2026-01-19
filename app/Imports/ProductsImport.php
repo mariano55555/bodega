@@ -163,20 +163,34 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
         $this->successCount++;
     }
 
-    protected function findCategoryMatch(string $name): array
+    protected function findCategoryMatch(string $nameOrCode): array
     {
-        // Try exact match first (case-insensitive)
-        $exact = ProductCategory::where('company_id', $this->companyId)
-            ->whereRaw('LOWER(name) = ?', [strtolower(trim($name))])
+        $searchTerm = strtolower(trim($nameOrCode));
+
+        // Try exact match by code first (for imports using category codes)
+        $exactByCode = ProductCategory::where('company_id', $this->companyId)
+            ->whereRaw('LOWER(code) = ?', [$searchTerm])
             ->first();
 
-        if ($exact) {
-            return ['exact' => $exact, 'similar' => null, 'category' => $exact];
+        if ($exactByCode) {
+            return ['exact' => $exactByCode, 'similar' => null, 'category' => $exactByCode];
         }
 
-        // Try similar match using LIKE
+        // Try exact match by name (case-insensitive)
+        $exactByName = ProductCategory::where('company_id', $this->companyId)
+            ->whereRaw('LOWER(name) = ?', [$searchTerm])
+            ->first();
+
+        if ($exactByName) {
+            return ['exact' => $exactByName, 'similar' => null, 'category' => $exactByName];
+        }
+
+        // Try similar match using LIKE on both code and name
         $similar = ProductCategory::where('company_id', $this->companyId)
-            ->whereRaw('LOWER(name) LIKE ?', ['%'.strtolower(trim($name)).'%'])
+            ->where(function ($q) use ($searchTerm) {
+                $q->whereRaw('LOWER(name) LIKE ?', ['%'.$searchTerm.'%'])
+                    ->orWhereRaw('LOWER(code) LIKE ?', ['%'.$searchTerm.'%']);
+            })
             ->first();
 
         return ['exact' => null, 'similar' => $similar, 'category' => null];
@@ -296,19 +310,26 @@ class ProductsImport implements SkipsOnError, SkipsOnFailure, ToCollection, With
             throw new \Exception('Validación fallida: '.$validator->errors()->first());
         }
 
-        // Find or create category
-        $category = ProductCategory::firstOrCreate(
-            [
-                'name' => $row['categoria'],
-                'company_id' => $this->companyId,
-            ],
-            [
-                'slug' => Str::slug($row['categoria']),
-                'description' => 'Importado automáticamente',
-                'active_at' => now(),
-                'created_by' => $this->userId,
-            ]
-        );
+        // Find category by code or name, create only if not found
+        $categoryMatch = $this->findCategoryMatch($row['categoria']);
+        if ($categoryMatch['exact']) {
+            $category = $categoryMatch['exact'];
+        } else {
+            // Create new category only if no match found
+            $category = ProductCategory::firstOrCreate(
+                [
+                    'name' => $row['categoria'],
+                    'company_id' => $this->companyId,
+                ],
+                [
+                    'code' => strtoupper(Str::slug($row['categoria'], '-')),
+                    'slug' => Str::slug($row['categoria']),
+                    'description' => 'Importado automáticamente',
+                    'active_at' => now(),
+                    'created_by' => $this->userId,
+                ]
+            );
+        }
 
         // Find or create unit of measure
         $unitOfMeasure = UnitOfMeasure::firstOrCreate(

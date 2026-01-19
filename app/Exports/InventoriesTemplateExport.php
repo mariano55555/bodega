@@ -14,19 +14,73 @@ class InventoriesTemplateExport implements FromArray, ShouldAutoSize, WithHeadin
 {
     public function array(): array
     {
-        // Return sample rows to guide the user
-        // Note: These are examples - user must replace with actual SKUs and warehouse names
+        // Ejemplos usando SKUs del archivo de productos
         return [
             [
-                '[SKU del producto]',
-                '[Nombre exacto de la bodega]',
-                100.00,
+                'PRO-001',
+                'Bodega General',
+                50,
                 0,
-                15.50,
-                'A-01-01',
+                25.00,
+                'Pasillo A Estante 1',
+                '',
+                '',
+                'Inventario inicial',
+            ],
+            [
+                'PRO-001',
+                'Bodega Agronomía',
+                20,
+                0,
+                25.00,
+                'Zona Fertilizantes',
+                '',
+                '',
+                'Inventario inicial',
+            ],
+            [
+                'PRO-002',
+                'Bodega General',
+                100,
+                0,
+                9.00,
+                '',
                 'LOTE-2024-001',
-                '2025-12-31',
-                'Ejemplo: reemplace con sus datos reales',
+                '2025-06-30',
+                'Semillas certificadas',
+            ],
+            [
+                'PRO-003',
+                'Bodega General',
+                25,
+                0,
+                15.00,
+                'Químicos Estante 2',
+                '',
+                '',
+                '',
+            ],
+            [
+                'PRO-004',
+                'Bodega General',
+                30,
+                0,
+                32.00,
+                'Alimentos A1',
+                '',
+                '',
+                'Inventario inicial',
+            ],
+            [
+                'PRO-005',
+                'Bodega de Cocina',
+                15,
+                0,
+                8.00,
+                '',
+                '',
+                '',
+                'Stock de sales',
             ],
         ];
     }
