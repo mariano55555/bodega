@@ -13,8 +13,11 @@ new #[Layout('components.layouts.app')] class extends Component
     public $symbol = '';
     public $description = '';
     public $type = 'quantity';
+    public $base_unit_ratio = null;
+    public $base_unit_id = null;
     public $company_id = '';
     public $is_active = true;
+    public $is_default = false;
 
     #[Computed]
     public function companies()
@@ -28,7 +31,10 @@ new #[Layout('components.layouts.app')] class extends Component
 
         UnitOfMeasure::create($validated);
 
-        session()->flash('success', 'Unidad de medida creada exitosamente.');
+        Flux::toast(
+            text: 'Unidad de medida creada exitosamente',
+            variant: 'success',
+        );
 
         $this->redirect(route('admin.units.index'), navigate: true);
     }
@@ -60,19 +66,19 @@ new #[Layout('components.layouts.app')] class extends Component
     <form wire:submit="save">
         <flux:card class="space-y-6">
             <flux:field>
-                <flux:label>Nombre</flux:label>
+                <flux:label badge="Requerido">Nombre</flux:label>
                 <flux:input wire:model="name" placeholder="Ej: Kilogramo" />
                 <flux:error name="name" />
             </flux:field>
 
             <flux:field>
-                <flux:label>Símbolo</flux:label>
+                <flux:label badge="Requerido">Símbolo</flux:label>
                 <flux:input wire:model="symbol" placeholder="Ej: kg" />
                 <flux:error name="symbol" />
             </flux:field>
 
             <flux:field>
-                <flux:label>Tipo de Unidad</flux:label>
+                <flux:label badge="Requerido">Tipo de Unidad</flux:label>
                 <flux:select wire:model="type">
                     <flux:select.option value="weight">Peso</flux:select.option>
                     <flux:select.option value="volume">Volumen</flux:select.option>
@@ -92,7 +98,8 @@ new #[Layout('components.layouts.app')] class extends Component
             </flux:field>
 
             <flux:field>
-                <flux:switch wire:model="is_active">
+                <flux:label>Estado</flux:label>
+                <flux:switch wire:model="is_active" description="Las unidades inactivas no estarán disponibles para nuevos productos">
                     <flux:text>Unidad activa</flux:text>
                 </flux:switch>
             </flux:field>

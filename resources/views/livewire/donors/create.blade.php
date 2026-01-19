@@ -270,40 +270,6 @@ new #[Layout('components.layouts.app')] class extends Component
                     <flux:textarea wire:model="address" placeholder="Calle, número, colonia..." rows="2" />
                     <flux:error name="address" />
                 </flux:field>
-
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <flux:field>
-                        <flux:label>Departamento</flux:label>
-                        <flux:select wire:model.live="departamento_id" placeholder="Seleccione departamento">
-                            @foreach ($this->departamentos as $departamento)
-                                <option value="{{ $departamento->id }}">{{ $departamento->name }}</option>
-                            @endforeach
-                        </flux:select>
-                        <flux:error name="state" />
-                    </flux:field>
-
-                    <flux:field>
-                        <flux:label>Ciudad/Municipio</flux:label>
-                        <flux:select wire:model.live="ciudad_id" placeholder="Seleccione ciudad" :disabled="!$departamento_id">
-                            @foreach ($this->ciudades as $ciudad)
-                                <option value="{{ $ciudad->id }}">{{ $ciudad->name }}</option>
-                            @endforeach
-                        </flux:select>
-                        <flux:error name="city" />
-                    </flux:field>
-
-                    <flux:field>
-                        <flux:label>País</flux:label>
-                        <flux:input wire:model="country" readonly />
-                        <flux:error name="country" />
-                    </flux:field>
-
-                    <flux:field>
-                        <flux:label>Código Postal</flux:label>
-                        <flux:input wire:model="postal_code" placeholder="1101" />
-                        <flux:error name="postal_code" />
-                    </flux:field>
-                </div>
             </div>
         </flux:card>
 

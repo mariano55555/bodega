@@ -282,12 +282,12 @@ class ProductSeeder extends Seeder
                     'barcode' => $productData['barcode'],
                     'unit_of_measure_id' => $unit->id,
                     'unit_of_measure' => $unit->abbreviation,
-                    'price' => $productData['price'],
+                    // 'price' => $productData['price'], // Comentado por petición del cliente: quitar precio de venta
                     'cost' => $productData['cost'],
                     'minimum_stock' => $productData['min_stock'],
                     'maximum_stock' => $productData['max_stock'],
                     'track_inventory' => true,
-                    'valuation_method' => 'fifo',
+                    // 'valuation_method' => 'fifo', // Comentado por petición del cliente: quitar método de valuación
                     'is_active' => true,
                     'active_at' => now(),
                     'created_at' => now(),

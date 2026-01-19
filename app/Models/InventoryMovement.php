@@ -323,14 +323,6 @@ class InventoryMovement extends Model
     }
 
     /**
-     * Get the customer associated with this movement.
-     */
-    public function customer(): BelongsTo
-    {
-        return $this->belongsTo(Customer::class);
-    }
-
-    /**
      * Get the storage location associated with this movement.
      */
     public function storageLocation(): BelongsTo

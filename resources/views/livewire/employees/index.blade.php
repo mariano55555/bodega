@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\Customer;
+use App\Models\Employee;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -13,9 +13,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public string $statusFilter = '';
 
-    public string $typeFilter = '';
-
-    public ?int $customerToDelete = null;
+    public ?int $employeeToDelete = null;
 
     public bool $showFilters = false;
 
@@ -36,32 +34,31 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->showFilters = ! $this->showFilters;
     }
 
-    public function confirmDelete(int $customerId): void
+    public function confirmDelete(int $employeeId): void
     {
-        $this->customerToDelete = $customerId;
+        $this->employeeToDelete = $employeeId;
     }
 
     public function cancelDelete(): void
     {
-        $this->customerToDelete = null;
+        $this->employeeToDelete = null;
     }
 
     public function with(): array
     {
-        $query = Customer::query()
+        $query = Employee::query()
+            ->with('area')
             ->when(! auth()->user()->isSuperAdmin(), function ($q) {
                 $q->where('company_id', auth()->user()->company_id);
             })
             ->when($this->search, function ($q) {
                 $q->where(function ($query) {
                     $query->where('name', 'like', "%{$this->search}%")
-                        ->orWhere('legal_name', 'like', "%{$this->search}%")
-                        ->orWhere('tax_id', 'like', "%{$this->search}%")
                         ->orWhere('email', 'like', "%{$this->search}%")
-                        ->orWhere('contact_person', 'like', "%{$this->search}%");
+                        ->orWhere('employee_code', 'like', "%{$this->search}%")
+                        ->orWhere('phone', 'like', "%{$this->search}%");
                 });
             })
-            ->when($this->typeFilter, fn ($q) => $q->where('type', $this->typeFilter))
             ->when($this->statusFilter !== '', function ($q) {
                 if ($this->statusFilter === 'active') {
                     $q->where('is_active', true);
@@ -72,64 +69,57 @@ new #[Layout('components.layouts.app')] class extends Component
             ->latest();
 
         return [
-            'customers' => $query->paginate($this->perPage),
+            'employees' => $query->paginate($this->perPage),
         ];
     }
 
     public function delete(): void
     {
-        if (! $this->customerToDelete) {
+        if (! $this->employeeToDelete) {
             return;
         }
 
-        $customer = Customer::find($this->customerToDelete);
+        $employee = Employee::find($this->employeeToDelete);
 
-        if (! $customer) {
-            \Flux\Flux::toast('Cliente no encontrado.', variant: 'danger');
-            $this->customerToDelete = null;
-
-            return;
-        }
-
-        if ($customer->dispatches()->exists()) {
-            \Flux\Flux::toast('No se puede eliminar el cliente porque tiene despachos asociados.', variant: 'danger');
-            $this->customerToDelete = null;
+        if (! $employee) {
+            \Flux\Flux::toast('Empleado no encontrado.', variant: 'danger');
+            $this->employeeToDelete = null;
 
             return;
         }
 
-        $customer->delete();
-        \Flux\Flux::toast('Cliente eliminado exitosamente.', variant: 'success');
-        $this->customerToDelete = null;
+        $employee->delete();
+        \Flux\Flux::toast('Empleado eliminado exitosamente.', variant: 'success');
+        $this->employeeToDelete = null;
     }
 
-    public function toggleStatus(int $customerId): void
+    public function toggleStatus(int $employeeId): void
     {
-        $customer = Customer::find($customerId);
+        $employee = Employee::find($employeeId);
 
-        if (! $customer) {
-            \Flux\Flux::toast('Cliente no encontrado.', variant: 'danger');
+        if (! $employee) {
+            \Flux\Flux::toast('Empleado no encontrado.', variant: 'danger');
 
             return;
         }
 
-        $customer->is_active = ! $customer->is_active;
-        $customer->active_at = $customer->is_active ? now() : null;
-        $customer->save();
+        $employee->is_active = ! $employee->is_active;
+        $employee->active_at = $employee->is_active ? now() : null;
+        $employee->save();
 
-        \Flux\Flux::toast('Estado del cliente actualizado.', variant: 'success');
+        \Flux\Flux::toast('Estado del empleado actualizado.', variant: 'success');
     }
 }; ?>
 
 <div class="space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <flux:heading size="xl">Clientes</flux:heading>
-            <flux:text class="mt-1">Gestión de clientes de la compañía</flux:text>
+            <flux:heading size="xl">Personal/Empleados</flux:heading>
+            <flux:text class="mt-1">Gestión de empleados de la compañía</flux:text>
         </div>
 
-        <flux:button variant="primary" icon="plus" href="{{ route('customers.create') }}" wire:navigate>
-            Nuevo Cliente
+        <flux:button variant="primary" icon="plus" href="{{ route('employees.create') }}" wire:navigate>
+            Nuevo Empleado
         </flux:button>
     </div>
 
@@ -138,7 +128,7 @@ new #[Layout('components.layouts.app')] class extends Component
         <div class="w-full md:w-96">
             <flux:input
                 wire:model.live.debounce.300ms="search"
-                placeholder="Buscar por nombre, NIT, email, contacto..."
+                placeholder="Buscar por nombre, código, email, teléfono..."
                 icon="magnifying-glass"
             />
         </div>
@@ -154,15 +144,6 @@ new #[Layout('components.layouts.app')] class extends Component
     @if ($showFilters)
         <div class="flex flex-wrap gap-4" x-data x-transition>
             <flux:field class="w-full sm:w-48">
-                <flux:label>Tipo</flux:label>
-                <flux:select wire:model.live="typeFilter" placeholder="Todos los tipos">
-                    <option value="">Todos</option>
-                    <option value="individual">Individual</option>
-                    <option value="business">Empresa</option>
-                </flux:select>
-            </flux:field>
-
-            <flux:field class="w-full sm:w-48">
                 <flux:label>Estado</flux:label>
                 <flux:select wire:model.live="statusFilter" placeholder="Todos los estados">
                     <option value="">Todos</option>
@@ -176,7 +157,7 @@ new #[Layout('components.layouts.app')] class extends Component
     <!-- Stats and Per Page -->
     <div class="flex items-center justify-between">
         <div class="text-sm text-gray-600 dark:text-gray-400">
-            Mostrando {{ $customers->firstItem() ?? 0 }} - {{ $customers->lastItem() ?? 0 }} de {{ $customers->total() }} clientes
+            Mostrando {{ $employees->firstItem() ?? 0 }} - {{ $employees->lastItem() ?? 0 }} de {{ $employees->total() }} empleados
         </div>
         <div class="flex items-center gap-2">
             <flux:text class="text-sm">Por página:</flux:text>
@@ -193,61 +174,48 @@ new #[Layout('components.layouts.app')] class extends Component
     <div class="overflow-x-auto">
         <flux:table>
             <flux:table.columns>
+                <flux:table.column>Código</flux:table.column>
                 <flux:table.column>Nombre</flux:table.column>
-                <flux:table.column>Tipo</flux:table.column>
-                <flux:table.column>NIT/DUI</flux:table.column>
-                <flux:table.column>Contacto</flux:table.column>
-                <flux:table.column>Teléfono</flux:table.column>
+                <flux:table.column>Área</flux:table.column>
+                <flux:table.column>Posición</flux:table.column>
                 <flux:table.column>Email</flux:table.column>
+                <flux:table.column>Teléfono</flux:table.column>
                 <flux:table.column>Estado</flux:table.column>
                 <flux:table.column>Acciones</flux:table.column>
             </flux:table.columns>
 
             <flux:table.rows>
-                @forelse ($customers as $customer)
-                    <flux:table.row :key="$customer->id">
+                @forelse ($employees as $employee)
+                    <flux:table.row :key="$employee->id">
                         <flux:table.cell>
-                            <div>
-                                <div class="font-medium text-gray-900 dark:text-gray-100">
-                                    {{ $customer->name }}
-                                </div>
-                                @if ($customer->legal_name && $customer->legal_name !== $customer->name)
-                                    <div class="text-sm text-gray-500 dark:text-gray-400">
-                                        {{ $customer->legal_name }}
-                                    </div>
-                                @endif
+                            {{ $employee->employee_code ?? '-' }}
+                        </flux:table.cell>
+
+                        <flux:table.cell>
+                            <div class="font-medium text-gray-900 dark:text-gray-100">
+                                {{ $employee->name }}
                             </div>
                         </flux:table.cell>
 
                         <flux:table.cell>
-                            <flux:badge :color="$customer->getTypeBadgeColor()">
-                                {{ $customer->getTypeLabel() }}
-                            </flux:badge>
+                            {{ $employee->area?->name ?? '-' }}
                         </flux:table.cell>
 
                         <flux:table.cell>
-                            {{ $customer->tax_id ?? '-' }}
+                            {{ $employee->position ?? '-' }}
                         </flux:table.cell>
 
                         <flux:table.cell>
-                            <div class="text-sm">
-                                <div class="text-gray-900 dark:text-gray-100">
-                                    {{ $customer->contact_person ?? 'Sin contacto' }}
-                                </div>
-                            </div>
+                            {{ $employee->email ?? '-' }}
                         </flux:table.cell>
 
                         <flux:table.cell>
-                            {{ $customer->phone ?? '-' }}
+                            {{ $employee->phone ?? '-' }}
                         </flux:table.cell>
 
                         <flux:table.cell>
-                            {{ $customer->email ?? '-' }}
-                        </flux:table.cell>
-
-                        <flux:table.cell>
-                            <flux:badge :color="$customer->is_active ? 'green' : 'red'">
-                                {{ $customer->is_active ? 'Activo' : 'Inactivo' }}
+                            <flux:badge :color="$employee->is_active ? 'green' : 'red'">
+                                {{ $employee->is_active ? 'Activo' : 'Inactivo' }}
                             </flux:badge>
                         </flux:table.cell>
 
@@ -257,7 +225,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                     size="sm"
                                     variant="ghost"
                                     icon="pencil"
-                                    href="{{ route('customers.edit', $customer) }}"
+                                    href="{{ route('employees.edit', $employee) }}"
                                     wire:navigate
                                     title="Editar"
                                 />
@@ -265,12 +233,12 @@ new #[Layout('components.layouts.app')] class extends Component
                                 <flux:button
                                     size="sm"
                                     variant="ghost"
-                                    :icon="$customer->is_active ? 'x-circle' : 'check-circle'"
-                                    wire:click="toggleStatus({{ $customer->id }})"
-                                    :title="$customer->is_active ? 'Desactivar' : 'Activar'"
+                                    :icon="$employee->is_active ? 'x-circle' : 'check-circle'"
+                                    wire:click="toggleStatus({{ $employee->id }})"
+                                    :title="$employee->is_active ? 'Desactivar' : 'Activar'"
                                 />
 
-                                <flux:modal.trigger name="delete-customer-{{ $customer->id }}">
+                                <flux:modal.trigger name="delete-employee-{{ $employee->id }}">
                                     <flux:button
                                         size="sm"
                                         variant="ghost"
@@ -286,7 +254,7 @@ new #[Layout('components.layouts.app')] class extends Component
                     <flux:table.row>
                         <flux:table.cell colspan="8" class="text-center py-8 text-gray-500 dark:text-gray-400">
                             <flux:icon name="users" class="mx-auto h-12 w-12 mb-3 opacity-20" />
-                            <div>No se encontraron clientes.</div>
+                            <div>No se encontraron empleados.</div>
                         </flux:table.cell>
                     </flux:table.row>
                 @endforelse
@@ -294,20 +262,20 @@ new #[Layout('components.layouts.app')] class extends Component
         </flux:table>
     </div>
 
-    @if ($customers->hasPages())
+    @if ($employees->hasPages())
         <div class="mt-6">
-            {{ $customers->links() }}
+            {{ $employees->links() }}
         </div>
     @endif
 
     <!-- Delete Confirmation Modals -->
-    @foreach ($customers as $customer)
-        <flux:modal name="delete-customer-{{ $customer->id }}" class="min-w-[22rem]">
+    @foreach ($employees as $employee)
+        <flux:modal name="delete-employee-{{ $employee->id }}" class="min-w-[22rem]">
             <form wire:submit="delete" class="space-y-6">
                 <div>
                     <flux:heading size="lg">Confirmar eliminación</flux:heading>
                     <flux:text class="mt-2">
-                        ¿Está seguro de que desea eliminar el cliente <strong>{{ $customer->name }}</strong>?<br>
+                        ¿Está seguro de que desea eliminar el empleado <strong>{{ $employee->name }}</strong>?<br>
                         Esta acción no se puede deshacer.
                     </flux:text>
                 </div>
@@ -320,10 +288,10 @@ new #[Layout('components.layouts.app')] class extends Component
                     <flux:button
                         type="button"
                         variant="danger"
-                        wire:click="confirmDelete({{ $customer->id }})"
+                        wire:click="confirmDelete({{ $employee->id }})"
                         wire:then="delete"
                     >
-                        Eliminar cliente
+                        Eliminar empleado
                     </flux:button>
                 </div>
             </form>

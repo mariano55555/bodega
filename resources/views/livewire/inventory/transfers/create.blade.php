@@ -1,25 +1,39 @@
 <?php
 
-use App\Models\{InventoryTransfer, InventoryTransferDetail, Warehouse, Product, Inventory, Company};
+use App\Models\Company;
+use App\Models\Inventory;
+use App\Models\InventoryTransfer;
+use App\Models\InventoryTransferDetail;
+use App\Models\Product;
+use App\Models\Warehouse;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 
-new #[Layout('components.layouts.app')] class extends Component {
+new #[Layout('components.layouts.app')] class extends Component
+{
     public $company_id = '';
+
     public $from_warehouse_id = '';
+
     public $to_warehouse_id = '';
+
     public $reason = '';
+
     public $notes = '';
+
     public $shipping_cost = 0;
+
     public $products = [];
+
     public $availableStock = [];
+
     public $productUnits = [];
 
     public function mount(): void
     {
         // Auto-set company_id for non-super admins
-        if (!auth()->user()->isSuperAdmin()) {
+        if (! auth()->user()->isSuperAdmin()) {
             $this->company_id = auth()->user()->company_id;
         }
 
@@ -68,7 +82,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     {
         // Recheck stock for all products when warehouse changes
         foreach ($this->products as $index => $product) {
-            if (!empty($product['product_id'])) {
+            if (! empty($product['product_id'])) {
                 $this->checkAvailableStock($index);
             }
         }
@@ -78,6 +92,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     {
         if (empty($this->from_warehouse_id) || empty($this->products[$index]['product_id'])) {
             unset($this->availableStock[$index]);
+
             return;
         }
 
@@ -93,6 +108,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     {
         if (empty($this->products[$index]['product_id'])) {
             unset($this->productUnits[$index]);
+
             return;
         }
 
@@ -268,10 +284,8 @@ new #[Layout('components.layouts.app')] class extends Component {
                 @if ($isSuperAdmin)
                     <flux:field class="md:col-span-2">
                         <flux:label badge="Requerido">Empresa</flux:label>
-                        <flux:select wire:model.live="company_id">
-                            <option value="">Seleccione una empresa</option>
-                            @foreach ($companies as $company)
-                                <option value="{{ $company->id }}">{{ $company->name }}</option>
+                        <flux:select variant="listbox" searchable wire:model.live="company_id" placeholder="Seleccione una empresa">                            @foreach ($companies as $company)
+                                <flux:select.option value="{{ $company->id }}">{{ $company->name }}</flux:select.option>
                             @endforeach
                         </flux:select>
                         <flux:error name="company_id" />
@@ -280,10 +294,9 @@ new #[Layout('components.layouts.app')] class extends Component {
 
                 <flux:field>
                     <flux:label badge="Requerido">Bodega de Origen</flux:label>
-                    <flux:select wire:model.live="from_warehouse_id" :disabled="!$company_id">
-                        <option value="">Seleccione bodega de origen</option>
+                    <flux:select variant="listbox" searchable wire:model.live="from_warehouse_id" :disabled="!$company_id" placeholder="Seleccione bodega de origen">
                         @foreach ($warehouses as $warehouse)
-                            <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
+                            <flux:select.option value="{{ $warehouse->id }}">{{ $warehouse->name }}</flux:select.option>
                         @endforeach
                     </flux:select>
                     <flux:error name="from_warehouse_id" />
@@ -291,11 +304,10 @@ new #[Layout('components.layouts.app')] class extends Component {
 
                 <flux:field>
                     <flux:label badge="Requerido">Bodega de Destino</flux:label>
-                    <flux:select wire:model="to_warehouse_id" :disabled="!$company_id">
-                        <option value="">Seleccione bodega de destino</option>
+                    <flux:select variant="listbox" searchable wire:model="to_warehouse_id" :disabled="!$company_id" placeholder="Seleccione bodega de destino">
                         @foreach ($warehouses as $warehouse)
                             @if ($warehouse->id != $from_warehouse_id)
-                                <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
+                                <flux:select.option value="{{ $warehouse->id }}">{{ $warehouse->name }}</flux:select.option>
                             @endif
                         @endforeach
                     </flux:select>
@@ -354,10 +366,9 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <flux:field class="md:col-span-2">
                                 <flux:label badge="Requerido">Producto</flux:label>
-                                <flux:select wire:model.live="products.{{ $index }}.product_id">
-                                    <option value="">Seleccione un producto</option>
+                                <flux:select variant="listbox" searchable wire:model.live="products.{{ $index }}.product_id" placeholder="Seleccione un producto">
                                     @foreach ($allProducts as $prod)
-                                        <option value="{{ $prod->id }}">{{ $prod->name }} - {{ $prod->sku }}</option>
+                                        <flux:select.option value="{{ $prod->id }}">{{ $prod->name }} - {{ $prod->sku }}</flux:select.option>
                                     @endforeach
                                 </flux:select>
                                 <flux:error name="products.{{ $index }}.product_id" />

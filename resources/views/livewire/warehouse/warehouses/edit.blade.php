@@ -4,6 +4,7 @@ use App\Models\Branch;
 use App\Models\Company;
 use App\Models\User;
 use App\Models\Warehouse;
+use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
@@ -40,10 +41,10 @@ new #[Layout('components.layouts.app')] class extends Component
     #[Validate('nullable|string|max:20')]
     public string $postal_code = '';
 
-    #[Validate('nullable|numeric|min:0')]
+    #[Validate('nullable|numeric|between:-90,90')]
     public string $latitude = '';
 
-    #[Validate('nullable|numeric|min:0')]
+    #[Validate('nullable|numeric|between:-180,180')]
     public string $longitude = '';
 
     #[Validate('nullable|numeric|min:0')]
@@ -340,12 +341,13 @@ new #[Layout('components.layouts.app')] class extends Component
     {
         $this->authorize('update', $this->warehouse);
 
-        $rules = $this->rules();
+        // Validate all fields with #[Validate] attributes, then add custom code validation
+        $this->validate();
 
-        // Adjust unique validation for code to exclude current warehouse
-        $rules['code'] = 'required|string|max:50|unique:warehouses,code,'.$this->warehouse->id;
-
-        $validated = $this->validate($rules);
+        // Additional validation for code with unique rule excluding current warehouse
+        $this->validate([
+            'code' => 'required|string|max:50|unique:warehouses,code,'.$this->warehouse->id,
+        ]);
 
         // Prepare operating hours
         $operatingHours = [
@@ -367,9 +369,27 @@ new #[Layout('components.layouts.app')] class extends Component
             'access_type' => $this->access_type,
         ];
 
-        $validated['operating_hours'] = $operatingHours;
-        $validated['settings'] = $settings;
-        $validated['updated_by'] = auth()->id();
+        // Prepare validated data array
+        $validated = [
+            'branch_id' => $this->branch_id,
+            'name' => $this->name,
+            'description' => $this->description,
+            'code' => $this->code,
+            'address' => $this->address,
+            'city' => $this->city,
+            'state' => $this->state,
+            'country' => $this->country,
+            'postal_code' => $this->postal_code,
+            'latitude' => $this->latitude,
+            'longitude' => $this->longitude,
+            'total_capacity' => $this->total_capacity,
+            'capacity_unit' => $this->capacity_unit,
+            'manager_id' => $this->manager_id,
+            'is_active' => $this->is_active,
+            'operating_hours' => $operatingHours,
+            'settings' => $settings,
+            'updated_by' => auth()->id(),
+        ];
 
         // Convert empty strings to null for numeric fields
         if ($validated['latitude'] === '') {
@@ -382,14 +402,25 @@ new #[Layout('components.layouts.app')] class extends Component
             $validated['total_capacity'] = null;
         }
 
-        $this->warehouse->update($validated);
+        try {
+            $this->warehouse->update($validated);
 
-        $this->dispatch('warehouse-updated', [
-            'message' => 'Almacén actualizado exitosamente',
-            'warehouse' => $this->warehouse->name,
-        ]);
+            Flux::toast(
+                text: 'Almacén actualizado exitosamente',
+                variant: 'success',
+                duration: 3000
+            );
 
-        $this->redirect(route('warehouse.warehouses.index'), navigate: true);
+            $this->redirect(route('warehouse.warehouses.index'), navigate: true);
+        } catch (\Exception $e) {
+            Flux::toast(
+                text: 'Error al actualizar el almacén. Por favor intente nuevamente.',
+                variant: 'danger',
+                duration: 5000
+            );
+
+            \Log::error('Error updating warehouse: '.$e->getMessage());
+        }
     }
 
     public function delete(): void
@@ -397,13 +428,26 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->authorize('delete', $this->warehouse);
 
         $warehouseName = $this->warehouse->name;
-        $this->warehouse->delete();
 
-        $this->dispatch('warehouse-deleted', [
-            'message' => "Almacén '{$warehouseName}' eliminado exitosamente",
-        ]);
+        try {
+            $this->warehouse->delete();
 
-        $this->redirect(route('warehouse.warehouses.index'), navigate: true);
+            Flux::toast(
+                text: "Almacén '{$warehouseName}' eliminado exitosamente",
+                variant: 'success',
+                duration: 3000
+            );
+
+            $this->redirect(route('warehouse.warehouses.index'), navigate: true);
+        } catch (\Exception $e) {
+            Flux::toast(
+                text: 'Error al eliminar el almacén. Por favor intente nuevamente.',
+                variant: 'danger',
+                duration: 5000
+            );
+
+            \Log::error('Error deleting warehouse: '.$e->getMessage());
+        }
     }
 
     public function with(): array
@@ -501,7 +545,7 @@ new #[Layout('components.layouts.app')] class extends Component
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Company Selection -->
                 <flux:field>
-                    <flux:label>Empresa *</flux:label>
+                    <flux:label badge="Requerido">Empresa</flux:label>
                     <flux:select wire:model.live="company_id" placeholder="Selecciona una empresa">
                         @foreach($this->companies as $company)
                             <flux:select.option value="{{ $company->id }}">{{ $company->name }}</flux:select.option>
@@ -512,13 +556,18 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <!-- Branch Selection -->
                 <flux:field>
-                    <flux:label>Sucursal *</flux:label>
-                    <flux:select wire:model.live="branch_id" placeholder="Selecciona una sucursal" :description="!$company_id ? 'Primero selecciona una empresa' : 'Sucursal a la que pertenece el almacén'">
+                    <flux:label badge="Requerido">Sucursal</flux:label>
+                    <flux:select wire:model.live="branch_id" placeholder="Selecciona una sucursal">
                         @foreach($this->branches as $branch)
                             <flux:select.option value="{{ $branch->id }}">{{ $branch->name }}</flux:select.option>
                         @endforeach
                     </flux:select>
                     <flux:error name="branch_id" />
+                    @if(!$company_id)
+                        <flux:description>Primero selecciona una empresa</flux:description>
+                    @else
+                        <flux:description>Sucursal a la que pertenece el almacén</flux:description>
+                    @endif
                 </flux:field>
             </div>
         </flux:card>
@@ -535,16 +584,17 @@ new #[Layout('components.layouts.app')] class extends Component
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Warehouse Name -->
                 <flux:field>
-                    <flux:label>Nombre del Almacén *</flux:label>
+                    <flux:label badge="Requerido">Nombre del Almacén</flux:label>
                     <flux:input wire:model="name" placeholder="Ej: Almacén Principal" />
                     <flux:error name="name" />
                 </flux:field>
 
                 <!-- Warehouse Code -->
                 <flux:field>
-                    <flux:label>Código *</flux:label>
-                    <flux:input wire:model="code" placeholder="Ej: ALM001" description="Código único para identificar el almacén" />
+                    <flux:label badge="Requerido">Código</flux:label>
+                    <flux:input wire:model="code" placeholder="Ej: ALM001" />
                     <flux:error name="code" />
+                    <flux:description>Código único para identificar el almacén</flux:description>
                 </flux:field>
 
                 <!-- Manager -->
@@ -652,7 +702,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <!-- Department -->
                 <flux:field>
-                    <flux:label>Departamento *</flux:label>
+                    <flux:label badge="Requerido">Departamento</flux:label>
                     <flux:select wire:model.live="state" placeholder="Selecciona un departamento">
                         @foreach($this->departments as $value => $label)
                             <flux:select.option value="{{ $value }}">{{ $label }}</flux:select.option>
@@ -663,7 +713,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <!-- Municipality -->
                 <flux:field>
-                    <flux:label>Municipio *</flux:label>
+                    <flux:label badge="Requerido">Municipio</flux:label>
                     <flux:select wire:model="city" placeholder="{{ $state ? 'Selecciona un municipio' : 'Primero selecciona un departamento' }}" :disabled="!$state">
                         @foreach($this->municipalities as $value => $label)
                             <flux:select.option value="{{ $value }}">{{ $label }}</flux:select.option>
@@ -682,14 +732,16 @@ new #[Layout('components.layouts.app')] class extends Component
                 <!-- GPS Coordinates -->
                 <flux:field>
                     <flux:label>Latitud</flux:label>
-                    <flux:input type="number" step="any" wire:model="latitude" placeholder="13.6929" description="Coordenada GPS (opcional)" />
+                    <flux:input type="number" step="any" wire:model="latitude" placeholder="13.6929" />
                     <flux:error name="latitude" />
+                    <flux:description>Coordenada GPS entre -90 y 90 (opcional)</flux:description>
                 </flux:field>
 
                 <flux:field>
                     <flux:label>Longitud</flux:label>
-                    <flux:input type="number" step="any" wire:model="longitude" placeholder="-89.2182" description="Coordenada GPS (opcional)" />
+                    <flux:input type="number" step="any" wire:model="longitude" placeholder="-89.2182" />
                     <flux:error name="longitude" />
+                    <flux:description>Coordenada GPS entre -180 y 180 (opcional)</flux:description>
                 </flux:field>
             </div>
         </flux:card>

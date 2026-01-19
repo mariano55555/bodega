@@ -25,7 +25,7 @@ class DispatchFactory extends Factory
             'recipient_name' => fake()->name(),
             'recipient_phone' => fake()->phoneNumber(),
             'recipient_email' => fake()->optional()->safeEmail(),
-            'delivery_address' => fake()->address(),
+            // 'delivery_address' => fake()->address(), // Comentado por petición del cliente: quitar dirección de entrega
             'document_type' => fake()->randomElement(['factura', 'remision', 'guia', 'otro']),
             'document_number' => fake()->optional()->numerify('DOC-####'),
             'document_date' => fake()->dateTimeBetween('-30 days', 'now'),

@@ -9,7 +9,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function mount(Dispatch $dispatch): void
     {
-        $this->dispatch = $dispatch->load(['customer', 'warehouse', 'details.product', 'details.unitOfMeasure', 'approver', 'dispatcher', 'deliverer', 'creator']);
+        $this->dispatch = $dispatch->load(['employee', 'warehouse', 'details.product', 'details.unitOfMeasure', 'approver', 'dispatcher', 'deliverer', 'creator']);
     }
 
     public function submit(): void
@@ -176,10 +176,20 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <flux:text class="mt-1">{{ $dispatch->created_at->format('d/m/Y H:i') }}</flux:text>
                     </div>
 
-                    @if ($dispatch->customer)
+                    @if ($dispatch->area)
                         <div>
-                            <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Cliente</flux:text>
-                            <flux:text class="mt-1">{{ $dispatch->customer->name }}</flux:text>
+                            <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Unidad Solicitante</flux:text>
+                            <flux:text class="mt-1">{{ $dispatch->area->name }}</flux:text>
+                        </div>
+                    @endif
+
+                    @if ($dispatch->employee)
+                        <div>
+                            <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Persona Solicitante</flux:text>
+                            <flux:text class="mt-1">{{ $dispatch->employee->name }}</flux:text>
+                            @if ($dispatch->employee->position)
+                                <flux:text size="sm" class="text-gray-500">({{ $dispatch->employee->position }})</flux:text>
+                            @endif
                         </div>
                     @endif
 
@@ -191,7 +201,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                     @endif
                 </div>
 
-                @if ($dispatch->recipient_name || $dispatch->recipient_phone || $dispatch->recipient_email || $dispatch->delivery_address)
+                @if ($dispatch->recipient_name || $dispatch->recipient_phone || $dispatch->recipient_email /* || $dispatch->delivery_address */)
                     <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                         <flux:heading size="sm" class="mb-4">Información del Receptor</flux:heading>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -216,12 +226,14 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 </div>
                             @endif
 
+                            {{-- Comentado por petición del cliente: quitar dirección de entrega
                             @if ($dispatch->delivery_address)
                                 <div class="sm:col-span-2">
                                     <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Dirección de Entrega</flux:text>
                                     <flux:text class="mt-1">{{ $dispatch->delivery_address }}</flux:text>
                                 </div>
                             @endif
+                            --}}
                         </div>
                     </div>
                 @endif

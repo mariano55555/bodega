@@ -9,6 +9,8 @@ new #[Layout('components.layouts.app')] class extends Component
 {
     public StorageLocation $location;
 
+    public $company_id = '';
+
     public $code = '';
 
     public $name = '';
@@ -40,20 +42,29 @@ new #[Layout('components.layouts.app')] class extends Component
     public function mount(StorageLocation $location): void
     {
         $this->location = $location;
-        $this->code = $location->code;
-        $this->name = $location->name;
-        $this->description = $location->description;
-        $this->warehouse_id = $location->warehouse_id;
-        $this->parent_location_id = $location->parent_location_id;
-        $this->type = $location->type;
-        $this->capacity = $location->capacity;
+
+        // Set company_id from location
+        $this->company_id = $location->company_id;
+
+        // Fill properties from model
+        $this->fill($location->only([
+            'code',
+            'name',
+            'description',
+            'warehouse_id',
+            'parent_location_id',
+            'type',
+            'capacity',
+            'max_weight',
+            'coordinates',
+            'is_pickable',
+            'is_receivable'
+        ]));
+
+        // Set defaults for nullable fields
         $this->capacity_unit = $location->capacity_unit ?? 'units';
-        $this->max_weight = $location->max_weight;
         $this->weight_unit = $location->weight_unit ?? 'kg';
-        $this->coordinates = $location->coordinates;
         $this->sort_order = $location->sort_order ?? 0;
-        $this->is_pickable = $location->is_pickable;
-        $this->is_receivable = $location->is_receivable;
     }
 
     public function save(): void
@@ -64,7 +75,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'description' => 'nullable|string|max:1000',
             'warehouse_id' => 'required|exists:warehouses,id',
             'parent_location_id' => 'nullable|exists:storage_locations,id',
-            'type' => 'required|in:shelf,pallet,bin,zone,floor',
+            'type' => 'required|in:zone,aisle,floor,shelf,pallet,bin',
             'capacity' => 'nullable|numeric|min:0',
             'capacity_unit' => 'nullable|in:units,m3,m2,pallets',
             'max_weight' => 'nullable|numeric|min:0',
@@ -107,20 +118,36 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function with(): array
     {
-        $warehouses = Warehouse::where('company_id', auth()->user()->company_id)
-            ->where('is_active', true)
-            ->get();
+        $isSuperAdmin = auth()->user()->isSuperAdmin();
 
-        $parentLocations = StorageLocation::where('company_id', auth()->user()->company_id)
-            ->when($this->warehouse_id, fn ($q) => $q->where('warehouse_id', $this->warehouse_id))
-            ->where('id', '!=', $this->location->id) // Exclude self
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get();
+        // Get the effective company_id
+        $effectiveCompanyId = $this->company_id ?: auth()->user()->company_id;
+
+        $companies = $isSuperAdmin
+            ? \App\Models\Company::where('is_active', true)->orderBy('name')->get()
+            : collect();
+
+        $warehouses = $effectiveCompanyId
+            ? Warehouse::where('company_id', $effectiveCompanyId)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get()
+            : collect();
+
+        $parentLocations = $effectiveCompanyId
+            ? StorageLocation::where('company_id', $effectiveCompanyId)
+                ->when($this->warehouse_id, fn ($q) => $q->where('warehouse_id', $this->warehouse_id))
+                ->where('id', '!=', $this->location->id) // Exclude self
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get()
+            : collect();
 
         return [
+            'companies' => $companies,
             'warehouses' => $warehouses,
             'parentLocations' => $parentLocations,
+            'isSuperAdmin' => $isSuperAdmin,
         ];
     }
 }; ?>
@@ -149,8 +176,26 @@ new #[Layout('components.layouts.app')] class extends Component
             <flux:heading size="lg">Información Básica</flux:heading>
 
             <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                @if($isSuperAdmin)
+                    <flux:field class="md:col-span-2">
+                        <flux:label>
+                            Empresa
+                            <flux:badge size="sm" color="red" inset="top right">Requerido</flux:badge>
+                        </flux:label>
+                        <flux:select wire:model.live="company_id" placeholder="Seleccione empresa">
+                            @foreach ($companies as $company)
+                                <flux:select.option value="{{ $company->id }}">{{ $company->name }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                        @error('company_id') <flux:text size="sm" class="text-red-600">{{ $message }}</flux:text> @enderror
+                    </flux:field>
+                @endif
+
                 <flux:field>
-                    <flux:label>Código *</flux:label>
+                    <flux:label>
+                        Código
+                        <flux:badge size="sm" color="red" inset="top right">Requerido</flux:badge>
+                    </flux:label>
                     <flux:input wire:model="code" placeholder="Ej: A-01-01" required />
                     @error('code') <flux:text size="sm" class="text-red-600">{{ $message }}</flux:text> @enderror
                     <flux:text size="sm" class="text-gray-500 mt-1">
@@ -159,7 +204,10 @@ new #[Layout('components.layouts.app')] class extends Component
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>Nombre *</flux:label>
+                    <flux:label>
+                        Nombre
+                        <flux:badge size="sm" color="red" inset="top right">Requerido</flux:badge>
+                    </flux:label>
                     <flux:input wire:model="name" placeholder="Ej: Pasillo A, Estante 1, Nivel 1" required />
                     @error('name') <flux:text size="sm" class="text-red-600">{{ $message }}</flux:text> @enderror
                 </flux:field>
@@ -171,25 +219,33 @@ new #[Layout('components.layouts.app')] class extends Component
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>Bodega *</flux:label>
-                    <flux:select wire:model.live="warehouse_id" required>
-                        <option value="">Seleccione bodega</option>
+                    <flux:label>
+                        Bodega
+                        <flux:badge size="sm" color="red" inset="top right">Requerido</flux:badge>
+                    </flux:label>
+                    <flux:select wire:model.live="warehouse_id" placeholder="Seleccione bodega">
                         @foreach ($warehouses as $warehouse)
-                            <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
+                            <flux:select.option value="{{ $warehouse->id }}">{{ $warehouse->name }}</flux:select.option>
                         @endforeach
                     </flux:select>
                     @error('warehouse_id') <flux:text size="sm" class="text-red-600">{{ $message }}</flux:text> @enderror
+                    @if(!$company_id)
+                        <flux:text size="sm" class="text-gray-500 mt-1">Seleccione primero una empresa</flux:text>
+                    @endif
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>Tipo de Ubicación *</flux:label>
-                    <flux:select wire:model="type" required>
-                        <option value="">Seleccione tipo</option>
-                        <option value="zone">Zona</option>
-                        <option value="floor">Piso</option>
-                        <option value="shelf">Estante</option>
-                        <option value="pallet">Pallet</option>
-                        <option value="bin">Contenedor</option>
+                    <flux:label>
+                        Tipo de Ubicación
+                        <flux:badge size="sm" color="red" inset="top right">Requerido</flux:badge>
+                    </flux:label>
+                    <flux:select wire:model="type" placeholder="Seleccione tipo">
+                        <flux:select.option value="zone">Zona</flux:select.option>
+                        <flux:select.option value="aisle">Pasillo</flux:select.option>
+                        <flux:select.option value="floor">Piso</flux:select.option>
+                        <flux:select.option value="shelf">Estante</flux:select.option>
+                        <flux:select.option value="pallet">Pallet</flux:select.option>
+                        <flux:select.option value="bin">Contenedor</flux:select.option>
                     </flux:select>
                     @error('type') <flux:text size="sm" class="text-red-600">{{ $message }}</flux:text> @enderror
                 </flux:field>
@@ -197,9 +253,9 @@ new #[Layout('components.layouts.app')] class extends Component
                 <flux:field class="md:col-span-2">
                     <flux:label>Ubicación Padre</flux:label>
                     <flux:select wire:model="parent_location_id">
-                        <option value="">Sin ubicación padre (nivel raíz)</option>
+                        <flux:select.option value="">Sin ubicación padre (nivel raíz)</flux:select.option>
                         @foreach ($parentLocations as $parentLocation)
-                            <option value="{{ $parentLocation->id }}">{{ $parentLocation->code }} - {{ $parentLocation->name }}</option>
+                            <flux:select.option value="{{ $parentLocation->id }}">{{ $parentLocation->code }} - {{ $parentLocation->name }}</flux:select.option>
                         @endforeach
                     </flux:select>
                     @error('parent_location_id') <flux:text size="sm" class="text-red-600">{{ $message }}</flux:text> @enderror
@@ -241,11 +297,11 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label>Unidad de Capacidad</flux:label>
-                    <flux:select wire:model="capacity_unit">
-                        <option value="units">Unidades</option>
-                        <option value="m3">m³ (metros cúbicos)</option>
-                        <option value="m2">m² (metros cuadrados)</option>
-                        <option value="pallets">Pallets</option>
+                    <flux:select wire:model="capacity_unit" placeholder="Seleccione unidad">
+                        <flux:select.option value="units">Unidades</flux:select.option>
+                        <flux:select.option value="m3">m³ (metros cúbicos)</flux:select.option>
+                        <flux:select.option value="m2">m² (metros cuadrados)</flux:select.option>
+                        <flux:select.option value="pallets">Pallets</flux:select.option>
                     </flux:select>
                     @error('capacity_unit') <flux:text size="sm" class="text-red-600">{{ $message }}</flux:text> @enderror
                 </flux:field>
@@ -258,10 +314,10 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label>Unidad de Peso</flux:label>
-                    <flux:select wire:model="weight_unit">
-                        <option value="kg">kg (kilogramos)</option>
-                        <option value="ton">ton (toneladas)</option>
-                        <option value="lb">lb (libras)</option>
+                    <flux:select wire:model="weight_unit" placeholder="Seleccione unidad">
+                        <flux:select.option value="kg">kg (kilogramos)</flux:select.option>
+                        <flux:select.option value="ton">ton (toneladas)</flux:select.option>
+                        <flux:select.option value="lb">lb (libras)</flux:select.option>
                     </flux:select>
                     @error('weight_unit') <flux:text size="sm" class="text-red-600">{{ $message }}</flux:text> @enderror
                 </flux:field>
@@ -272,20 +328,18 @@ new #[Layout('components.layouts.app')] class extends Component
         <flux:card>
             <flux:heading size="lg">Configuración</flux:heading>
 
-            <div class="mt-4 space-y-3">
-                <flux:checkbox wire:model="is_pickable">
-                    <flux:label>Ubicación de Picking</flux:label>
-                    <flux:text size="sm" class="text-gray-500">
-                        Permitir preparar pedidos desde esta ubicación
-                    </flux:text>
-                </flux:checkbox>
+            <div class="mt-4 space-y-4">
+                <flux:checkbox
+                    wire:model="is_pickable"
+                    label="Ubicación de Picking"
+                    description="Permitir preparar pedidos desde esta ubicación"
+                />
 
-                <flux:checkbox wire:model="is_receivable">
-                    <flux:label>Ubicación de Recepción</flux:label>
-                    <flux:text size="sm" class="text-gray-500">
-                        Permitir recibir productos en esta ubicación
-                    </flux:text>
-                </flux:checkbox>
+                <flux:checkbox
+                    wire:model="is_receivable"
+                    label="Ubicación de Recepción"
+                    description="Permitir recibir productos en esta ubicación"
+                />
             </div>
         </flux:card>
 

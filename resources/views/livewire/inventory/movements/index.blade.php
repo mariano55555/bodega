@@ -18,6 +18,9 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public string $search = '';
 
+    #[Url(as: 'empresa', history: true)]
+    public ?int $filterCompanyId = null;
+
     #[Url(as: 'q', history: true)]
     public string $movementSearch = '';
 
@@ -57,11 +60,39 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function mount(): void
     {
-        // Component initialization
+        // Auto-set company for non-super admins
+        if (! auth()->user()->isSuperAdmin()) {
+            $this->filterCompanyId = auth()->user()->company_id;
+        }
+
+        // Capture query parameters from URL
+        if (request()->has('product_id')) {
+            $this->filterProductId = (int) request('product_id');
+        }
+
+        if (request()->has('warehouse_id')) {
+            $this->filterWarehouseId = (int) request('warehouse_id');
+
+            // Auto-detect company from warehouse if super admin
+            if (auth()->user()->isSuperAdmin() && ! $this->filterCompanyId) {
+                $warehouse = Warehouse::find($this->filterWarehouseId);
+                if ($warehouse) {
+                    $this->filterCompanyId = $warehouse->company_id;
+                }
+            }
+        }
     }
 
     public function updatedMovementSearch(): void
     {
+        $this->resetPage();
+    }
+
+    public function updatedFilterCompanyId(): void
+    {
+        // Reset warehouse and product filters when company changes
+        $this->filterWarehouseId = null;
+        $this->filterProductId = null;
         $this->resetPage();
     }
 
@@ -86,9 +117,22 @@ new #[Layout('components.layouts.app')] class extends Component
     }
 
     #[Computed]
+    public function companies()
+    {
+        return \App\Models\Company::where('is_active', true)->orderBy('name')->get(['id', 'name']);
+    }
+
+    #[Computed]
     public function products()
     {
-        return Product::when($this->search, function ($query) {
+        $query = Product::query();
+
+        // Filter by company if selected
+        if ($this->filterCompanyId) {
+            $query->where('company_id', $this->filterCompanyId);
+        }
+
+        return $query->when($this->search, function ($query) {
             $query->where('name', 'like', '%'.$this->search.'%')
                 ->orWhere('sku', 'like', '%'.$this->search.'%');
         })->orderBy('name')->get();
@@ -97,7 +141,14 @@ new #[Layout('components.layouts.app')] class extends Component
     #[Computed]
     public function warehouses()
     {
-        return Warehouse::orderBy('name')->get();
+        $query = Warehouse::query();
+
+        // Filter by company if selected
+        if ($this->filterCompanyId) {
+            $query->where('company_id', $this->filterCompanyId);
+        }
+
+        return $query->orderBy('name')->get();
     }
 
     #[Computed]
@@ -105,6 +156,7 @@ new #[Layout('components.layouts.app')] class extends Component
     {
         return InventoryMovement::query()
             ->with(['product', 'warehouse', 'transfer', 'dispatch', 'purchase', 'donation', 'adjustment'])
+            ->when($this->filterCompanyId, fn ($q) => $q->where('company_id', $this->filterCompanyId))
             ->when($this->movementSearch, function ($query) {
                 $query->whereHas('product', function ($q) {
                     $q->where('name', 'like', '%'.$this->movementSearch.'%')
@@ -161,6 +213,12 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->filterProductId = null;
         $this->filterWarehouseId = null;
         $this->filterMovementType = null;
+
+        // Only clear company filter for super admins
+        if (auth()->user()->isSuperAdmin()) {
+            $this->filterCompanyId = null;
+        }
+
         $this->resetPage();
     }
 
@@ -351,6 +409,22 @@ new #[Layout('components.layouts.app')] class extends Component
         </div>
 
         <!-- Filters -->
+        @if(auth()->user()->isSuperAdmin())
+        <div class="mb-4">
+            <flux:field>
+                <flux:label>Empresa</flux:label>
+                <flux:select variant="listbox" searchable wire:model.live="filterCompanyId" placeholder="Todas las empresas">
+                    <flux:select.option value="">Todas las empresas</flux:select.option>
+                    @foreach($this->companies as $company)
+                    <flux:select.option value="{{ $company->id }}">
+                        {{ $company->name }}
+                    </flux:select.option>
+                    @endforeach
+                </flux:select>
+            </flux:field>
+        </div>
+        @endif
+
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <flux:field>
                 <flux:label>Buscar Producto</flux:label>
@@ -359,7 +433,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
             <flux:field>
                 <flux:label>Producto</flux:label>
-                <flux:select wire:model.live="filterProductId" placeholder="Todos los productos">
+                <flux:select variant="listbox" searchable wire:model.live="filterProductId" placeholder="Todos los productos">
                     <flux:select.option value="">Todos los productos</flux:select.option>
                     @foreach($this->products as $product)
                     <flux:select.option value="{{ $product->id }}">
@@ -371,7 +445,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
             <flux:field>
                 <flux:label>Bodega</flux:label>
-                <flux:select wire:model.live="filterWarehouseId" placeholder="Todas las bodegas">
+                <flux:select variant="listbox" searchable wire:model.live="filterWarehouseId" placeholder="Todas las bodegas">
                     <flux:select.option value="">Todas las bodegas</flux:select.option>
                     @foreach($this->warehouses as $warehouse)
                     <flux:select.option value="{{ $warehouse->id }}">
@@ -383,7 +457,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
             <flux:field>
                 <flux:label>Tipo de Movimiento</flux:label>
-                <flux:select wire:model.live="filterMovementType" placeholder="Todos los tipos">
+                <flux:select variant="listbox" searchable wire:model.live="filterMovementType" placeholder="Todos los tipos">
                     <flux:select.option value="">Todos los tipos</flux:select.option>
                     <flux:select.option value="purchase">Compra</flux:select.option>
                     <flux:select.option value="sale">Venta</flux:select.option>
@@ -397,7 +471,7 @@ new #[Layout('components.layouts.app')] class extends Component
             </flux:field>
         </div>
 
-        @if($this->movementSearch || $this->filterProductId || $this->filterWarehouseId || $this->filterMovementType)
+        @if($this->movementSearch || $this->filterProductId || $this->filterWarehouseId || $this->filterMovementType || (auth()->user()->isSuperAdmin() && $this->filterCompanyId))
         <div class="mb-4">
             <flux:button size="sm" variant="outline" wire:click="clearFilters">
                 Limpiar Filtros
@@ -412,13 +486,13 @@ new #[Layout('components.layouts.app')] class extends Component
             </div>
             <div class="flex items-center gap-2">
                 <flux:text class="text-sm">Por página:</flux:text>
-                <flux:select wire:model.live="perPage" class="w-20">
-                    <option value="10">10</option>
-                    <option value="15">15</option>
-                    <option value="20">20</option>
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
+                <flux:select variant="listbox" wire:model.live="perPage" class="w-20">
+                    <flux:select.option value="10">10</flux:select.option>
+                    <flux:select.option value="15">15</flux:select.option>
+                    <flux:select.option value="20">20</flux:select.option>
+                    <flux:select.option value="25">25</flux:select.option>
+                    <flux:select.option value="50">50</flux:select.option>
+                    <flux:select.option value="100">100</flux:select.option>
                 </flux:select>
             </div>
         </div>
@@ -566,7 +640,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 <!-- Product Selection -->
                 <flux:field>
                     <flux:label>Producto <span class="text-red-500">*</span></flux:label>
-                    <flux:select wire:model="selectedProductId" placeholder="Seleccione un producto">
+                    <flux:select variant="listbox" searchable wire:model="selectedProductId" placeholder="Seleccione un producto">
                         @foreach($this->products as $product)
                         <flux:select.option value="{{ $product->id }}">
                             {{ $product->name }} ({{ $product->sku }})
@@ -579,7 +653,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 <!-- Warehouse Selection -->
                 <flux:field>
                     <flux:label>Bodega <span class="text-red-500">*</span></flux:label>
-                    <flux:select wire:model="selectedWarehouseId" placeholder="Seleccione una bodega">
+                    <flux:select variant="listbox" searchable wire:model="selectedWarehouseId" placeholder="Seleccione una bodega">
                         @foreach($this->warehouses as $warehouse)
                         <flux:select.option value="{{ $warehouse->id }}">
                             {{ $warehouse->name }} - {{ $warehouse->location }}
@@ -655,7 +729,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 <!-- Product Selection -->
                 <flux:field>
                     <flux:label>Producto <span class="text-red-500">*</span></flux:label>
-                    <flux:select wire:model="selectedProductId" placeholder="Seleccione un producto">
+                    <flux:select variant="listbox" searchable wire:model="selectedProductId" placeholder="Seleccione un producto">
                         @foreach($this->products as $product)
                         <flux:select.option value="{{ $product->id }}">
                             {{ $product->name }} ({{ $product->sku }})
@@ -668,7 +742,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 <!-- Warehouse Selection -->
                 <flux:field>
                     <flux:label>Bodega <span class="text-red-500">*</span></flux:label>
-                    <flux:select wire:model="selectedWarehouseId" placeholder="Seleccione una bodega">
+                    <flux:select variant="listbox" searchable wire:model="selectedWarehouseId" placeholder="Seleccione una bodega">
                         @foreach($this->warehouses as $warehouse)
                         <flux:select.option value="{{ $warehouse->id }}">
                             {{ $warehouse->name }} - {{ $warehouse->location }}

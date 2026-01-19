@@ -55,7 +55,7 @@ class AdjustmentCreatedNotification extends Notification implements ShouldQueue
             ->line("Se ha realizado un ajuste de inventario ({$typeLabel}).")
             ->line("**Producto:** {$this->productName}")
             ->line("**Bodega:** {$this->warehouseName}")
-            ->line("**Diferencia:** ".($this->quantityDifference >= 0 ? '+' : '').number_format($this->quantityDifference, 2))
+            ->line('**Diferencia:** '.($this->quantityDifference >= 0 ? '+' : '').number_format($this->quantityDifference, 2))
             ->line("**Razón:** {$this->adjustment->reason}")
             ->action('Ver Ajustes', route('adjustments.index'))
             ->line('Revise el ajuste si es necesario.');
@@ -79,7 +79,7 @@ class AdjustmentCreatedNotification extends Notification implements ShouldQueue
             'warehouse_name' => $this->warehouseName,
             'quantity_difference' => $this->quantityDifference,
             'reason' => $this->adjustment->reason,
-            'message' => "Ajuste: {$this->productName} ({$this->quantityDifference >= 0 ? '+' : ''}{$this->quantityDifference})",
+            'message' => "Ajuste: {$this->productName} (".($this->quantityDifference >= 0 ? '+' : '').$this->quantityDifference.')',
             'url' => route('adjustments.index'),
         ];
     }

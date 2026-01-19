@@ -99,6 +99,13 @@ new #[Layout('components.layouts.app')] class extends Component
         ]);
     }
 
+    public function refresh(): void
+    {
+        // Clear the computed property cache and reset to page 1
+        unset($this->companies);
+        $this->resetPage();
+    }
+
     public function with(): array
     {
         return [
@@ -108,7 +115,7 @@ new #[Layout('components.layouts.app')] class extends Component
 }; ?>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <!-- Page Header -->
+        <!-- Page Header -->
     <div class="mb-8">
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
@@ -120,8 +127,9 @@ new #[Layout('components.layouts.app')] class extends Component
                 </flux:text>
             </div>
             <div class="flex items-center gap-3">
-                <flux:button variant="outline" icon="arrow-path" wire:click="$refresh">
-                    {{ __('ui.refresh') }}
+                <flux:button variant="outline" icon="arrow-path" wire:click="refresh" wire:loading.attr="disabled">
+                    <span wire:loading.remove wire:target="refresh">{{ __('ui.refresh') }}</span>
+                    <span wire:loading wire:target="refresh">{{ __('ui.refreshing') }}...</span>
                 </flux:button>
                 @can('create', App\Models\Company::class)
                     <flux:button variant="primary" icon="plus" :href="route('warehouse.companies.create')" wire:navigate>
@@ -168,7 +176,7 @@ new #[Layout('components.layouts.app')] class extends Component
     <!-- Companies Grid -->
     @if($this->companies->count() > 0)
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            @foreach($this->companies as $company)
+                @foreach($this->companies as $company)
                 <flux:card class="hover:shadow-lg transition-shadow duration-200">
                     <flux:heading>
                         <div class="flex items-start justify-between">

@@ -52,7 +52,7 @@ class ClosureCompletedNotification extends Notification implements ShouldQueue
             ->line("El cierre de inventario para **{$monthName} {$this->closure->year}** ha sido completado.")
             ->line("**Bodega:** {$this->warehouseName}")
             ->line("**Total productos:** {$this->totalProducts}")
-            ->line("**Valor total:** $".number_format($this->totalValue, 2))
+            ->line('**Valor total:** $'.number_format($this->totalValue, 2))
             ->action('Ver Cierres', route('closures.index'))
             ->line('El inventario ha sido cerrado correctamente.');
     }

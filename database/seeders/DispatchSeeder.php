@@ -52,7 +52,7 @@ class DispatchSeeder extends Seeder
                 'recipient_name' => $customer?->contact_person ?? fake()->name(),
                 'recipient_phone' => $customer?->contact_phone ?? fake()->phoneNumber(),
                 'recipient_email' => $customer?->contact_email ?? fake()->optional(0.7)->email(),
-                'delivery_address' => $customer?->address ?? fake()->address(),
+                // 'delivery_address' => $customer?->address ?? fake()->address(), // Comentado por petición del cliente: quitar dirección de entrega
                 'shipping_cost' => fake()->randomFloat(2, 0, 300),
                 'status' => $status,
                 'notes' => fake()->optional(0.5)->sentence(),

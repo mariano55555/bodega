@@ -91,6 +91,7 @@ new class extends Component
     public function movementReasons()
     {
         return \App\Models\MovementReason::where('is_active', true)
+            ->orderBy('legacy_code')
             ->orderBy('name')
             ->get();
     }
@@ -107,7 +108,7 @@ new class extends Component
             ->where('product_id', $this->product_id)
             ->where('warehouse_id', $this->warehouse_id)
             ->whereNotNull('balance_quantity')
-            ->with(['product', 'warehouse', 'movementReason']);
+            ->with(['product', 'warehouse', 'movementReason', 'dispatch', 'transfer', 'purchase', 'donation']);
 
         if ($this->date_from) {
             $query->whereDate('movement_date', '>=', $this->date_from);
@@ -259,24 +260,38 @@ new class extends Component
             {{-- Movement Type --}}
             <flux:field>
                 <flux:label>Tipo de Movimiento</flux:label>
-                <flux:select wire:model.live="movement_type" placeholder="Todos los tipos">
-                    <option value="">Todos</option>
-                    <option value="entrada">Entrada</option>
-                    <option value="salida">Salida</option>
-                    <option value="ajuste">Ajuste</option>
-                    <option value="transferencia">Transferencia</option>
+                <flux:select variant="listbox" searchable wire:model.live="movement_type" placeholder="Todos los tipos">
+                    <flux:select.option value="">Todos</flux:select.option>
+                    <flux:select.option value="purchase">📦 Compra</flux:select.option>
+                    <flux:select.option value="receipt">📥 Recepción</flux:select.option>
+                    <flux:select.option value="return_customer">↩️ Devolución Cliente</flux:select.option>
+                    <flux:select.option value="transfer_in">⬅️ Transferencia Entrada</flux:select.option>
+                    <flux:select.option value="sale">💰 Venta</flux:select.option>
+                    <flux:select.option value="shipment">📤 Envío</flux:select.option>
+                    <flux:select.option value="return_supplier">↪️ Devolución Proveedor</flux:select.option>
+                    <flux:select.option value="transfer_out">➡️ Transferencia Salida</flux:select.option>
+                    <flux:select.option value="adjustment">⚖️ Ajuste</flux:select.option>
+                    <flux:select.option value="expiry">⏰ Vencimiento</flux:select.option>
                 </flux:select>
+                <flux:description>Filtre por tipo de movimiento específico</flux:description>
             </flux:field>
 
             {{-- Movement Reason --}}
             <flux:field>
-                <flux:label>Motivo</flux:label>
-                <flux:select wire:model.live="movement_reason_id" placeholder="Todos los motivos">
-                    <option value="">Todos</option>
+                <flux:label>Código de Transacción</flux:label>
+                <flux:select variant="listbox" searchable wire:model.live="movement_reason_id" placeholder="Todos los códigos">
+                    <flux:select.option value="">Todos</flux:select.option>
                     @foreach ($this->movementReasons as $reason)
-                        <option value="{{ $reason->id }}">{{ $reason->name }}</option>
+                        <flux:select.option value="{{ $reason->id }}">
+                            @if ($reason->legacy_code)
+                                {{ $reason->legacy_code }} - {{ $reason->legacy_name }}
+                            @else
+                                {{ $reason->name }}
+                            @endif
+                        </flux:select.option>
                     @endforeach
                 </flux:select>
+                <flux:description>Filtre por código de transacción ENA (E0, S1, etc.)</flux:description>
             </flux:field>
         </div>
 
@@ -366,21 +381,58 @@ new class extends Component
                                 </flux:table.cell>
 
                                 <flux:table.cell>
-                                    <div class="flex flex-col">
+                                    <div class="flex flex-col gap-1">
+                                        {{-- Documento Original del Sistema --}}
+                                        @if ($movement->dispatch)
+                                            <a href="{{ route('dispatches.show', $movement->dispatch->slug) }}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium" wire:navigate>
+                                                {{ $movement->dispatch->dispatch_number }}
+                                            </a>
+                                            <span class="text-xs text-zinc-500">Despacho</span>
+                                        @elseif ($movement->transfer)
+                                            <a href="{{ route('transfers.show', $movement->transfer->slug) }}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium" wire:navigate>
+                                                {{ $movement->transfer->transfer_number ?? 'TRANS-'.$movement->transfer->id }}
+                                            </a>
+                                            <span class="text-xs text-zinc-500">Transferencia</span>
+                                        @elseif ($movement->purchase)
+                                            <a href="{{ route('purchases.show', $movement->purchase->slug) }}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium" wire:navigate>
+                                                {{ $movement->purchase->purchase_number ?? 'PO-'.$movement->purchase->id }}
+                                            </a>
+                                            <span class="text-xs text-zinc-500">Compra</span>
+                                        @elseif ($movement->donation)
+                                            <a href="{{ route('donations.show', $movement->donation->slug) }}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium" wire:navigate>
+                                                {{ $movement->donation->donation_number ?? 'DON-'.$movement->donation->id }}
+                                            </a>
+                                            <span class="text-xs text-zinc-500">Donación</span>
+                                        @endif
+
+                                        {{-- Documento Externo (Factura, Guía, etc.) --}}
                                         @if ($movement->document_number)
-                                            <span class="font-medium">{{ $movement->document_number }}</span>
+                                            <span class="text-xs font-medium text-zinc-700 dark:text-zinc-300">{{ $movement->document_number }}</span>
                                         @endif
                                         @if ($movement->reference_number)
-                                            <span class="text-xs text-zinc-500">{{ $movement->reference_number }}</span>
+                                            <span class="text-xs text-zinc-500">Ref: {{ $movement->reference_number }}</span>
                                         @endif
-                                        @if (! $movement->document_number && ! $movement->reference_number)
+
+                                        {{-- Sin documento --}}
+                                        @if (! $movement->dispatch && ! $movement->transfer && ! $movement->purchase && ! $movement->donation && ! $movement->document_number && ! $movement->reference_number)
                                             <span class="text-xs text-zinc-400">Sin documento</span>
                                         @endif
                                     </div>
                                 </flux:table.cell>
 
                                 <flux:table.cell>
-                                    {{ $movement->movementReason?->name ?? $movement->movement_type_spanish }}
+                                    @if ($movement->movementReason)
+                                        <div class="flex flex-col">
+                                            <span class="font-medium">
+                                                {{ $movement->movementReason->legacy_code ?? $movement->movementReason->code }}
+                                            </span>
+                                            <span class="text-xs text-zinc-600 dark:text-zinc-400">
+                                                {{ $movement->movementReason->legacy_name ?? $movement->movementReason->name }}
+                                            </span>
+                                        </div>
+                                    @else
+                                        {{ $movement->movement_type_spanish }}
+                                    @endif
                                 </flux:table.cell>
 
                                 <flux:table.cell class="text-right font-medium tabular-nums">

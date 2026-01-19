@@ -233,6 +233,7 @@ return [
     'show_all' => 'Mostrar todo',
     'load_more' => 'Cargar más',
     'refresh' => 'Refrescar',
+    'refreshing' => 'Refrescando',
     'reload' => 'Recargar',
     'retry' => 'Reintentar',
 

@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\Customer;
+use App\Models\Employee;
 use App\Models\Dispatch;
 use App\Models\DispatchDetail;
 use App\Models\Product;
@@ -15,7 +15,9 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public $warehouse_id = '';
 
-    public $customer_id = '';
+    public $area_id;
+
+    public $employee_id = '';
 
     public $dispatch_type = 'interno';
 
@@ -25,7 +27,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public $recipient_phone = '';
 
-    public $delivery_address = '';
+    // public $delivery_address = ''; // Comentado por petición del cliente: quitar dirección de entrega
 
     public $notes = '';
 
@@ -45,12 +47,13 @@ new #[Layout('components.layouts.app')] class extends Component
 
         $this->dispatch = $dispatch;
         $this->warehouse_id = $dispatch->warehouse_id;
-        $this->customer_id = $dispatch->customer_id;
+        $this->area_id = $dispatch->area_id;
+        $this->employee_id = $dispatch->employee_id;
         $this->dispatch_type = $dispatch->dispatch_type;
         $this->recipient_name = $dispatch->recipient_name;
         $this->recipient_email = $dispatch->recipient_email;
         $this->recipient_phone = $dispatch->recipient_phone;
-        $this->delivery_address = $dispatch->delivery_address;
+        // $this->delivery_address = $dispatch->delivery_address; // Comentado por petición del cliente: quitar dirección de entrega
         $this->notes = $dispatch->notes;
         $this->status = $dispatch->status;
 
@@ -71,6 +74,12 @@ new #[Layout('components.layouts.app')] class extends Component
         }
     }
 
+    public function updatedAreaId(): void
+    {
+        // Reset employee when area changes
+        $this->employee_id = '';
+    }
+
     public function addDetail(): void
     {
         $this->details[] = [
@@ -89,6 +98,33 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->details = array_values($this->details);
     }
 
+    #[\Livewire\Attributes\Computed]
+    public function employees()
+    {
+        if (! $this->dispatch->company_id || ! $this->area_id) {
+            return collect([]);
+        }
+
+        return Employee::where('company_id', $this->dispatch->company_id)
+            ->where('area_id', $this->area_id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+    }
+
+    #[\Livewire\Attributes\Computed]
+    public function areas()
+    {
+        if (! $this->dispatch->company_id) {
+            return collect([]);
+        }
+
+        return \App\Models\Area::where('company_id', $this->dispatch->company_id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+    }
+
     public function save(): void
     {
         $this->validate([
@@ -103,12 +139,13 @@ new #[Layout('components.layouts.app')] class extends Component
         \DB::transaction(function () {
             $this->dispatch->update([
                 'warehouse_id' => $this->warehouse_id,
-                'customer_id' => $this->customer_id ?: null,
+                'area_id' => $this->area_id,
+                'employee_id' => $this->employee_id ?: null,
                 'dispatch_type' => $this->dispatch_type,
                 'recipient_name' => $this->recipient_name,
                 'recipient_email' => $this->recipient_email,
                 'recipient_phone' => $this->recipient_phone,
-                'delivery_address' => $this->delivery_address,
+                // 'delivery_address' => $this->delivery_address, // Comentado por petición del cliente: quitar dirección de entrega
                 'notes' => $this->notes,
                 'status' => $this->status,
             ]);
@@ -162,7 +199,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
         return [
             'warehouses' => Warehouse::where('company_id', $companyId)->where('is_active', true)->orderBy('name')->get(),
-            'customers' => Customer::where('company_id', $companyId)->where('is_active', true)->orderBy('name')->get(),
+            'employees' => Employee::where('company_id', $companyId)->where('is_active', true)->orderBy('name')->get(),
             'products' => Product::where('company_id', $companyId)->where('is_active', true)->orderBy('name')->get(),
             'units' => UnitOfMeasure::forCompany($companyId)->active()->get(),
         ];
@@ -207,14 +244,36 @@ new #[Layout('components.layouts.app')] class extends Component
                     </flux:select>
                 </flux:field>
 
+                <!-- Unidad Solicitante (Área) -->
                 <flux:field>
-                    <flux:label>Cliente</flux:label>
-                    <flux:select wire:model="customer_id">
-                        <option value="">Sin cliente</option>
-                        @foreach ($customers as $customer)
-                            <option value="{{ $customer->id }}">{{ $customer->name }}</option>
+                    <flux:label badge="Requerido">Unidad Solicitante</flux:label>
+                    <flux:select wire:model.live="area_id">
+                        <option value="">Seleccione área</option>
+                        @foreach ($this->areas as $area)
+                            <option value="{{ $area->id }}">{{ $area->name }}</option>
                         @endforeach
                     </flux:select>
+                    <flux:description>Seleccione el área solicitante</flux:description>
+                    <flux:error name="area_id" />
+                </flux:field>
+
+                <!-- Persona Solicitante -->
+                <flux:field>
+                    <flux:label badge="Requerido">Persona Solicitante</flux:label>
+                    <flux:select wire:model="employee_id" :disabled="!$area_id">
+                        <option value="">Seleccione persona</option>
+                        @foreach ($this->employees as $employee)
+                            <option value="{{ $employee->id }}">{{ $employee->name }}{{ $employee->position ? ' (' . $employee->position . ')' : '' }}</option>
+                        @endforeach
+                    </flux:select>
+                    <flux:description>
+                        @if(!$area_id)
+                            Primero seleccione una unidad solicitante
+                        @else
+                            Persona del área seleccionada
+                        @endif
+                    </flux:description>
+                    <flux:error name="employee_id" />
                 </flux:field>
 
                 <flux:field>
@@ -232,10 +291,12 @@ new #[Layout('components.layouts.app')] class extends Component
                     <flux:input type="email" wire:model="recipient_email" />
                 </flux:field>
 
+                {{-- Comentado por petición del cliente: quitar dirección de entrega
                 <flux:field class="md:col-span-2">
                     <flux:label>Dirección de Entrega</flux:label>
                     <flux:textarea wire:model="delivery_address" rows="2" />
                 </flux:field>
+                --}}
 
                 <flux:field class="md:col-span-2">
                     <flux:label>Notas</flux:label>

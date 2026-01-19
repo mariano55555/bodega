@@ -249,7 +249,12 @@
                             @endif
                         </td>
                         <td>
-                            {{ $movement->movementReason?->name ?? $movement->movement_type_spanish }}
+                            @if ($movement->movementReason)
+                                <strong>{{ $movement->movementReason->legacy_code ?? $movement->movementReason->code }}</strong><br>
+                                <span style="font-size: 8px; color: #666;">{{ $movement->movementReason->legacy_name ?? $movement->movementReason->name }}</span>
+                            @else
+                                {{ $movement->movement_type_spanish }}
+                            @endif
                         </td>
                         <td class="right">
                             @if ($movement->quantity_in > 0)

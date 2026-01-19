@@ -43,7 +43,10 @@ new #[Layout('components.layouts.app')] class extends Component
 
         $this->category->update($validated);
 
-        session()->flash('success', 'Categoría actualizada exitosamente.');
+        Flux::toast(
+            text: 'Categoría actualizada exitosamente',
+            variant: 'success',
+        );
 
         $this->redirect(route('admin.categories.index'), navigate: true);
     }

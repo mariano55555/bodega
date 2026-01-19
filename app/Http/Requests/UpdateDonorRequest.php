@@ -20,7 +20,7 @@ class UpdateDonorRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'legal_name' => ['nullable', 'string', 'max:255'],
-            'donor_type' => ['nullable', 'string', 'max:50'],
+            'donor_type' => ['required', 'string', 'max:50'],
             'tax_id' => [
                 'nullable',
                 'string',

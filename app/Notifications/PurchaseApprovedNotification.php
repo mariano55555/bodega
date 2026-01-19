@@ -45,7 +45,7 @@ class PurchaseApprovedNotification extends Notification implements ShouldQueue
             ->line("La compra **{$this->purchase->purchase_number}** ha sido aprobada.")
             ->line("**Proveedor:** {$this->supplierName}")
             ->line("**Total items:** {$this->totalItems}")
-            ->line("**Monto total:** $".number_format($this->totalAmount, 2))
+            ->line('**Monto total:** $'.number_format($this->totalAmount, 2))
             ->action('Ver Compra', route('purchases.show', $this->purchase))
             ->line('La compra está lista para ser procesada.');
     }

@@ -3,6 +3,7 @@
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\User;
+use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
@@ -130,32 +131,43 @@ new #[Layout('components.layouts.app')] class extends Component
 
         $validated = $this->validate();
 
-        // Prepare settings
-        $settings = [
-            'type' => $this->type,
-            'operating_hours' => [
-                'opening_time' => $this->opening_time,
-                'closing_time' => $this->closing_time,
-                'operating_days' => $this->operating_days,
-                'is_24_hours' => $this->is_24_hours,
-            ],
-            'facilities' => [
-                'has_parking' => $this->has_parking,
-                'has_security' => $this->has_security,
-            ],
-        ];
+        try {
+            // Prepare settings
+            $settings = [
+                'type' => $this->type,
+                'operating_hours' => [
+                    'opening_time' => $this->opening_time,
+                    'closing_time' => $this->closing_time,
+                    'operating_days' => $this->operating_days,
+                    'is_24_hours' => $this->is_24_hours,
+                ],
+                'facilities' => [
+                    'has_parking' => $this->has_parking,
+                    'has_security' => $this->has_security,
+                ],
+            ];
 
-        $validated['settings'] = $settings;
-        $validated['created_by'] = auth()->id();
+            $validated['settings'] = $settings;
+            $validated['created_by'] = auth()->id();
 
-        $branch = Branch::create($validated);
+            $branch = Branch::create($validated);
 
-        $this->dispatch('branch-created', [
-            'message' => __('warehouse.branch_created_successfully'),
-            'branch' => $branch->name,
-        ]);
+            Flux::toast(
+                text: "Sucursal '{$branch->name}' creada exitosamente",
+                variant: 'success',
+                duration: 3000
+            );
 
-        $this->redirect(route('warehouse.branches.index'), navigate: true);
+            $this->redirect(route('warehouse.branches.index'), navigate: true);
+        } catch (\Exception $e) {
+            Flux::toast(
+                text: 'Error al crear la sucursal. Por favor intente nuevamente.',
+                variant: 'danger',
+                duration: 5000
+            );
+
+            \Log::error('Error creating branch: '.$e->getMessage());
+        }
     }
 
     public function with(): array
@@ -218,8 +230,9 @@ new #[Layout('components.layouts.app')] class extends Component
                 <!-- Branch Code -->
                 <flux:field>
                     <flux:label>{{ __('ui.code') }} *</flux:label>
-                    <flux:input wire:model="code" :placeholder="__('warehouse.code_placeholder')" :description="__('warehouse.unique_code_description')" />
+                    <flux:input wire:model="code" :placeholder="__('warehouse.code_placeholder')" />
                     <flux:error name="code" />
+                    <flux:description>{{ __('warehouse.unique_code_description') }}</flux:description>
                 </flux:field>
 
                 <!-- Branch Type -->
@@ -236,12 +249,17 @@ new #[Layout('components.layouts.app')] class extends Component
                 <!-- Manager -->
                 <flux:field>
                     <flux:label>{{ __('warehouse.manager') }}</flux:label>
-                    <flux:select wire:model="manager_id" :placeholder="__('warehouse.select_manager')" :description="!$company_id ? __('warehouse.select_company_first') : __('warehouse.responsible_manager_description')">
+                    <flux:select wire:model="manager_id" :placeholder="__('warehouse.select_manager')">
                         @foreach($this->managers as $manager)
                             <flux:select.option value="{{ $manager->id }}">{{ $manager->name }}</flux:select.option>
                         @endforeach
                     </flux:select>
                     <flux:error name="manager_id" />
+                    @if(!$company_id)
+                        <flux:description>{{ __('warehouse.select_company_first') }}</flux:description>
+                    @else
+                        <flux:description>{{ __('warehouse.responsible_manager_description') }}</flux:description>
+                    @endif
                 </flux:field>
 
                 <!-- Description -->

@@ -22,6 +22,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public $unit_cost = '';
 
+    public $movement_reason_code = '';
+
     public $reason = '';
 
     public $justification = '';
@@ -55,7 +57,7 @@ new #[Layout('components.layouts.app')] class extends Component
     public function mount(): void
     {
         // For non-super admins, set company_id automatically
-        if (!$this->isSuperAdmin()) {
+        if (! $this->isSuperAdmin()) {
             $this->company_id = auth()->user()->company_id;
         }
 
@@ -132,9 +134,10 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function checkAvailableStock(): void
     {
-        if (!$this->warehouse_id || !$this->product_id) {
+        if (! $this->warehouse_id || ! $this->product_id) {
             $this->availableStock = null;
             $this->stockUnit = '';
+
             return;
         }
 
@@ -164,42 +167,41 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function save(): void
     {
-        $rules = (new StoreInventoryAdjustmentRequest)->rules();
+        $request = new StoreInventoryAdjustmentRequest;
+        $rules = $request->rules();
+        $messages = $request->messages();
 
         // Remove rules for properties that don't exist in this component
         unset($rules['attachments'], $rules['attachments.*'], $rules['admin_notes'], $rules['is_active']);
 
+        // Fix quantity validation to avoid duplicate messages
+        // Change from ['required', 'numeric', 'not_in:0'] to a single clear rule
+        $rules['quantity'] = ['required', 'numeric', 'gt:0'];
+        $messages['quantity.gt'] = 'La cantidad debe ser mayor a cero.';
+
         // Add company_id validation for super admins
         if ($this->isSuperAdmin()) {
             $rules['company_id'] = 'required|exists:companies,id';
+            $messages['company_id.required'] = 'La empresa es requerida.';
+            $messages['company_id.exists'] = 'La empresa seleccionada no existe.';
         }
 
-        $customAttributes = [
-            'warehouse_id' => 'bodega',
-            'product_id' => 'producto',
-            'adjustment_type' => 'tipo de ajuste',
-            'quantity' => 'cantidad',
-            'unit_cost' => 'costo unitario',
-            'reason' => 'motivo',
-            'company_id' => 'empresa',
-            'justification' => 'justificación',
-            'corrective_actions' => 'acciones correctivas',
-            'reference_document' => 'documento de referencia',
-            'reference_number' => 'número de documento',
-            'batch_number' => 'número de lote',
-            'expiry_date' => 'fecha de vencimiento',
-            'cost_center' => 'centro de costo',
-            'project_code' => 'código de proyecto',
-            'department' => 'departamento',
-        ];
-
-        $validated = $this->validate($rules, [], $customAttributes);
+        $validated = $this->validate($rules, $messages);
 
         // Use selected company_id for super admin, otherwise use auth user's company
         $companyId = $this->isSuperAdmin() ? $this->company_id : auth()->user()->company_id;
 
         // Helper to convert empty strings to null
         $nullIfEmpty = fn ($value) => $value === '' ? null : $value;
+
+        // Prepare admin notes with movement reason code
+        $adminNotes = '';
+        if ($this->movement_reason_code) {
+            $movementReason = \App\Models\MovementReason::where('code', $this->movement_reason_code)->first();
+            if ($movementReason) {
+                $adminNotes = "Código ENA: {$movementReason->legacy_code} - {$movementReason->legacy_name} (Code: {$this->movement_reason_code})";
+            }
+        }
 
         $adjustment = InventoryAdjustment::create([
             'company_id' => $companyId,
@@ -217,6 +219,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'batch_number' => $nullIfEmpty($validated['batch_number'] ?? null),
             'expiry_date' => $nullIfEmpty($validated['expiry_date'] ?? null),
             'notes' => $nullIfEmpty($validated['notes'] ?? null),
+            'admin_notes' => $adminNotes,
             'cost_center' => $nullIfEmpty($validated['cost_center'] ?? null),
             'project_code' => $nullIfEmpty($validated['project_code'] ?? null),
             'department' => $nullIfEmpty($validated['department'] ?? null),
@@ -225,6 +228,12 @@ new #[Layout('components.layouts.app')] class extends Component
 
         session()->flash('success', 'Ajuste de inventario creado exitosamente.');
         $this->redirect(route('adjustments.show', $adjustment->slug), navigate: true);
+    }
+
+    public function saveAndSubmit(): void
+    {
+        $this->status = 'pendiente';
+        $this->save();
     }
 
     #[\Livewire\Attributes\Computed]
@@ -240,7 +249,7 @@ new #[Layout('components.layouts.app')] class extends Component
     #[\Livewire\Attributes\Computed]
     public function warehouses()
     {
-        if (!$this->company_id) {
+        if (! $this->company_id) {
             return collect([]);
         }
 
@@ -253,13 +262,24 @@ new #[Layout('components.layouts.app')] class extends Component
     #[\Livewire\Attributes\Computed]
     public function products()
     {
-        if (!$this->company_id) {
+        if (! $this->company_id) {
             return collect([]);
         }
 
         return Product::where('company_id', $this->company_id)
             ->where('is_active', true)
             ->orderBy('name')
+            ->get();
+    }
+
+    #[\Livewire\Attributes\Computed]
+    public function movementReasons()
+    {
+        // Get adjustment-related movement reasons
+        return \App\Models\MovementReason::whereIn('category', ['adjustment', 'disposal'])
+            ->where('is_active', true)
+            ->orderBy('movement_type')
+            ->orderBy('legacy_code')
             ->get();
     }
 }; ?>
@@ -285,10 +305,10 @@ new #[Layout('components.layouts.app')] class extends Component
                 @if($this->isSuperAdmin())
                     <flux:field class="md:col-span-2">
                         <flux:label badge="Requerido">Empresa</flux:label>
-                        <flux:select wire:model.live="company_id">
-                            <option value="">Seleccione una empresa</option>
+                        <flux:select variant="listbox" searchable wire:model.live="company_id" placeholder="Seleccione una empresa">
+                            <flux:select.option value="">Seleccione una empresa</flux:select.option>
                             @foreach ($this->companies as $company)
-                                <option value="{{ $company->id }}">{{ $company->name }}</option>
+                                <flux:select.option value="{{ $company->id }}">{{ $company->name }}</flux:select.option>
                             @endforeach
                         </flux:select>
                         <flux:error name="company_id" />
@@ -297,29 +317,36 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label badge="Requerido">Bodega</flux:label>
-                    <flux:select wire:model.live="warehouse_id" :disabled="$this->isSuperAdmin() && !$company_id" :description="$this->isSuperAdmin() && !$company_id ? 'Primero selecciona una empresa' : ''">
-                        <option value="">Seleccione bodega</option>
+                    <flux:select variant="listbox" searchable wire:model.live="warehouse_id" :disabled="$this->isSuperAdmin() && !$company_id" placeholder="Seleccione bodega">
+                        <flux:select.option value="">Seleccione bodega</flux:select.option>
                         @foreach ($this->warehouses as $warehouse)
-                            <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
+                            <flux:select.option value="{{ $warehouse->id }}">{{ $warehouse->name }}</flux:select.option>
                         @endforeach
                     </flux:select>
+                    @if($this->isSuperAdmin() && !$company_id)
+                        <flux:description>Primero selecciona una empresa</flux:description>
+                    @endif
                     <flux:error name="warehouse_id" />
+                   <flux:description>&nbsp;</flux:description>
                 </flux:field>
 
                 <flux:field>
                     <flux:label badge="Requerido">Producto</flux:label>
-                    <flux:select wire:model.live="product_id" :disabled="$this->isSuperAdmin() && !$company_id" :description="$this->isSuperAdmin() && !$company_id ? 'Primero selecciona una empresa' : ''">
-                        <option value="">Seleccione producto</option>
+                    <flux:select variant="listbox" searchable wire:model.live="product_id" :disabled="$this->isSuperAdmin() && !$company_id" placeholder="Seleccione producto">
+                        <flux:select.option value="">Seleccione producto</flux:select.option>
                         @foreach ($this->products as $product)
-                            <option value="{{ $product->id }}">{{ $product->name }} ({{ $product->sku }})</option>
+                            <flux:select.option value="{{ $product->id }}">{{ $product->name }} ({{ $product->sku }})</flux:select.option>
                         @endforeach
                     </flux:select>
+                    @if($this->isSuperAdmin() && !$company_id)
+                        <flux:description>Primero selecciona una empresa</flux:description>
+                    @endif
                     <flux:error name="product_id" />
 
                     @if($availableStock !== null)
                         <div class="mt-2 flex items-center gap-2">
                             <flux:badge size="sm" :color="$availableStock > 0 ? 'lime' : 'zinc'" icon="cube">
-                                Stock actual: {{ number_format($availableStock, 2) }} {{ $stockUnit }}
+                                Stock disponible: {{ number_format($availableStock, 2) }} {{ $stockUnit }}
                             </flux:badge>
                         </div>
                     @endif
@@ -327,30 +354,52 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label badge="Requerido">Tipo de Ajuste</flux:label>
-                    <flux:select wire:model="adjustment_type" description="Para negativos, ingrese cantidad positiva (se convertirá automáticamente)">
-                        <option value="physical_count">Conteo Físico</option>
-                        <option value="positive">Ajuste Positivo (Sobrante)</option>
-                        <option value="negative">Ajuste Negativo (Faltante)</option>
-                        <option value="damage">Producto Dañado</option>
-                        <option value="expiry">Producto Vencido</option>
-                        <option value="loss">Pérdida/Robo</option>
-                        <option value="correction">Corrección de Conteo</option>
-                        <option value="return">Devolución</option>
-                        <option value="other">Otro</option>
+                    <flux:select variant="listbox" wire:model="adjustment_type" placeholder="Seleccione tipo de ajuste" searchable>
+                        <flux:select.option value="physical_count">Conteo Físico</flux:select.option>
+                        <flux:select.option value="positive">Ajuste Positivo (Sobrante)</flux:select.option>
+                        <flux:select.option value="negative">Ajuste Negativo (Faltante)</flux:select.option>
+                        <flux:select.option value="damage">Producto Dañado</flux:select.option>
+                        <flux:select.option value="expiry">Producto Vencido</flux:select.option>
+                        <flux:select.option value="loss">Pérdida/Robo</flux:select.option>
+                        <flux:select.option value="correction">Corrección de Conteo</flux:select.option>
+                        <flux:select.option value="return">Devolución</flux:select.option>
+                        <flux:select.option value="other">Otro</flux:select.option>
                     </flux:select>
+                    <flux:description>Para negativos, ingrese cantidad positiva (se convertirá automáticamente)</flux:description>
                     <flux:error name="adjustment_type" />
+                </flux:field>
+
+                <flux:field class="md:col-span-2">
+                    <flux:label badge="Requerido">Código de Transacción ENA</flux:label>
+                    <flux:select variant="listbox" searchable wire:model="movement_reason_code" placeholder="Seleccione el código de transacción">
+                        {{-- <flux:select.option value="">Seleccione el código de transacción</flux:select.option> --}}
+                        @foreach ($this->movementReasons as $reason)
+                            <flux:select.option value="{{ $reason->code }}">
+                                {{ $reason->legacy_code }} - {{ $reason->legacy_name }}
+                                ({{ $reason->movement_type === 'in' ? 'ENTRADA' : 'SALIDA' }})
+                            </flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:description>
+                        Seleccione el código del sistema ENA que corresponde a este ajuste.
+                        <strong>ENTRADAS:</strong> EJ (Ajuste), EM (Medición)
+                        <strong>SALIDAS:</strong> SJ (Ajuste), SN (Medición), S4 (Descarte), S5 (Obsolescencia)
+                    </flux:description>
+                    <flux:error name="movement_reason_code" />
                 </flux:field>
 
                 <flux:field>
                     <flux:label badge="Requerido">Cantidad</flux:label>
-                    <flux:input type="number" wire:model="quantity" step="0.0001" placeholder="Ej: 5.5" description="Ingrese siempre como positivo" />
+                    <flux:input type="number" wire:model="quantity" step="0.0001" placeholder="Ej: 5.5" />
                     <flux:error name="quantity" />
+                    <flux:description>Ingrese siempre como positivo</flux:description>
                 </flux:field>
 
                 <flux:field>
                     <flux:label>Costo Unitario</flux:label>
-                    <flux:input type="number" wire:model="unit_cost" step="0.0001" placeholder="0.00" description="Se autocompleta al seleccionar producto" />
+                    <flux:input type="number" wire:model="unit_cost" step="0.0001" placeholder="0.00" />
                     <flux:error name="unit_cost" />
+                    <flux:description>Se autocompleta al seleccionar producto</flux:description>
                 </flux:field>
             </div>
         </flux:card>
@@ -362,20 +411,23 @@ new #[Layout('components.layouts.app')] class extends Component
             <div class="grid grid-cols-1 gap-6">
                 <flux:field>
                     <flux:label badge="Requerido">Motivo</flux:label>
-                    <flux:input wire:model="reason" placeholder="Ej: Producto dañado durante almacenamiento" description="Breve descripción del ajuste" />
+                    <flux:input wire:model="reason" placeholder="Ej: Producto dañado durante almacenamiento" />
                     <flux:error name="reason" />
+                    <flux:description>Breve descripción del ajuste</flux:description>
                 </flux:field>
 
                 <flux:field>
                     <flux:label>Justificación Detallada</flux:label>
-                    <flux:textarea wire:model="justification" placeholder="Explicación completa de la situación..." rows="3" description="Explicación completa del por qué del ajuste" />
+                    <flux:textarea wire:model="justification" placeholder="Explicación completa de la situación..." rows="3" />
                     <flux:error name="justification" />
+                    <flux:description>Explicación completa del por qué del ajuste</flux:description>
                 </flux:field>
 
                 <flux:field>
                     <flux:label>Acciones Correctivas</flux:label>
-                    <flux:textarea wire:model="corrective_actions" placeholder="Medidas que se tomarán para evitar este problema..." rows="3" description="Qué se hará para prevenir este tipo de ajuste en el futuro" />
+                    <flux:textarea wire:model="corrective_actions" placeholder="Medidas que se tomarán para evitar este problema..." rows="3" />
                     <flux:error name="corrective_actions" />
+                    <flux:description>Qué se hará para prevenir este tipo de ajuste en el futuro</flux:description>
                 </flux:field>
             </div>
         </flux:card>
@@ -449,7 +501,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 <flux:button type="submit" variant="primary" icon="check">
                     Guardar como Borrador
                 </flux:button>
-                <flux:button type="button" variant="primary" wire:click="$set('status', 'pendiente')" wire:then="save">
+                <flux:button type="button" variant="primary" wire:click="saveAndSubmit" icon="paper-airplane">
                     Guardar y Enviar para Aprobación
                 </flux:button>
             </div>

@@ -47,12 +47,12 @@ class StoreProductRequest extends FormRequest
             'unit_of_measure_id' => ['required', 'integer', 'exists:units_of_measure,id'],
             'company_id' => ['required', 'integer', 'exists:companies,id'],
             'cost' => ['required', 'numeric', 'min:0', 'max:999999999.99'],
-            'price' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'], // Comentado en UI por petición del cliente
+            // 'price' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'], // Comentado por petición del cliente: quitar precio de venta
             'barcode' => ['nullable', 'string', 'max:255'],
             'image_path' => ['nullable', 'string', 'max:500'],
             'track_inventory' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
-            'valuation_method' => ['nullable', 'string', 'in:fifo,lifo,average'], // Comentado en UI por petición del cliente
+            // 'valuation_method' => ['nullable', 'string', 'in:fifo,lifo,average'], // Comentado por petición del cliente: quitar método de valuación
             'minimum_stock' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
             'maximum_stock' => ['nullable', 'numeric', 'min:0', 'max:999999999.99', 'gte:minimum_stock'],
             'attributes' => ['nullable', 'array'],
@@ -96,10 +96,10 @@ class StoreProductRequest extends FormRequest
             'cost.min' => 'El costo unitario debe ser mayor o igual a :min.',
             'cost.max' => 'El costo unitario no puede ser mayor a :max.',
 
-            'price.required' => 'El precio de venta es obligatorio.',
-            'price.numeric' => 'El precio de venta debe ser un número.',
-            'price.min' => 'El precio de venta debe ser mayor o igual a :min.',
-            'price.max' => 'El precio de venta no puede ser mayor a :max.',
+            // 'price.required' => 'El precio de venta es obligatorio.', // Comentado por petición del cliente: quitar precio de venta
+            // 'price.numeric' => 'El precio de venta debe ser un número.',
+            // 'price.min' => 'El precio de venta debe ser mayor o igual a :min.',
+            // 'price.max' => 'El precio de venta no puede ser mayor a :max.',
 
             'barcode.string' => 'El código de barras debe ser una cadena de texto.',
             'barcode.max' => 'El código de barras no puede tener más de :max caracteres.',
@@ -110,9 +110,10 @@ class StoreProductRequest extends FormRequest
             'track_inventory.boolean' => 'El control de inventario debe ser verdadero o falso.',
             'is_active.boolean' => 'El estado activo debe ser verdadero o falso.',
 
-            'valuation_method.required' => 'El método de valuación es obligatorio.',
-            'valuation_method.string' => 'El método de valuación debe ser una cadena de texto.',
-            'valuation_method.in' => 'El método de valuación seleccionado no es válido. Debe ser FIFO, LIFO o Promedio.',
+            // Comentado por petición del cliente: quitar método de valuación
+            // 'valuation_method.required' => 'El método de valuación es obligatorio.',
+            // 'valuation_method.string' => 'El método de valuación debe ser una cadena de texto.',
+            // 'valuation_method.in' => 'El método de valuación seleccionado no es válido. Debe ser FIFO, LIFO o Promedio.',
 
             'minimum_stock.numeric' => 'El stock mínimo debe ser un número.',
             'minimum_stock.min' => 'El stock mínimo debe ser mayor o igual a :min.',

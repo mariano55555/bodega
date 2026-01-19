@@ -15,13 +15,14 @@ class StoreDispatchRequest extends FormRequest
     {
         return [
             'warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
+            'area_id' => ['required', 'integer', 'exists:areas,id'],
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'dispatch_type' => ['required', 'string', 'in:venta,interno,externo,donacion'],
             'destination_unit' => ['nullable', 'string', 'max:255'],
             'recipient_name' => ['nullable', 'string', 'max:255'],
             'recipient_phone' => ['nullable', 'string', 'max:50'],
             'recipient_email' => ['nullable', 'email', 'max:255'],
-            'delivery_address' => ['nullable', 'string', 'max:500'],
+            // 'delivery_address' => ['nullable', 'string', 'max:500'], // Comentado por petición del cliente: quitar dirección de entrega
             'document_type' => ['nullable', 'string', 'max:100'],
             'document_number' => ['nullable', 'string', 'max:100'],
             'document_date' => ['nullable', 'date', 'before_or_equal:today'],
@@ -53,6 +54,9 @@ class StoreDispatchRequest extends FormRequest
         return [
             'warehouse_id.required' => 'La bodega es requerida.',
             'warehouse_id.exists' => 'La bodega seleccionada no existe.',
+            'area_id.required' => 'La unidad solicitante es obligatoria.',
+            'area_id.integer' => 'La unidad solicitante debe ser un número válido.',
+            'area_id.exists' => 'La unidad solicitante seleccionada no existe.',
             'customer_id.exists' => 'El cliente seleccionado no existe.',
             'dispatch_type.required' => 'El tipo de despacho es requerido.',
             'dispatch_type.in' => 'El tipo de despacho debe ser venta, interno, externo o donación.',
@@ -61,7 +65,7 @@ class StoreDispatchRequest extends FormRequest
             'recipient_phone.max' => 'El teléfono del receptor no puede exceder 50 caracteres.',
             'recipient_email.email' => 'El correo del receptor debe ser válido.',
             'recipient_email.max' => 'El correo del receptor no puede exceder 255 caracteres.',
-            'delivery_address.max' => 'La dirección de entrega no puede exceder 500 caracteres.',
+            // 'delivery_address.max' => 'La dirección de entrega no puede exceder 500 caracteres.', // Comentado por petición del cliente: quitar dirección de entrega
             'document_type.max' => 'El tipo de documento no puede exceder 100 caracteres.',
             'document_number.max' => 'El número de documento no puede exceder 100 caracteres.',
             'document_date.date' => 'La fecha del documento debe ser una fecha válida.',

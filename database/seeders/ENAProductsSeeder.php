@@ -396,11 +396,11 @@ class ENAProductsSeeder extends Seeder
                 'unit_of_measure_id' => $unit,
                 'unit_of_measure' => $unitObj ? $unitObj->abbreviation : 'pz',
                 'cost' => $productData['cost_price'],
-                'price' => $productData['selling_price'],
+                // 'price' => $productData['selling_price'], // Comentado por petición del cliente: quitar precio de venta
                 'track_inventory' => true,
                 'is_active' => true,
                 'active_at' => now(),
-                'valuation_method' => 'fifo',
+                // 'valuation_method' => 'fifo', // Comentado por petición del cliente: quitar método de valuación
                 'minimum_stock' => $productData['min_stock'],
                 'maximum_stock' => $productData['max_stock'],
                 'created_at' => now(),

@@ -18,8 +18,9 @@ class Dispatch extends Model
 
     protected $fillable = [
         'company_id',
+        'area_id',
         'warehouse_id',
-        'customer_id',
+        'employee_id',
         'dispatch_number',
         'slug',
         'dispatch_type',
@@ -27,7 +28,7 @@ class Dispatch extends Model
         'recipient_name',
         'recipient_phone',
         'recipient_email',
-        'delivery_address',
+        // 'delivery_address', // Comentado por petición del cliente: quitar dirección de entrega
         'document_type',
         'document_number',
         'document_date',
@@ -134,14 +135,19 @@ class Dispatch extends Model
         return $this->belongsTo(Company::class);
     }
 
+    public function area(): BelongsTo
+    {
+        return $this->belongsTo(Area::class);
+    }
+
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
     }
 
-    public function customer(): BelongsTo
+    public function employee(): BelongsTo
     {
-        return $this->belongsTo(Customer::class);
+        return $this->belongsTo(Employee::class);
     }
 
     public function details(): HasMany

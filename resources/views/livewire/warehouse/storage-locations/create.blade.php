@@ -195,11 +195,13 @@ new #[Layout('components.layouts.app')] class extends Component
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 @if ($isSuperAdmin)
                     <flux:field class="md:col-span-2">
-                        <flux:label>Empresa *</flux:label>
-                        <flux:select wire:model.live="company_id" required>
-                            <option value="">Seleccione empresa</option>
+                        <flux:label>
+                            Empresa
+                            <flux:badge size="sm" color="red" inset="top right">Requerido</flux:badge>
+                        </flux:label>
+                        <flux:select wire:model.live="company_id" placeholder="Seleccione empresa">
                             @foreach ($companies as $company)
-                                <option value="{{ $company->id }}">{{ $company->name }}</option>
+                                <flux:select.option value="{{ $company->id }}">{{ $company->name }}</flux:select.option>
                             @endforeach
                         </flux:select>
                         @error('company_id') <flux:text size="sm" class="text-red-600">{{ $message }}</flux:text> @enderror
@@ -207,7 +209,10 @@ new #[Layout('components.layouts.app')] class extends Component
                 @endif
 
                 <flux:field>
-                    <flux:label>Código *</flux:label>
+                    <flux:label>
+                        Código
+                        <flux:badge size="sm" color="red" inset="top right">Requerido</flux:badge>
+                    </flux:label>
                     <flux:input wire:model="code" placeholder="Ej: A-01-01" required />
                     @error('code') <flux:text size="sm" class="text-red-600">{{ $message }}</flux:text> @enderror
                     <flux:text size="sm" class="text-gray-500 mt-1">
@@ -216,7 +221,10 @@ new #[Layout('components.layouts.app')] class extends Component
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>Nombre *</flux:label>
+                    <flux:label>
+                        Nombre
+                        <flux:badge size="sm" color="red" inset="top right">Requerido</flux:badge>
+                    </flux:label>
                     <flux:input wire:model="name" placeholder="Ej: Pasillo A, Estante 1, Nivel 1" required />
                     @error('name') <flux:text size="sm" class="text-red-600">{{ $message }}</flux:text> @enderror
                 </flux:field>
@@ -228,19 +236,27 @@ new #[Layout('components.layouts.app')] class extends Component
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>Bodega *</flux:label>
-                    <flux:select wire:model.live="warehouse_id" required>
-                        <option value="">Seleccione bodega</option>
+                    <flux:label>
+                        Bodega
+                        <flux:badge size="sm" color="red" inset="top right">Requerido</flux:badge>
+                    </flux:label>
+                    <flux:select wire:model.live="warehouse_id" placeholder="Seleccione bodega">
                         @foreach ($warehouses as $warehouse)
-                            <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
+                            <flux:select.option value="{{ $warehouse->id }}">{{ $warehouse->name }}</flux:select.option>
                         @endforeach
                     </flux:select>
                     @error('warehouse_id') <flux:text size="sm" class="text-red-600">{{ $message }}</flux:text> @enderror
+                    @if(!$company_id)
+                        <flux:text size="sm" class="text-gray-500 mt-1">Seleccione primero una empresa</flux:text>
+                    @endif
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>Tipo de Ubicación *</flux:label>
-                    <flux:select wire:model="type" required>
+                    <flux:label>
+                        Tipo de Ubicación
+                        <flux:badge size="sm" color="red" inset="top right">Requerido</flux:badge>
+                    </flux:label>
+                    <flux:select wire:model="type" placeholder="Seleccione tipo">
                         <flux:select.option value="zone">Zona</flux:select.option>
                         <flux:select.option value="aisle">Pasillo</flux:select.option>
                         <flux:select.option value="shelf">Estante</flux:select.option>

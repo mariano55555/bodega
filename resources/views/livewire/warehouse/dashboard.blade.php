@@ -357,7 +357,7 @@ new #[Layout('components.layouts.app')] class extends Component
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- Branches Overview -->
         <flux:card class="lg:col-span-2">
-            <flux:heading>
+            <div class="mb-6">
                 <div class="flex items-center justify-between">
                     <div>
                         <flux:heading size="lg">{{ __('warehouse.branch_overview') }}</flux:heading>
@@ -369,7 +369,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         {{ __('ui.view_all') }}
                     </flux:button>
                 </div>
-            </flux:heading>
+            </div>
 
             <div class="space-y-4">
                 @forelse($this->branchesByLocation as $branch)
@@ -414,12 +414,12 @@ new #[Layout('components.layouts.app')] class extends Component
 
         <!-- Recent Activities -->
         <flux:card>
-            <flux:heading>
+            <div class="mb-6">
                 <flux:heading size="lg">{{ __('warehouse.recent_activities') }}</flux:heading>
                 <flux:text class="text-zinc-600 dark:text-zinc-400">
                     {{ __('warehouse.latest_activities') }}
                 </flux:text>
-            </flux:heading>
+            </div>
 
             <div class="space-y-4">
                 @forelse($this->recentActivities as $activity)
@@ -452,7 +452,7 @@ new #[Layout('components.layouts.app')] class extends Component
     <!-- Warehouse Capacity Overview -->
     @if($this->warehousesByCapacity->count() > 0)
         <flux:card class="mt-8">
-            <flux:heading>
+            <div class="mb-6">
                 <div class="flex items-center justify-between">
                     <div>
                         <flux:heading size="lg">{{ __('warehouse.capacity_overview') }}</flux:heading>
@@ -464,7 +464,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         {{ __('warehouse.capacity_management') }}
                     </flux:button>
                 </div>
-            </flux:heading>
+            </div>
 
             <div class="overflow-x-auto">
                 <flux:table>

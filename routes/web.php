@@ -120,11 +120,11 @@ Route::middleware(['auth'])->group(function () {
         Volt::route('{donation:slug}/edit', 'donations.edit')->name('edit');
     });
 
-    // Customer Management Routes
-    Route::prefix('customers')->name('customers.')->group(function () {
-        Volt::route('/', 'customers.index')->name('index');
-        Volt::route('create', 'customers.create')->name('create');
-        Volt::route('{customer:slug}/edit', 'customers.edit')->name('edit');
+    // Employee Management Routes
+    Route::prefix('employees')->name('employees.')->group(function () {
+        Volt::route('/', 'employees.index')->name('index');
+        Volt::route('create', 'employees.create')->name('create');
+        Volt::route('{employee:slug}/edit', 'employees.edit')->name('edit');
     });
 
     // Donor Management Routes
@@ -281,6 +281,13 @@ Route::middleware(['auth'])->group(function () {
         Volt::route('/', 'admin.units.index')->name('index');
         Volt::route('create', 'admin.units.create')->name('create');
         Volt::route('{unit:slug}/edit', 'admin.units.edit')->name('edit');
+    });
+
+    // Areas Management Routes
+    Route::prefix('admin/areas')->name('admin.areas.')->group(function () {
+        Volt::route('/', 'admin.areas.index')->name('index');
+        Volt::route('create', 'admin.areas.create')->name('create');
+        Volt::route('{area:slug}/edit', 'admin.areas.edit')->name('edit');
     });
 
     // Company User Management Routes

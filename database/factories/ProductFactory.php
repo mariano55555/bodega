@@ -22,12 +22,12 @@ class ProductFactory extends Factory
             'description' => fake()->optional()->paragraph(),
             'unit_of_measure' => fake()->randomElement(['unidad', 'caja', 'paquete', 'kg', 'litro']),
             'cost' => fake()->randomFloat(2, 10, 1000),
-            'price' => fake()->randomFloat(2, 15, 1500),
+            // 'price' => fake()->randomFloat(2, 15, 1500), // Comentado por petición del cliente: quitar precio de venta
             'barcode' => fake()->optional()->ean13(),
             'track_inventory' => fake()->boolean(80),
             'is_active' => true,
             'active_at' => now(),
-            'valuation_method' => fake()->randomElement(['fifo', 'lifo', 'average']),
+            // 'valuation_method' => fake()->randomElement(['fifo', 'lifo', 'average']), // Comentado por petición del cliente: quitar método de valuación
             'minimum_stock' => fake()->randomFloat(2, 5, 50),
             'maximum_stock' => fake()->randomFloat(2, 100, 500),
         ];

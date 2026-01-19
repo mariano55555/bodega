@@ -2,11 +2,9 @@
 
 namespace App\Listeners;
 
+use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
-use Illuminate\Auth\Events\Failed;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
 
 class LogAuthenticationActivity
 {
@@ -17,10 +15,10 @@ class LogAuthenticationActivity
     {
         // Check if this is a "remember me" re-authentication (session restore)
         // vs a manual login. Remember me logins happen via cookie, not form submission.
-        $isRememberMeLogin = $event->remember || !request()->hasSession() || !request()->session()->has('_token');
+        $isRememberMeLogin = $event->remember || ! request()->hasSession() || ! request()->session()->has('_token');
 
         // Only log manual logins, not automatic session restores
-        if (request()->isMethod('POST') || !$isRememberMeLogin) {
+        if (request()->isMethod('POST') || ! $isRememberMeLogin) {
             activity()
                 ->causedBy($event->user)
                 ->withProperties([

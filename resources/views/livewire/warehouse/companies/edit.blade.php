@@ -1,9 +1,10 @@
 <?php
 
-use Livewire\Volt\Component;
 use App\Models\Company;
-use Livewire\Attributes\Validate;
+use Flux\Flux;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Validate;
+use Livewire\Volt\Component;
 
 new #[Layout('components.layouts.app')] class extends Component
 {
@@ -12,14 +13,11 @@ new #[Layout('components.layouts.app')] class extends Component
     #[Validate('required|string|max:255')]
     public string $name = '';
 
-    #[Validate('nullable|string|max:500')]
-    public ?string $description = null;
+    #[Validate('nullable|string|max:255')]
+    public ?string $legal_name = null;
 
-    #[Validate('nullable|string|max:100')]
-    public ?string $registration_number = null;
-
-    #[Validate('nullable|string|max:50')]
-    public ?string $tax_id = null;
+    #[Validate('required|string|max:50')]
+    public string $tax_id = '';
 
     #[Validate('nullable|email|max:255')]
     public ?string $email = null;
@@ -45,14 +43,11 @@ new #[Layout('components.layouts.app')] class extends Component
     #[Validate('nullable|string|max:100')]
     public ?string $country = null;
 
-    #[Validate('nullable|string|max:10')]
-    public ?string $currency = 'USD';
+    #[Validate('nullable|string|max:3')]
+    public ?string $default_currency = 'EUR';
 
     #[Validate('nullable|string|max:50')]
     public ?string $timezone = null;
-
-    #[Validate('nullable|string|max:100')]
-    public ?string $contact_person = null;
 
     #[Validate('boolean')]
     public bool $is_active = true;
@@ -63,9 +58,9 @@ new #[Layout('components.layouts.app')] class extends Component
 
         $this->company = $company;
         $this->fill($company->only([
-            'name', 'description', 'registration_number', 'tax_id', 'email',
+            'name', 'legal_name', 'tax_id', 'email',
             'phone', 'website', 'address', 'city', 'state', 'postal_code',
-            'country', 'currency', 'timezone', 'contact_person', 'is_active'
+            'country', 'default_currency', 'timezone', 'is_active',
         ]));
     }
 
@@ -73,57 +68,56 @@ new #[Layout('components.layouts.app')] class extends Component
     {
         $this->authorize('update', $this->company);
 
-        // Update validation rules to exclude current company from uniqueness checks
+        // Validate #[Validate] attributes first
+        $this->validate();
+
+        // Additional validation for unique fields
         $this->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:500',
-            'registration_number' => 'nullable|string|max:100|unique:companies,registration_number,' . $this->company->id,
-            'tax_id' => 'nullable|string|max:50|unique:companies,tax_id,' . $this->company->id,
-            'email' => 'nullable|email|max:255|unique:companies,email,' . $this->company->id,
-            'phone' => 'nullable|string|max:20',
-            'website' => 'nullable|url|max:255',
-            'address' => 'nullable|string|max:255',
-            'city' => 'nullable|string|max:100',
-            'state' => 'nullable|string|max:100',
-            'postal_code' => 'nullable|string|max:20',
-            'country' => 'nullable|string|max:100',
-            'currency' => 'nullable|string|max:10',
-            'timezone' => 'nullable|string|max:50',
-            'contact_person' => 'nullable|string|max:100',
-            'is_active' => 'boolean',
+            'tax_id' => 'required|string|max:50|unique:companies,tax_id,'.$this->company->id,
+            'email' => 'nullable|email|max:255|unique:companies,email,'.$this->company->id,
         ]);
 
-        $this->company->update([
-            'name' => $this->name,
-            'description' => $this->description,
-            'registration_number' => $this->registration_number,
-            'tax_id' => $this->tax_id,
-            'email' => $this->email,
-            'phone' => $this->phone,
-            'website' => $this->website,
-            'address' => $this->address,
-            'city' => $this->city,
-            'state' => $this->state,
-            'postal_code' => $this->postal_code,
-            'country' => $this->country,
-            'currency' => $this->currency,
-            'timezone' => $this->timezone,
-            'contact_person' => $this->contact_person,
-            'is_active' => $this->is_active,
-        ]);
+        try {
+            $this->company->update([
+                'name' => $this->name,
+                'legal_name' => $this->legal_name,
+                'tax_id' => $this->tax_id,
+                'email' => $this->email,
+                'phone' => $this->phone,
+                'website' => $this->website,
+                'address' => $this->address,
+                'city' => $this->city,
+                'state' => $this->state,
+                'postal_code' => $this->postal_code,
+                'country' => $this->country,
+                'default_currency' => $this->default_currency,
+                'timezone' => $this->timezone,
+                'is_active' => $this->is_active,
+                'updated_by' => auth()->id(),
+            ]);
 
-        $this->dispatch('company-updated', [
-            'message' => __('warehouse.company_updated'),
-            'company' => $this->company->name
-        ]);
+            Flux::toast(
+                text: "Empresa '{$this->company->name}' actualizada exitosamente",
+                variant: 'success',
+                duration: 3000
+            );
 
-        $this->redirect(route('warehouse.companies.index'), navigate: true);
+            $this->redirect(route('warehouse.companies.index'), navigate: true);
+        } catch (\Exception $e) {
+            Flux::toast(
+                text: 'Error al actualizar la empresa. Por favor intente nuevamente.',
+                variant: 'danger',
+                duration: 5000
+            );
+
+            \Log::error('Error updating company: '.$e->getMessage());
+        }
     }
 
     public function with(): array
     {
         return [
-            'title' => __('warehouse.edit_company') . ': ' . $this->company->name,
+            'title' => __('warehouse.edit_company').': '.$this->company->name,
         ];
     }
 }; ?>
@@ -219,16 +213,17 @@ new #[Layout('components.layouts.app')] class extends Component
                     </flux:field>
                 </div>
 
-                <!-- Registration Number -->
+                <!-- Legal Name -->
                 <flux:field>
-                    <flux:label>{{ __('warehouse.registration_number') }}</flux:label>
-                    <flux:input wire:model="registration_number" placeholder="{{ __('warehouse.enter_registration_number') }}" />
-                    <flux:error name="registration_number" />
+                    <flux:label>{{ __('warehouse.legal_name') }}</flux:label>
+                    <flux:input wire:model="legal_name" placeholder="{{ __('warehouse.enter_legal_name') }}" />
+                    <flux:error name="legal_name" />
+                    <flux:description>Nombre legal registrado de la empresa</flux:description>
                 </flux:field>
 
                 <!-- Tax ID -->
                 <flux:field>
-                    <flux:label>{{ __('warehouse.tax_id') }}</flux:label>
+                    <flux:label>{{ __('warehouse.tax_id') }} *</flux:label>
                     <flux:input wire:model="tax_id" placeholder="{{ __('warehouse.enter_tax_id') }}" />
                     <flux:error name="tax_id" />
                 </flux:field>
@@ -248,25 +243,11 @@ new #[Layout('components.layouts.app')] class extends Component
                 </flux:field>
 
                 <!-- Website -->
-                <flux:field>
-                    <flux:label>{{ __('warehouse.website') }}</flux:label>
-                    <flux:input wire:model="website" placeholder="https://example.com" />
-                    <flux:error name="website" />
-                </flux:field>
-
-                <!-- Contact Person -->
-                <flux:field>
-                    <flux:label>{{ __('warehouse.contact_person') }}</flux:label>
-                    <flux:input wire:model="contact_person" placeholder="{{ __('warehouse.enter_contact_person') }}" />
-                    <flux:error name="contact_person" />
-                </flux:field>
-
-                <!-- Description -->
                 <div class="lg:col-span-2">
                     <flux:field>
-                        <flux:label>{{ __('ui.description') }}</flux:label>
-                        <flux:textarea wire:model="description" rows="3" placeholder="{{ __('warehouse.enter_company_description') }}" />
-                        <flux:error name="description" />
+                        <flux:label>{{ __('warehouse.website') }}</flux:label>
+                        <flux:input wire:model="website" placeholder="https://example.com" />
+                        <flux:error name="website" />
                     </flux:field>
                 </div>
             </div>
@@ -344,7 +325,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 <!-- Currency -->
                 <flux:field>
                     <flux:label>{{ __('warehouse.currency') }}</flux:label>
-                    <flux:select wire:model="currency" placeholder="{{ __('warehouse.select_currency') }}">
+                    <flux:select wire:model="default_currency" placeholder="{{ __('warehouse.select_currency') }}">
                         <flux:select.option value="COP">COP - Peso Colombiano</flux:select.option>
                         <flux:select.option value="USD">USD - Dólar Estadounidense</flux:select.option>
                         <flux:select.option value="EUR">EUR - Euro</flux:select.option>
@@ -354,7 +335,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         <flux:select.option value="ARS">ARS - Peso Argentino</flux:select.option>
                         <flux:select.option value="MXN">MXN - Peso Mexicano</flux:select.option>
                     </flux:select>
-                    <flux:error name="currency" />
+                    <flux:error name="default_currency" />
                 </flux:field>
 
                 <!-- Timezone -->

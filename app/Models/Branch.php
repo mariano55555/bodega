@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Cviebrock\EloquentSluggable\Sluggable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,7 +13,7 @@ use Illuminate\Support\Str;
 class Branch extends Model
 {
     /** @use HasFactory<\Database\Factories\BranchFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, Sluggable;
 
     /**
      * The attributes that are mass assignable.
@@ -25,20 +26,15 @@ class Branch extends Model
         'code',
         'description',
         'company_id',
-        'email',
-        'phone',
         'manager_id',
-        'manager_name',
         'address',
         'city',
         'state',
         'postal_code',
         'country',
-        'type',
         'settings',
         'is_active',
         'active_at',
-        'is_main_branch',
         'created_by',
         'updated_by',
     ];
@@ -59,46 +55,61 @@ class Branch extends Model
     }
 
     /**
+        * Return the sluggable configuration array for this model.
+        *
+        * @return array
+        */
+        public function sluggable(): array
+        {
+           return [
+              'slug' => [
+                 'source' => 'name',
+                 'includeTrashed' => true,
+              ]
+           ];
+        }
+
+    /**
      * Boot the model.
      */
-    protected static function boot(): void
-    {
-        parent::boot();
+    // protected static function boot(): void
+    // {
+    //     parent::boot();
 
-        static::creating(function ($branch) {
-            if (empty($branch->slug)) {
-                $branch->slug = Str::slug($branch->name);
-            }
-            if (empty($branch->code)) {
-                $branch->code = Str::upper(Str::random(6));
-            }
-            if (auth()->check()) {
-                $branch->created_by = auth()->id();
-            }
-            if (is_null($branch->active_at) && $branch->is_active) {
-                $branch->active_at = now();
-            }
-        });
+    //     static::creating(function ($branch) {
+    //         if (empty($branch->slug)) {
+    //             $branch->slug = Str::slug($branch->name);
+    //         }
+    //         if (empty($branch->code)) {
+    //             $branch->code = Str::upper(Str::random(6));
+    //         }
+    //         if (auth()->check()) {
+    //             $branch->created_by = auth()->id();
+    //         }
+    //         if (is_null($branch->active_at) && $branch->is_active) {
+    //             $branch->active_at = now();
+    //         }
+    //     });
 
-        static::updating(function ($branch) {
-            if ($branch->isDirty('name') && empty($branch->slug)) {
-                $branch->slug = Str::slug($branch->name);
-            }
-            if (auth()->check()) {
-                $branch->updated_by = auth()->id();
-            }
-            if ($branch->isDirty('is_active')) {
-                $branch->active_at = $branch->is_active ? now() : null;
-            }
-        });
+    //     static::updating(function ($branch) {
+    //         if ($branch->isDirty('name') && empty($branch->slug)) {
+    //             $branch->slug = Str::slug($branch->name);
+    //         }
+    //         if (auth()->check()) {
+    //             $branch->updated_by = auth()->id();
+    //         }
+    //         if ($branch->isDirty('is_active')) {
+    //             $branch->active_at = $branch->is_active ? now() : null;
+    //         }
+    //     });
 
-        static::deleting(function ($branch) {
-            if (auth()->check()) {
-                $branch->deleted_by = auth()->id();
-                $branch->save();
-            }
-        });
-    }
+    //     static::deleting(function ($branch) {
+    //         if (auth()->check()) {
+    //             $branch->deleted_by = auth()->id();
+    //             $branch->save();
+    //         }
+    //     });
+    // }
 
     /**
      * Get the company that owns this branch.

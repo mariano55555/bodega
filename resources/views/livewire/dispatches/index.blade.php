@@ -1,35 +1,57 @@
 <?php
 
-use App\Models\{Dispatch, DispatchDetail, Warehouse, Customer, Product, UnitOfMeasure, Inventory, MovementReason, InventoryMovement};
-use Livewire\Attributes\Layout;
+use App\Models\Dispatch;
+use App\Models\DispatchDetail;
+use App\Models\Employee;
+use App\Models\Inventory;
+use App\Models\InventoryMovement;
+use App\Models\MovementReason;
+use App\Models\Product;
+use App\Models\UnitOfMeasure;
+use App\Models\Warehouse;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
-new #[Layout('components.layouts.app')] class extends Component {
+new #[Layout('components.layouts.app')] class extends Component
+{
     use WithPagination;
 
     public string $search = '';
+
     public string $statusFilter = '';
+
     public string $typeFilter = '';
 
     // Quick Dispatch Form
     public bool $showQuickDispatch = false;
+
     public string $company_id = '';
+
     public string $warehouse_id = '';
-    public string $customer_id = '';
+
+    public string $area_id = '';
+
+    public string $employee_id = '';
+
     public string $dispatch_type = 'interno';
-    public string $recipient_name = '';
+
     public string $product_id = '';
+
     public string $quantity = '';
+
     public string $unit_of_measure_id = '';
+
     public string $notes = '';
+
     public ?string $availableStock = null;
+
     public ?string $stockUnit = null;
 
     public function mount(): void
     {
-        if (!$this->isSuperAdmin()) {
+        if (! $this->isSuperAdmin()) {
             $this->company_id = (string) auth()->user()->company_id;
         }
     }
@@ -47,11 +69,17 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function updatedCompanyId(): void
     {
         $this->warehouse_id = '';
-        $this->customer_id = '';
+        $this->area_id = '';
+        $this->employee_id = '';
         $this->product_id = '';
         $this->unit_of_measure_id = '';
         $this->availableStock = null;
         $this->stockUnit = null;
+    }
+
+    public function updatedAreaId(): void
+    {
+        $this->employee_id = '';
     }
 
     public function updatedWarehouseId(): void
@@ -74,7 +102,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function updatedShowQuickDispatch($value): void
     {
-        if (!$value) {
+        if (! $value) {
             $this->resetQuickDispatchForm();
         }
     }
@@ -82,9 +110,9 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function resetQuickDispatchForm(): void
     {
         $this->warehouse_id = '';
-        $this->customer_id = '';
+        $this->area_id = '';
+        $this->employee_id = '';
         $this->dispatch_type = 'interno';
-        $this->recipient_name = '';
         $this->product_id = '';
         $this->quantity = '';
         $this->unit_of_measure_id = '';
@@ -121,15 +149,17 @@ new #[Layout('components.layouts.app')] class extends Component {
         if ($this->isSuperAdmin()) {
             return \App\Models\Company::active()->orderBy('name')->get(['id', 'name']);
         }
+
         return collect([]);
     }
 
     #[Computed]
     public function warehouses()
     {
-        if (!$this->company_id) {
+        if (! $this->company_id) {
             return collect([]);
         }
+
         return Warehouse::where('company_id', $this->company_id)
             ->where('is_active', true)
             ->orderBy('name')
@@ -137,12 +167,27 @@ new #[Layout('components.layouts.app')] class extends Component {
     }
 
     #[Computed]
-    public function customers()
+    public function areas()
     {
-        if (!$this->company_id) {
+        if (! $this->company_id) {
             return collect([]);
         }
-        return Customer::where('company_id', $this->company_id)
+
+        return \App\Models\Area::where('company_id', $this->company_id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+    }
+
+    #[Computed]
+    public function employees()
+    {
+        if (! $this->company_id || ! $this->area_id) {
+            return collect([]);
+        }
+
+        return Employee::where('company_id', $this->company_id)
+            ->where('area_id', $this->area_id)
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
@@ -151,9 +196,10 @@ new #[Layout('components.layouts.app')] class extends Component {
     #[Computed]
     public function products()
     {
-        if (!$this->company_id) {
+        if (! $this->company_id) {
             return collect([]);
         }
+
         return Product::where('company_id', $this->company_id)
             ->where('is_active', true)
             ->orderBy('name')
@@ -163,9 +209,10 @@ new #[Layout('components.layouts.app')] class extends Component {
     #[Computed]
     public function units()
     {
-        if (!$this->company_id) {
+        if (! $this->company_id) {
             return collect([]);
         }
+
         return UnitOfMeasure::forCompany($this->company_id)->active()->get();
     }
 
@@ -175,7 +222,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->resetQuickDispatchForm();
 
         // Re-set company for non-super-admins
-        if (!$this->isSuperAdmin()) {
+        if (! $this->isSuperAdmin()) {
             $this->company_id = (string) auth()->user()->company_id;
         }
     }
@@ -206,6 +253,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         if ((float) $this->quantity > $availableQty) {
             $this->addError('quantity', "La cantidad solicitada ({$this->quantity}) excede el stock disponible ({$availableQty}).");
+
             return;
         }
 
@@ -217,9 +265,8 @@ new #[Layout('components.layouts.app')] class extends Component {
             $dispatch = Dispatch::create([
                 'company_id' => $companyId,
                 'warehouse_id' => $this->warehouse_id,
-                'customer_id' => $this->customer_id ?: null,
+                'employee_id' => $this->employee_id ?: null,
                 'dispatch_type' => $this->dispatch_type,
-                'recipient_name' => $this->recipient_name,
                 'notes' => $this->notes,
                 'status' => 'despachado',
                 'dispatched_at' => now(),
@@ -260,7 +307,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             };
 
             $movementReason = MovementReason::where('code', $movementReasonCode)->first();
-            if (!$movementReason) {
+            if (! $movementReason) {
                 $movementReason = MovementReason::where('movement_type', 'out')->first();
             }
 
@@ -318,7 +365,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         } catch (\Exception $e) {
             \DB::rollBack();
-            \Log::error('Error creating quick dispatch: ' . $e->getMessage());
+            \Log::error('Error creating quick dispatch: '.$e->getMessage());
             $this->addError('general', 'Error al procesar el despacho. Por favor intente nuevamente.');
         }
     }
@@ -326,14 +373,14 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function with(): array
     {
         $query = Dispatch::query()
-            ->with(['customer', 'warehouse', 'warehouse.company'])
-            ->when(!$this->isSuperAdmin(), fn ($q) => $q->where('company_id', auth()->user()->company_id))
+            ->with(['employee', 'warehouse', 'warehouse.company'])
+            ->when(! $this->isSuperAdmin(), fn ($q) => $q->where('company_id', auth()->user()->company_id))
             ->when($this->search, function ($q) {
                 $q->where(function ($query) {
                     $query->where('dispatch_number', 'like', "%{$this->search}%")
                         ->orWhere('document_number', 'like', "%{$this->search}%")
                         ->orWhere('recipient_name', 'like', "%{$this->search}%")
-                        ->orWhereHas('customer', fn ($q) => $q->where('name', 'like', "%{$this->search}%"));
+                        ->orWhereHas('employee', fn ($q) => $q->where('name', 'like', "%{$this->search}%"));
                 });
             })
             ->when($this->statusFilter, fn ($q) => $q->where('status', $this->statusFilter))
@@ -391,7 +438,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         <div class="md:col-span-2">
             <flux:input
                 wire:model.live.debounce.300ms="search"
-                placeholder="Buscar por número, documento, cliente, receptor..."
+                placeholder="Buscar por número, documento, empleado, receptor..."
                 icon="magnifying-glass"
             />
         </div>
@@ -423,7 +470,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                 @if ($this->isSuperAdmin())
                     <flux:table.column>Empresa</flux:table.column>
                 @endif
-                <flux:table.column>Cliente/Receptor</flux:table.column>
+                <flux:table.column>Empleado/Receptor</flux:table.column>
                 <flux:table.column>Bodega</flux:table.column>
                 <flux:table.column>Tipo</flux:table.column>
                 <flux:table.column>Total</flux:table.column>
@@ -459,8 +506,8 @@ new #[Layout('components.layouts.app')] class extends Component {
 
                         <flux:table.cell>
                             <div>
-                                @if ($dispatch->customer)
-                                    <div class="font-medium">{{ $dispatch->customer->name }}</div>
+                                @if ($dispatch->employee)
+                                    <div class="font-medium">{{ $dispatch->employee->name }}</div>
                                 @endif
                                 @if ($dispatch->recipient_name)
                                     <div class="text-sm text-gray-500 dark:text-gray-400">
@@ -582,62 +629,56 @@ new #[Layout('components.layouts.app')] class extends Component {
             @if($this->isSuperAdmin())
                 <flux:field>
                     <flux:label badge="Requerido">Empresa</flux:label>
-                    <flux:select wire:model.live="company_id">
-                        <option value="">Seleccione una empresa</option>
+                    <flux:select variant="listbox" searchable wire:model.live="company_id" placeholder="Seleccione una empresa">
                         @foreach ($this->companies as $company)
-                            <option value="{{ $company->id }}">{{ $company->name }}</option>
+                            <flux:select.option value="{{ $company->id }}">{{ $company->name }}</flux:select.option>
                         @endforeach
                     </flux:select>
                     <flux:error name="company_id" />
                 </flux:field>
             @endif
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <flux:field>
-                    <flux:label badge="Requerido">Bodega</flux:label>
-                    <flux:select wire:model.live="warehouse_id" :disabled="$this->isSuperAdmin() && !$company_id">
-                        <option value="">Seleccione bodega</option>
-                        @foreach ($this->warehouses as $warehouse)
-                            <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
-                        @endforeach
-                    </flux:select>
-                    <flux:error name="warehouse_id" />
-                </flux:field>
+            <flux:field>
+                <flux:label badge="Requerido">Bodega</flux:label>
+                <flux:select variant="listbox" searchable wire:model.live="warehouse_id" :disabled="$this->isSuperAdmin() && !$company_id" placeholder="Seleccione bodega">
+                    @foreach ($this->warehouses as $warehouse)
+                        <flux:select.option value="{{ $warehouse->id }}">{{ $warehouse->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="warehouse_id" />
+            </flux:field>
 
-                <flux:field>
-                    <flux:label>Tipo de Despacho</flux:label>
-                    <flux:input value="Interno" disabled />
-                    <flux:description>Los despachos rápidos siempre son internos</flux:description>
-                </flux:field>
-            </div>
+            <flux:field>
+                <flux:label badge="Requerido">Área/Departamento</flux:label>
+                <flux:select variant="listbox" searchable wire:model.live="area_id" :disabled="$this->isSuperAdmin() && !$company_id" placeholder="Seleccione área">
+                    @foreach ($this->areas as $area)
+                        <flux:select.option value="{{ $area->id }}">{{ $area->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:description>Seleccione el área solicitante del despacho</flux:description>
+                <flux:error name="area_id" />
+            </flux:field>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <flux:field>
-                    <flux:label>Destinatario</flux:label>
-                    <flux:select wire:model="customer_id" :disabled="$this->isSuperAdmin() && !$company_id">
-                        <option value="">Sin destinatario</option>
-                        @foreach ($this->customers as $customer)
-                            <option value="{{ $customer->id }}">{{ $customer->name }}{{ $customer->type ? ' - ' . $customer->type : '' }}</option>
-                        @endforeach
-                    </flux:select>
-                </flux:field>
-
-                <flux:field>
-                    <flux:label>Nombre del Receptor</flux:label>
-                    <flux:input wire:model="recipient_name" placeholder="Nombre de quien recibe" />
-                </flux:field>
-            </div>
+            <flux:field>
+                <flux:label>Empleado Solicitante</flux:label>
+                <flux:select variant="listbox" searchable wire:model="employee_id" :disabled="!$this->area_id" placeholder="Sin empleado">
+                    @foreach ($this->employees as $employee)
+                        <flux:select.option value="{{ $employee->id }}">{{ $employee->name }}{{ $employee->position ? ' - ' . $employee->position : '' }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:description>El empleado solo se puede seleccionar después de elegir el área</flux:description>
+            </flux:field>
 
             <flux:separator />
 
             <flux:field>
                 <flux:label badge="Requerido">Producto</flux:label>
-                <flux:select wire:model.live="product_id" :disabled="$this->isSuperAdmin() && !$company_id">
-                    <option value="">Seleccione producto</option>
+                <flux:select variant="listbox" searchable wire:model.live="product_id" :disabled="$this->isSuperAdmin() && !$company_id" placeholder="Seleccione producto">
                     @foreach ($this->products as $product)
-                        <option value="{{ $product->id }}">{{ $product->name }}</option>
+                        <flux:select.option value="{{ $product->id }}">{{ $product->name }}</flux:select.option>
                     @endforeach
                 </flux:select>
+                <flux:description>Use la búsqueda para encontrar productos rápidamente</flux:description>
                 <flux:error name="product_id" />
             </flux:field>
 
@@ -661,10 +702,9 @@ new #[Layout('components.layouts.app')] class extends Component {
 
                 <flux:field>
                     <flux:label badge="Requerido">Unidad de Medida</flux:label>
-                    <flux:select wire:model="unit_of_measure_id" :disabled="$this->isSuperAdmin() && !$company_id">
-                        <option value="">Seleccione unidad</option>
+                    <flux:select variant="listbox" searchable wire:model="unit_of_measure_id" :disabled="$this->isSuperAdmin() && !$company_id" placeholder="Seleccione unidad">
                         @foreach ($this->units as $unit)
-                            <option value="{{ $unit->id }}">{{ $unit->name }} ({{ $unit->abbreviation }})</option>
+                            <flux:select.option value="{{ $unit->id }}">{{ $unit->name }} ({{ $unit->abbreviation }})</flux:select.option>
                         @endforeach
                     </flux:select>
                     <flux:error name="unit_of_measure_id" />

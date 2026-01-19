@@ -1,12 +1,12 @@
 <?php
 
-use Livewire\Volt\Component;
 use App\Models\Inventory;
 use App\Models\Product;
-use App\Models\Warehouse;
 use App\Models\ProductCategory;
+use App\Models\Warehouse;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
+use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
 new #[Layout('components.layouts.app')] class extends Component
@@ -14,17 +14,23 @@ new #[Layout('components.layouts.app')] class extends Component
     use WithPagination;
 
     public string $search = '';
+
     public string $company = '';
+
     public string $warehouse = '';
+
     public string $category = '';
+
     public string $stockLevel = '';
+
     public bool $showLowStock = false;
+
     public bool $showExpiring = false;
 
     public function mount(): void
     {
         // Auto-set company for non-super admins
-        if (!auth()->user()->isSuperAdmin()) {
+        if (! auth()->user()->isSuperAdmin()) {
             $this->company = (string) auth()->user()->company_id;
         }
     }
@@ -46,7 +52,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 },
                 'warehouse',
                 'storageLocation',
-                'lastCounter'
+                'lastCounter',
             ])
             ->active()
             ->whereHas('product', function ($q) {
@@ -64,10 +70,10 @@ new #[Layout('components.layouts.app')] class extends Component
         if ($this->search) {
             $query->whereHas('product', function ($q) {
                 $q->where('name', 'like', "%{$this->search}%")
-                  ->orWhere('sku', 'like', "%{$this->search}%")
-                  ->orWhere('barcode', 'like', "%{$this->search}%");
+                    ->orWhere('sku', 'like', "%{$this->search}%")
+                    ->orWhere('barcode', 'like', "%{$this->search}%");
             })->orWhere('lot_number', 'like', "%{$this->search}%")
-              ->orWhere('location', 'like', "%{$this->search}%");
+                ->orWhere('location', 'like', "%{$this->search}%");
         }
 
         // Warehouse filter
@@ -103,7 +109,7 @@ new #[Layout('components.layouts.app')] class extends Component
         }
 
         return $query->orderBy('updated_at', 'desc')
-                    ->paginate(15);
+            ->paginate(15);
     }
 
     #[Computed]
@@ -160,7 +166,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'total_items' => $totalItems,
             'low_stock_items' => $lowStockItems,
             'expiring_items' => $expiringItems,
-            'total_value' => $totalValue
+            'total_value' => $totalValue,
         ];
     }
 
@@ -217,7 +223,7 @@ new #[Layout('components.layouts.app')] class extends Component
             // Redirect to movements page with filters
             $this->redirect(route('inventory.movements.index', [
                 'product_id' => $inventory->product_id,
-                'warehouse_id' => $inventory->warehouse_id
+                'warehouse_id' => $inventory->warehouse_id,
             ]), navigate: true);
         }
     }
@@ -333,8 +339,8 @@ new #[Layout('components.layouts.app')] class extends Component
                 <div>
                     <flux:field>
                         <flux:label>Empresa</flux:label>
-                        <flux:select wire:model.live="company">
-                            <option value="">Todas las empresas</option>
+                        <flux:select variant="listbox" searchable wire:model.live="company" placeholder="Todas las empresas">
+                            <flux:select.option value="">Todas las empresas</flux:select.option>
                             @foreach($this->companies as $comp)
                             <flux:select.option value="{{ $comp->id }}">{{ $comp->name }}</flux:select.option>
                             @endforeach
@@ -354,7 +360,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <!-- Warehouse Filter -->
                 <div>
-                    <flux:select wire:model.live="warehouse" :placeholder="__('warehouse.all_warehouses')">
+                    <flux:select variant="listbox" searchable wire:model.live="warehouse" :placeholder="__('warehouse.all_warehouses')">
                         @foreach($this->warehouses as $w)
                         <flux:select.option value="{{ $w->id }}">{{ $w->name }}</flux:select.option>
                         @endforeach
@@ -363,7 +369,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <!-- Category Filter -->
                 <div>
-                    <flux:select wire:model.live="category" :placeholder="__('inventory.all_categories')">
+                    <flux:select variant="listbox" searchable wire:model.live="category" :placeholder="__('inventory.all_categories')">
                         @foreach($this->categories as $cat)
                         <flux:select.option value="{{ $cat->id }}">{{ $cat->name }}</flux:select.option>
                         @endforeach
@@ -372,7 +378,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <!-- Stock Level Filter -->
                 <div>
-                    <flux:select wire:model.live="stockLevel" :placeholder="__('inventory.stock_level')">
+                    <flux:select variant="listbox" wire:model.live="stockLevel" :placeholder="__('inventory.stock_level')">
                         <flux:select.option value="available">{{ __('inventory.with_stock') }}</flux:select.option>
                         <flux:select.option value="reserved">{{ __('inventory.with_reservations') }}</flux:select.option>
                         <flux:select.option value="zero">{{ __('inventory.no_stock') }}</flux:select.option>

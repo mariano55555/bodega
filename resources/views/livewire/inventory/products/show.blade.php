@@ -134,6 +134,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         </dd>
                     </div>
 
+                    {{-- Comentado por petición del cliente: quitar precio de venta
                     <div>
                         <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Precio de Venta</dt>
                         <dd class="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
@@ -152,6 +153,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         </div>
                     </div>
                     @endif
+                    --}}
                 </dl>
             </flux:card>
 
@@ -160,6 +162,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 <flux:heading size="lg" class="mb-6">Control de Inventario</flux:heading>
 
                 <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {{-- Comentado por petición del cliente: quitar método de valuación
                     <div>
                         <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Método de Valuación</dt>
                         <dd class="mt-1 text-sm text-zinc-900 dark:text-zinc-100">
@@ -172,6 +175,7 @@ new #[Layout('components.layouts.app')] class extends Component
                             @endif
                         </dd>
                     </div>
+                    --}}
 
                     <div>
                         <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Control de Inventario</dt>

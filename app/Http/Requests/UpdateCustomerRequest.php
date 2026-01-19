@@ -18,6 +18,7 @@ class UpdateCustomerRequest extends FormRequest
         $customerId = $this->route('customer')->id ?? null;
 
         return [
+            'area_id' => ['nullable', 'integer', 'exists:areas,id'],
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', 'string', 'in:individual,business'],
             'business_name' => ['nullable', 'required_if:type,business', 'string', 'max:255'],
@@ -33,7 +34,7 @@ class UpdateCustomerRequest extends FormRequest
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'mobile' => ['nullable', 'string', 'max:50'],
-            'website' => ['nullable', 'url', 'max:255'],
+            'website' => ['nullable', 'url:http,https', 'max:255'],
             'contact_name' => ['nullable', 'string', 'max:255'],
             'contact_email' => ['nullable', 'email', 'max:255'],
             'contact_phone' => ['nullable', 'string', 'max:50'],
@@ -44,7 +45,7 @@ class UpdateCustomerRequest extends FormRequest
             'billing_country' => ['nullable', 'string', 'max:2'],
             'billing_postal_code' => ['nullable', 'string', 'max:20'],
             'same_as_billing' => ['nullable', 'boolean'],
-            'shipping_address' => ['nullable', 'required_if:same_as_billing,false', 'string', 'max:500'],
+            'shipping_address' => ['nullable', 'string', 'max:500'],
             'shipping_city' => ['nullable', 'string', 'max:100'],
             'shipping_state' => ['nullable', 'string', 'max:100'],
             'shipping_country' => ['nullable', 'string', 'max:2'],
@@ -53,7 +54,6 @@ class UpdateCustomerRequest extends FormRequest
             'payment_method' => ['nullable', 'string', 'max:100'],
             'currency' => ['nullable', 'string', 'max:3'],
             'credit_limit' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
-            'status' => ['nullable', 'string', 'max:50'],
             'is_active' => ['nullable', 'boolean'],
         ];
     }
@@ -61,6 +61,8 @@ class UpdateCustomerRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'area_id.integer' => 'El área debe ser un número válido.',
+            'area_id.exists' => 'El área seleccionada no existe.',
             'name.required' => 'El nombre del cliente es requerido.',
             'name.max' => 'El nombre no puede exceder 255 caracteres.',
             'type.required' => 'El tipo de cliente es requerido.',
@@ -87,7 +89,6 @@ class UpdateCustomerRequest extends FormRequest
             'billing_country.max' => 'El país no puede exceder 2 caracteres.',
             'billing_postal_code.max' => 'El código postal no puede exceder 20 caracteres.',
             'same_as_billing.boolean' => 'El campo debe ser verdadero o falso.',
-            'shipping_address.required_if' => 'La dirección de envío es requerida cuando es diferente a facturación.',
             'shipping_address.max' => 'La dirección de envío no puede exceder 500 caracteres.',
             'shipping_city.max' => 'La ciudad de envío no puede exceder 100 caracteres.',
             'shipping_state.max' => 'El departamento de envío no puede exceder 100 caracteres.',
@@ -101,7 +102,6 @@ class UpdateCustomerRequest extends FormRequest
             'credit_limit.numeric' => 'El límite de crédito debe ser un número.',
             'credit_limit.min' => 'El límite de crédito no puede ser negativo.',
             'credit_limit.max' => 'El límite de crédito excede el límite permitido.',
-            'status.max' => 'El estado no puede exceder 50 caracteres.',
             'is_active.boolean' => 'El estado activo debe ser verdadero o falso.',
         ];
     }

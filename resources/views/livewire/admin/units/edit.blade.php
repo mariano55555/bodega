@@ -12,12 +12,16 @@ new #[Layout('components.layouts.app')] class extends Component
     public $symbol;
     public $description;
     public $type;
+    public $base_unit_ratio;
+    public $base_unit_id;
+    public $company_id;
     public $is_active;
+    public $is_default;
 
     public function mount(UnitOfMeasure $unit): void
     {
         $this->unit = $unit;
-        $this->fill($unit->only(['name', 'symbol', 'description', 'type', 'is_active']));
+        $this->fill($unit->only(['name', 'symbol', 'description', 'type', 'base_unit_ratio', 'base_unit_id', 'company_id', 'is_active', 'is_default']));
     }
 
     public function update(): void
@@ -26,7 +30,10 @@ new #[Layout('components.layouts.app')] class extends Component
 
         $this->unit->update($validated);
 
-        session()->flash('success', 'Unidad de medida actualizada exitosamente.');
+        Flux::toast(
+            text: 'Unidad de medida actualizada exitosamente',
+            variant: 'success',
+        );
 
         $this->redirect(route('admin.units.index'), navigate: true);
     }
@@ -58,19 +65,19 @@ new #[Layout('components.layouts.app')] class extends Component
     <form wire:submit="update">
         <flux:card class="space-y-6">
             <flux:field>
-                <flux:label>Nombre</flux:label>
+                <flux:label badge="Requerido">Nombre</flux:label>
                 <flux:input wire:model="name" />
                 <flux:error name="name" />
             </flux:field>
 
             <flux:field>
-                <flux:label>Símbolo</flux:label>
+                <flux:label badge="Requerido">Símbolo</flux:label>
                 <flux:input wire:model="symbol" />
                 <flux:error name="symbol" />
             </flux:field>
 
             <flux:field>
-                <flux:label>Tipo de Unidad</flux:label>
+                <flux:label badge="Requerido">Tipo de Unidad</flux:label>
                 <flux:select wire:model="type">
                     <flux:select.option value="weight">Peso</flux:select.option>
                     <flux:select.option value="volume">Volumen</flux:select.option>
@@ -90,7 +97,8 @@ new #[Layout('components.layouts.app')] class extends Component
             </flux:field>
 
             <flux:field>
-                <flux:switch wire:model="is_active">
+                <flux:label>Estado</flux:label>
+                <flux:switch wire:model="is_active" description="Las unidades inactivas no estarán disponibles para nuevos productos">
                     <flux:text>Unidad activa</flux:text>
                 </flux:switch>
             </flux:field>

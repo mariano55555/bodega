@@ -1,13 +1,14 @@
 <?php
 
-use Livewire\Volt\Component;
-use App\Models\Warehouse;
-use App\Models\Company;
 use App\Models\Branch;
+use App\Models\Company;
 use App\Models\User;
-use Livewire\Attributes\Validate;
-use Livewire\Attributes\Layout;
+use App\Models\Warehouse;
+use Flux\Flux;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\Validate;
+use Livewire\Volt\Component;
 
 new #[Layout('components.layouts.app')] class extends Component
 {
@@ -38,10 +39,10 @@ new #[Layout('components.layouts.app')] class extends Component
     #[Validate('nullable|string|max:20')]
     public string $postal_code = '';
 
-    #[Validate('nullable|numeric|min:0')]
+    #[Validate('nullable|numeric|between:-90,90')]
     public string $latitude = '';
 
-    #[Validate('nullable|numeric|min:0')]
+    #[Validate('nullable|numeric|between:-180,180')]
     public string $longitude = '';
 
     #[Validate('nullable|numeric|min:0')]
@@ -58,16 +59,24 @@ new #[Layout('components.layouts.app')] class extends Component
 
     // Operating Hours
     public string $opening_time = '08:00';
+
     public string $closing_time = '18:00';
+
     public array $operating_days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+
     public bool $is_24_hours = false;
 
     // Settings
     public bool $has_loading_dock = false;
+
     public bool $has_refrigeration = false;
+
     public bool $has_security_system = false;
+
     public bool $has_fire_system = false;
+
     public string $temperature_controlled = 'no';
+
     public string $access_type = 'ground';
 
     // Hierarchical selection
@@ -119,7 +128,7 @@ new #[Layout('components.layouts.app')] class extends Component
     #[Computed]
     public function branches()
     {
-        if (!$this->company_id) {
+        if (! $this->company_id) {
             return collect([]);
         }
 
@@ -132,7 +141,7 @@ new #[Layout('components.layouts.app')] class extends Component
     #[Computed]
     public function managers()
     {
-        if (!$this->company_id) {
+        if (! $this->company_id) {
             return collect([]);
         }
 
@@ -151,7 +160,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'pallets' => 'Pallets',
             'units' => 'Unidades',
             'kg' => 'Kilogramos (kg)',
-            'tons' => 'Toneladas'
+            'tons' => 'Toneladas',
         ];
     }
 
@@ -162,7 +171,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'no' => 'No controlada',
             'controlled' => 'Temperatura controlada',
             'refrigerated' => 'Refrigerado (0-10°C)',
-            'frozen' => 'Congelado (-18°C o menos)'
+            'frozen' => 'Congelado (-18°C o menos)',
         ];
     }
 
@@ -173,7 +182,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'ground' => 'Acceso a nivel de suelo',
             'dock' => 'Muelle de carga',
             'ramp' => 'Rampa de acceso',
-            'crane' => 'Acceso con grúa'
+            'crane' => 'Acceso con grúa',
         ];
     }
 
@@ -187,7 +196,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'thursday' => 'Jueves',
             'friday' => 'Viernes',
             'saturday' => 'Sábado',
-            'sunday' => 'Domingo'
+            'sunday' => 'Domingo',
         ];
     }
 
@@ -232,7 +241,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'Usulután' => ['Alegría', 'Berlín', 'California', 'Concepción Batres', 'El Triunfo', 'Ereguayquín', 'Estanzuelas', 'Jiquilisco', 'Jucuapa', 'Jucuarán', 'Mercedes Umaña', 'Nueva Granada', 'Ozatlán', 'Puerto El Triunfo', 'San Agustín', 'San Buenaventura', 'San Dionisio', 'San Francisco Javier', 'Santa Elena', 'Santa María', 'Santiago de María', 'Tecapán', 'Usulután'],
         ];
 
-        if (!$this->state || !isset($municipalitiesByDepartment[$this->state])) {
+        if (! $this->state || ! isset($municipalitiesByDepartment[$this->state])) {
             return [];
         }
 
@@ -244,7 +253,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function updatedName(): void
     {
-        if ($this->name && !$this->code) {
+        if ($this->name && ! $this->code) {
             $this->code = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $this->name), 0, 10));
         }
     }
@@ -261,7 +270,7 @@ new #[Layout('components.layouts.app')] class extends Component
             $branch = Branch::find($this->branch_id);
             if ($branch) {
                 // Auto-fill address from branch if warehouse address is empty
-                if (!$this->address) {
+                if (! $this->address) {
                     $this->address = $branch->address;
                     $this->city = $branch->city;
                     $this->state = $branch->state;
@@ -303,18 +312,35 @@ new #[Layout('components.layouts.app')] class extends Component
         $validated['created_by'] = auth()->id();
 
         // Convert empty strings to null for numeric fields
-        if ($validated['latitude'] === '') $validated['latitude'] = null;
-        if ($validated['longitude'] === '') $validated['longitude'] = null;
-        if ($validated['total_capacity'] === '') $validated['total_capacity'] = null;
+        if ($validated['latitude'] === '') {
+            $validated['latitude'] = null;
+        }
+        if ($validated['longitude'] === '') {
+            $validated['longitude'] = null;
+        }
+        if ($validated['total_capacity'] === '') {
+            $validated['total_capacity'] = null;
+        }
 
-        $warehouse = Warehouse::create($validated);
+        try {
+            $warehouse = Warehouse::create($validated);
 
-        $this->dispatch('warehouse-created', [
-            'message' => 'Almacén creado exitosamente',
-            'warehouse' => $warehouse->name
-        ]);
+            Flux::toast(
+                text: 'Almacén creado exitosamente',
+                variant: 'success',
+                duration: 3000
+            );
 
-        $this->redirect(route('warehouse.warehouses.index'), navigate: true);
+            $this->redirect(route('warehouse.warehouses.index'), navigate: true);
+        } catch (\Exception $e) {
+            Flux::toast(
+                text: 'Error al crear el almacén. Por favor intente nuevamente.',
+                variant: 'danger',
+                duration: 5000
+            );
+
+            \Log::error('Error creating warehouse: '.$e->getMessage());
+        }
     }
 
     public function with(): array
@@ -356,7 +382,7 @@ new #[Layout('components.layouts.app')] class extends Component
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Company Selection -->
                 <flux:field>
-                    <flux:label>Empresa *</flux:label>
+                    <flux:label badge="Requerido">Empresa</flux:label>
                     <flux:select wire:model.live="company_id" placeholder="Selecciona una empresa">
                         @foreach($this->companies as $company)
                             <flux:select.option value="{{ $company->id }}">{{ $company->name }}</flux:select.option>
@@ -367,13 +393,18 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <!-- Branch Selection -->
                 <flux:field>
-                    <flux:label>Sucursal *</flux:label>
-                    <flux:select wire:model.live="branch_id" placeholder="Selecciona una sucursal" :description="!$company_id ? 'Primero selecciona una empresa' : 'Sucursal a la que pertenecerá el almacén'">
+                    <flux:label badge="Requerido">Sucursal</flux:label>
+                    <flux:select wire:model.live="branch_id" placeholder="Selecciona una sucursal">
                         @foreach($this->branches as $branch)
                             <flux:select.option value="{{ $branch->id }}">{{ $branch->name }}</flux:select.option>
                         @endforeach
                     </flux:select>
                     <flux:error name="branch_id" />
+                    @if(!$company_id)
+                        <flux:description>Primero selecciona una empresa</flux:description>
+                    @else
+                        <flux:description>Sucursal a la que pertenecerá el almacén</flux:description>
+                    @endif
                 </flux:field>
             </div>
         </flux:card>
@@ -390,16 +421,17 @@ new #[Layout('components.layouts.app')] class extends Component
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Warehouse Name -->
                 <flux:field>
-                    <flux:label>Nombre del Almacén *</flux:label>
+                    <flux:label badge="Requerido">Nombre del Almacén</flux:label>
                     <flux:input wire:model.live="name" placeholder="Ej: Almacén Principal" />
                     <flux:error name="name" />
                 </flux:field>
 
                 <!-- Warehouse Code -->
                 <flux:field>
-                    <flux:label>Código *</flux:label>
-                    <flux:input wire:model="code" placeholder="Ej: ALM001" description="Código único para identificar el almacén" />
+                    <flux:label badge="Requerido">Código</flux:label>
+                    <flux:input wire:model="code" placeholder="Ej: ALM001" />
                     <flux:error name="code" />
+                    <flux:description>Código único para identificar el almacén</flux:description>
                 </flux:field>
 
                 <!-- Manager -->
@@ -499,7 +531,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <!-- Department -->
                 <flux:field>
-                    <flux:label>Departamento *</flux:label>
+                    <flux:label badge="Requerido">Departamento</flux:label>
                     <flux:select wire:model.live="state" placeholder="Selecciona un departamento">
                         @foreach($this->departments as $value => $label)
                             <flux:select.option value="{{ $value }}">{{ $label }}</flux:select.option>
@@ -510,7 +542,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <!-- Municipality -->
                 <flux:field>
-                    <flux:label>Municipio *</flux:label>
+                    <flux:label badge="Requerido">Municipio</flux:label>
                     <flux:select wire:model="city" placeholder="{{ $state ? 'Selecciona un municipio' : 'Primero selecciona un departamento' }}" :disabled="!$state">
                         @foreach($this->municipalities as $value => $label)
                             <flux:select.option value="{{ $value }}">{{ $label }}</flux:select.option>

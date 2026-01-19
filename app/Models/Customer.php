@@ -27,6 +27,7 @@ class Customer extends Model
         'code',
         'description',
         'company_id',
+        'area_id',
         'type',
         'business_name',
         'registration_number',
@@ -140,6 +141,14 @@ class Customer extends Model
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
+    }
+
+    /**
+     * Get the area that this customer belongs to.
+     */
+    public function area(): BelongsTo
+    {
+        return $this->belongsTo(Area::class);
     }
 
     /**

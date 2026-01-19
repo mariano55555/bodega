@@ -117,6 +117,13 @@ new #[Layout('components.layouts.app')] class extends Component
         ]);
     }
 
+    public function refresh(): void
+    {
+        // Clear the computed property cache and reset to page 1
+        unset($this->branches);
+        $this->resetPage();
+    }
+
     public function with(): array
     {
         return [
@@ -138,8 +145,9 @@ new #[Layout('components.layouts.app')] class extends Component
                 </flux:text>
             </div>
             <div class="flex items-center gap-3">
-                <flux:button variant="outline" icon="arrow-path" wire:click="$refresh">
-                    {{ __('ui.refresh') }}
+                <flux:button variant="outline" icon="arrow-path" wire:click="refresh" wire:loading.attr="disabled">
+                    <span wire:loading.remove wire:target="refresh">{{ __('ui.refresh') }}</span>
+                    <span wire:loading wire:target="refresh">{{ __('ui.refreshing') }}...</span>
                 </flux:button>
                 @can('create', App\Models\Branch::class)
                     <flux:button variant="primary" icon="plus" :href="route('warehouse.branches.create')" wire:navigate>

@@ -1,22 +1,20 @@
 <?php
 
-use Livewire\Volt\Component;
 use App\Models\Company;
-use Livewire\Attributes\Validate;
+use Flux\Flux;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Validate;
+use Livewire\Volt\Component;
 
 new #[Layout('components.layouts.app')] class extends Component
 {
     #[Validate('required|string|max:255')]
     public string $name = '';
 
-    #[Validate('nullable|string|max:500')]
-    public string $description = '';
+    #[Validate('nullable|string|max:255')]
+    public string $legal_name = '';
 
-    #[Validate('nullable|string|max:100|unique:companies,registration_number')]
-    public string $registration_number = '';
-
-    #[Validate('nullable|string|max:50|unique:companies,tax_id')]
+    #[Validate('required|string|max:50|unique:companies,tax_id')]
     public string $tax_id = '';
 
     #[Validate('nullable|email|max:255|unique:companies,email')]
@@ -43,14 +41,11 @@ new #[Layout('components.layouts.app')] class extends Component
     #[Validate('nullable|string|max:100')]
     public string $country = '';
 
-    #[Validate('nullable|string|max:10')]
-    public string $currency = 'USD';
+    #[Validate('nullable|string|max:3')]
+    public string $default_currency = 'EUR';
 
     #[Validate('nullable|string|max:50')]
     public string $timezone = '';
-
-    #[Validate('nullable|string|max:100')]
-    public string $contact_person = '';
 
     #[Validate('boolean')]
     public bool $is_active = true;
@@ -63,8 +58,8 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->timezone = auth()->user()->timezone ?? config('app.timezone');
 
         // Set default country based on user location or application locale
-        $this->country = config('app.default_country', 'Colombia');
-        $this->currency = config('app.default_currency', 'COP');
+        $this->country = config('app.default_country', 'ES');
+        $this->default_currency = config('app.default_currency', 'EUR');
     }
 
     public function save(): void
@@ -73,14 +68,26 @@ new #[Layout('components.layouts.app')] class extends Component
 
         $validated = $this->validate();
 
-        $company = Company::create($validated);
+        try {
+            $validated['created_by'] = auth()->id();
+            $company = Company::create($validated);
 
-        $this->dispatch('company-created', [
-            'message' => __('warehouse.company_created'),
-            'company' => $company->name
-        ]);
+            Flux::toast(
+                text: "Empresa '{$company->name}' creada exitosamente",
+                variant: 'success',
+                duration: 3000
+            );
 
-        $this->redirect(route('warehouse.companies.index'), navigate: true);
+            $this->redirect(route('warehouse.companies.index'), navigate: true);
+        } catch (\Exception $e) {
+            Flux::toast(
+                text: 'Error al crear la empresa. Por favor intente nuevamente.',
+                variant: 'danger',
+                duration: 5000
+            );
+
+            \Log::error('Error creating company: '.$e->getMessage());
+        }
     }
 
     public function with(): array
@@ -112,12 +119,12 @@ new #[Layout('components.layouts.app')] class extends Component
     <form wire:submit="save" class="space-y-8">
         <!-- Basic Information -->
         <flux:card>
-            <flux:heading>
+            <div class="mb-6">
                 <flux:heading size="lg">{{ __('warehouse.company_information') }}</flux:heading>
-                <flux:text class="text-zinc-600 dark:text-zinc-400">
+                <flux:text class="mt-1 text-zinc-600 dark:text-zinc-400">
                     {{ __('warehouse.basic_company_info') }}
                 </flux:text>
-            </flux:heading>
+            </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Company Name -->
@@ -129,16 +136,17 @@ new #[Layout('components.layouts.app')] class extends Component
                     </flux:field>
                 </div>
 
-                <!-- Registration Number -->
+                <!-- Legal Name -->
                 <flux:field>
-                    <flux:label>{{ __('warehouse.registration_number') }}</flux:label>
-                    <flux:input wire:model="registration_number" placeholder="{{ __('warehouse.enter_registration_number') }}" />
-                    <flux:error name="registration_number" />
+                    <flux:label>{{ __('warehouse.legal_name') }}</flux:label>
+                    <flux:input wire:model="legal_name" placeholder="{{ __('warehouse.enter_legal_name') }}" />
+                    <flux:error name="legal_name" />
+                    <flux:description>Nombre legal registrado de la empresa</flux:description>
                 </flux:field>
 
                 <!-- Tax ID -->
                 <flux:field>
-                    <flux:label>{{ __('warehouse.tax_id') }}</flux:label>
+                    <flux:label>{{ __('warehouse.tax_id') }} *</flux:label>
                     <flux:input wire:model="tax_id" placeholder="{{ __('warehouse.enter_tax_id') }}" />
                     <flux:error name="tax_id" />
                 </flux:field>
@@ -158,25 +166,11 @@ new #[Layout('components.layouts.app')] class extends Component
                 </flux:field>
 
                 <!-- Website -->
-                <flux:field>
-                    <flux:label>{{ __('warehouse.website') }}</flux:label>
-                    <flux:input wire:model="website" placeholder="https://example.com" />
-                    <flux:error name="website" />
-                </flux:field>
-
-                <!-- Contact Person -->
-                <flux:field>
-                    <flux:label>{{ __('warehouse.contact_person') }}</flux:label>
-                    <flux:input wire:model="contact_person" placeholder="{{ __('warehouse.enter_contact_person') }}" />
-                    <flux:error name="contact_person" />
-                </flux:field>
-
-                <!-- Description -->
                 <div class="lg:col-span-2">
                     <flux:field>
-                        <flux:label>{{ __('ui.description') }}</flux:label>
-                        <flux:textarea wire:model="description" rows="3" placeholder="{{ __('warehouse.enter_company_description') }}" />
-                        <flux:error name="description" />
+                        <flux:label>{{ __('warehouse.website') }}</flux:label>
+                        <flux:input wire:model="website" placeholder="https://example.com" />
+                        <flux:error name="website" />
                     </flux:field>
                 </div>
             </div>
@@ -184,12 +178,12 @@ new #[Layout('components.layouts.app')] class extends Component
 
         <!-- Address Information -->
         <flux:card>
-            <flux:heading>
+            <div class="mb-6">
                 <flux:heading size="lg">{{ __('warehouse.address_information') }}</flux:heading>
-                <flux:text class="text-zinc-600 dark:text-zinc-400">
+                <flux:text class="mt-1 text-zinc-600 dark:text-zinc-400">
                     {{ __('warehouse.company_location_details') }}
                 </flux:text>
-            </flux:heading>
+            </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Address -->
@@ -243,18 +237,18 @@ new #[Layout('components.layouts.app')] class extends Component
 
         <!-- Configuration -->
         <flux:card>
-            <flux:heading>
+            <div class="mb-6">
                 <flux:heading size="lg">{{ __('warehouse.configuration') }}</flux:heading>
-                <flux:text class="text-zinc-600 dark:text-zinc-400">
+                <flux:text class="mt-1 text-zinc-600 dark:text-zinc-400">
                     {{ __('warehouse.company_settings') }}
                 </flux:text>
-            </flux:heading>
+            </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Currency -->
                 <flux:field>
                     <flux:label>{{ __('warehouse.currency') }}</flux:label>
-                    <flux:select wire:model="currency" placeholder="{{ __('warehouse.select_currency') }}">
+                    <flux:select wire:model="default_currency" placeholder="{{ __('warehouse.select_currency') }}">
                         <flux:select.option value="COP">COP - Peso Colombiano</flux:select.option>
                         <flux:select.option value="USD">USD - Dólar Estadounidense</flux:select.option>
                         <flux:select.option value="EUR">EUR - Euro</flux:select.option>
@@ -264,7 +258,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         <flux:select.option value="ARS">ARS - Peso Argentino</flux:select.option>
                         <flux:select.option value="MXN">MXN - Peso Mexicano</flux:select.option>
                     </flux:select>
-                    <flux:error name="currency" />
+                    <flux:error name="default_currency" />
                 </flux:field>
 
                 <!-- Timezone -->

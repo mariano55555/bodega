@@ -26,11 +26,39 @@ new class extends Component
 
     public int $currentItemIndex = -1;
 
-    public array $newProduct = [];
+    public string $newProductName = '';
+
+    public string $newProductSku = '';
+
+    public string $newProductParentCategoryId = '';
+
+    public string $newProductCategoryId = '';
+
+    public string $newProductUnitOfMeasureId = '';
+
+    public string $newProductCost = '';
+
+    public string $newProductDescription = '';
+
+    public bool $autoGenerateSku = false;
+
+    public bool $showCreateUnitModal = false;
+
+    public string $newUnitName = '';
+
+    public string $newUnitAbbreviation = '';
+
+    public string $newUnitType = 'quantity';
+
+    public string $newUnitDescription = '';
 
     public ?int $selectedWarehouseId = null;
 
     public bool $autoReceive = true;
+
+    public bool $showLinkProductModal = false;
+
+    public string $productSearch = '';
 
     public function mount(DteImport $dteImport): void
     {
@@ -52,6 +80,17 @@ new class extends Component
         return $this->dteImport->company_id;
     }
 
+    protected function checkAutoGenerateSku(): void
+    {
+        $companyId = $this->getCompanyId();
+        if ($companyId) {
+            $company = \App\Models\Company::find($companyId);
+            $this->autoGenerateSku = $company && ($company->settings['auto_generate_sku'] ?? false);
+        } else {
+            $this->autoGenerateSku = false;
+        }
+    }
+
     #[Computed]
     public function dteImport(): DteImport
     {
@@ -59,26 +98,39 @@ new class extends Component
     }
 
     #[Computed]
-    public function categories()
+    public function parentCategories()
     {
-        return ProductCategory::query()
+        return ProductCategory::active()
+            ->parents()
             ->where('company_id', $this->getCompanyId())
-            ->whereNotNull('active_at')
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'code', 'legacy_code']);
+    }
+
+    #[Computed]
+    public function subcategories()
+    {
+        if (! $this->newProductParentCategoryId) {
+            return collect([]);
+        }
+
+        return ProductCategory::active()
+            ->where('parent_id', $this->newProductParentCategoryId)
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'legacy_code']);
     }
 
     #[Computed]
     public function unitsOfMeasure()
     {
-        return UnitOfMeasure::query()
-            ->where(function ($query) {
-                $query->where('company_id', $this->getCompanyId())
-                    ->orWhereNull('company_id');
-            })
-            ->whereNotNull('active_at')
+        return UnitOfMeasure::active()
             ->orderBy('name')
             ->get(['id', 'name', 'abbreviation']);
+    }
+
+    public function updatedNewProductParentCategoryId(): void
+    {
+        $this->newProductCategoryId = '';
     }
 
     #[Computed]
@@ -87,8 +139,17 @@ new class extends Component
         return Product::query()
             ->where('company_id', $this->getCompanyId())
             ->active()
+            ->when($this->productSearch, function ($q) {
+                $q->where(function ($query) {
+                    $query->where('name', 'like', "%{$this->productSearch}%")
+                        ->orWhere('sku', 'like', "%{$this->productSearch}%")
+                        ->orWhere('barcode', 'like', "%{$this->productSearch}%");
+                });
+            })
+            ->with('category')
             ->orderBy('name')
-            ->get(['id', 'name', 'sku']);
+            ->limit(50)
+            ->get(['id', 'name', 'sku', 'barcode', 'category_id']);
     }
 
     #[Computed]
@@ -149,15 +210,15 @@ new class extends Component
         }
 
         $this->currentItemIndex = $index;
-        $this->newProduct = [
-            'name' => $item['parsed_name'],
-            'sku' => 'PROD-'.$item['supplier_code'],
-            'description' => '',
-            'category_id' => null,
-            'unit_of_measure_id' => null,
-            'cost' => $item['unit_price'],
-            'price' => null,
-        ];
+        $this->checkAutoGenerateSku();
+
+        $this->newProductName = $item['parsed_name'];
+        $this->newProductSku = $this->autoGenerateSku ? '' : 'PROD-'.$item['supplier_code'];
+        $this->newProductDescription = '';
+        $this->newProductParentCategoryId = '';
+        $this->newProductCategoryId = '';
+        $this->newProductUnitOfMeasureId = '';
+        $this->newProductCost = (string) $item['unit_price'];
         $this->showCreateProductModal = true;
     }
 
@@ -165,20 +226,51 @@ new class extends Component
     {
         $this->showCreateProductModal = false;
         $this->currentItemIndex = -1;
-        $this->newProduct = [];
+        $this->newProductName = '';
+        $this->newProductSku = '';
+        $this->newProductDescription = '';
+        $this->newProductParentCategoryId = '';
+        $this->newProductCategoryId = '';
+        $this->newProductUnitOfMeasureId = '';
+        $this->newProductCost = '';
+        $this->autoGenerateSku = false;
+    }
+
+    public function openLinkProductModal(int $index): void
+    {
+        $this->currentItemIndex = $index;
+        $this->productSearch = '';
+        $this->showLinkProductModal = true;
+    }
+
+    public function closeLinkProductModal(): void
+    {
+        $this->showLinkProductModal = false;
+        $this->currentItemIndex = -1;
+        $this->productSearch = '';
     }
 
     public function createProduct(): void
     {
-        $this->validate([
-            'newProduct.name' => 'required|string|max:255',
-            'newProduct.sku' => 'required|string|max:50',
-            'newProduct.category_id' => 'nullable|exists:product_categories,id',
-            'newProduct.unit_of_measure_id' => 'nullable|exists:units_of_measure,id',
-        ], [
-            'newProduct.name.required' => 'El nombre es requerido',
-            'newProduct.sku.required' => 'El SKU es requerido',
-        ]);
+        $rules = [
+            'newProductName' => 'required|string|max:255',
+            'newProductCategoryId' => 'required|exists:product_categories,id',
+            'newProductUnitOfMeasureId' => 'required|exists:units_of_measure,id',
+        ];
+
+        $messages = [
+            'newProductName.required' => 'El nombre es requerido',
+            'newProductCategoryId.required' => 'La subcategoría es requerida',
+            'newProductUnitOfMeasureId.required' => 'La unidad de medida es requerida',
+        ];
+
+        // Only validate SKU if auto-generation is disabled
+        if (! $this->autoGenerateSku) {
+            $rules['newProductSku'] = 'required|string|max:50';
+            $messages['newProductSku.required'] = 'El SKU es requerido';
+        }
+
+        $this->validate($rules, $messages);
 
         $dteImport = $this->dteImport;
         $item = $this->itemMappings[$this->currentItemIndex];
@@ -188,8 +280,8 @@ new class extends Component
         try {
             // Get unit of measure name
             $unitName = 'unidad';
-            if ($this->newProduct['unit_of_measure_id']) {
-                $unit = UnitOfMeasure::find($this->newProduct['unit_of_measure_id']);
+            if ($this->newProductUnitOfMeasureId) {
+                $unit = UnitOfMeasure::find($this->newProductUnitOfMeasureId);
                 $unitName = $unit?->abbreviation ?? $unit?->name ?? 'unidad';
             }
 
@@ -198,13 +290,12 @@ new class extends Component
                 $companyId,
                 $dteImport->supplier_id,
                 [
-                    'name' => $this->newProduct['name'],
-                    'sku' => $this->newProduct['sku'],
-                    'description' => $this->newProduct['description'] ?? null,
-                    'category_id' => $this->newProduct['category_id'],
-                    'unit_of_measure_id' => $this->newProduct['unit_of_measure_id'],
+                    'name' => $this->newProductName,
+                    'sku' => $this->newProductSku ?: null,
+                    'description' => $this->newProductDescription ?: null,
+                    'category_id' => $this->newProductCategoryId,
+                    'unit_of_measure_id' => $this->newProductUnitOfMeasureId,
                     'unit_of_measure' => $unitName,
-                    'price' => $this->newProduct['price'],
                 ]
             );
 
@@ -224,7 +315,7 @@ new class extends Component
             session()->flash('success', "Producto '{$product->name}' creado exitosamente.");
 
         } catch (\Exception $e) {
-            $this->addError('newProduct.name', 'Error al crear producto: '.$e->getMessage());
+            $this->addError('newProductName', 'Error al crear producto: '.$e->getMessage());
         }
     }
 
@@ -256,6 +347,9 @@ new class extends Component
 
         $this->saveMappings();
 
+        // Close the modal after linking
+        $this->closeLinkProductModal();
+
         session()->flash('success', "Producto '{$product->name}' vinculado exitosamente.");
     }
 
@@ -269,6 +363,63 @@ new class extends Component
     {
         $this->itemMappings[$index]['action'] = $this->itemMappings[$index]['product_id'] ? 'link' : 'create';
         $this->saveMappings();
+    }
+
+    public function openCreateUnitModal(): void
+    {
+        $this->resetUnitForm();
+        $this->showCreateUnitModal = true;
+    }
+
+    public function closeCreateUnitModal(): void
+    {
+        $this->showCreateUnitModal = false;
+        $this->resetUnitForm();
+    }
+
+    public function resetUnitForm(): void
+    {
+        $this->newUnitName = '';
+        $this->newUnitAbbreviation = '';
+        $this->newUnitType = 'quantity';
+        $this->newUnitDescription = '';
+        $this->resetValidation(['newUnitName', 'newUnitAbbreviation', 'newUnitType']);
+    }
+
+    public function saveUnit(): void
+    {
+        $this->validate([
+            'newUnitName' => ['required', 'string', 'max:255', 'unique:units_of_measure,name'],
+            'newUnitAbbreviation' => ['required', 'string', 'max:10', 'unique:units_of_measure,abbreviation'],
+            'newUnitType' => ['required', 'in:weight,volume,length,quantity,area,time'],
+            'newUnitDescription' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'newUnitName.required' => 'El nombre es obligatorio.',
+            'newUnitName.unique' => 'Esta unidad de medida ya existe.',
+            'newUnitAbbreviation.required' => 'La abreviatura es obligatoria.',
+            'newUnitAbbreviation.unique' => 'Esta abreviatura ya existe.',
+            'newUnitAbbreviation.max' => 'La abreviatura no puede tener más de 10 caracteres.',
+            'newUnitType.required' => 'El tipo es obligatorio.',
+        ]);
+
+        $unit = UnitOfMeasure::create([
+            'name' => $this->newUnitName,
+            'abbreviation' => $this->newUnitAbbreviation,
+            'type' => $this->newUnitType,
+            'description' => $this->newUnitDescription,
+            'is_active' => true,
+            'active_at' => now(),
+            'created_by' => auth()->id(),
+        ]);
+
+        $this->newProductUnitOfMeasureId = (string) $unit->id;
+        $this->closeCreateUnitModal();
+
+        \Flux::toast(
+            variant: 'success',
+            heading: 'Éxito',
+            text: 'Unidad de medida creada exitosamente.',
+        );
     }
 
     protected function saveMappings(): void
@@ -594,13 +745,9 @@ new class extends Component
                                             Crear producto nuevo
                                         </flux:menu.item>
                                         <flux:menu.separator />
-                                        <flux:menu.submenu heading="Vincular a existente">
-                                            @foreach($this->existingProducts->take(20) as $product)
-                                                <flux:menu.item wire:click="linkToExistingProduct({{ $index }}, {{ $product->id }})">
-                                                    {{ $product->name }} ({{ $product->sku }})
-                                                </flux:menu.item>
-                                            @endforeach
-                                        </flux:menu.submenu>
+                                        <flux:menu.item wire:click="openLinkProductModal({{ $index }})" icon="link">
+                                            Vincular a producto existente
+                                        </flux:menu.item>
                                         <flux:menu.separator />
                                         <flux:menu.item wire:click="skipItem({{ $index }})" icon="x-mark" class="text-zinc-500">
                                             Omitir este item
@@ -662,7 +809,7 @@ new class extends Component
     </div>
 
     {{-- Create Product Modal --}}
-    <flux:modal wire:model="showCreateProductModal" class="max-w-xl">
+    <flux:modal wire:model="showCreateProductModal" class="max-w-xl" wire:key="create-product-modal-v2">
         <div class="space-y-6">
             <div>
                 <flux:heading size="lg">Crear Producto</flux:heading>
@@ -681,57 +828,77 @@ new class extends Component
 
             <div class="space-y-4">
                 <flux:field>
-                    <flux:label>Nombre del Producto *</flux:label>
-                    <flux:input wire:model="newProduct.name" placeholder="Nombre del producto" />
-                    @error('newProduct.name')
-                        <flux:text size="sm" class="text-red-600">{{ $message }}</flux:text>
-                    @enderror
+                    <flux:label badge="Requerido">Nombre del Producto</flux:label>
+                    <flux:input wire:model="newProductName" placeholder="Nombre del producto" />
+                    <flux:error name="newProductName" />
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>SKU *</flux:label>
-                    <flux:input wire:model="newProduct.sku" placeholder="Código único del producto" />
-                    @error('newProduct.sku')
-                        <flux:text size="sm" class="text-red-600">{{ $message }}</flux:text>
-                    @enderror
+                    <div class="flex items-center justify-between">
+                        <flux:label :badge="$autoGenerateSku ? '' : 'Requerido'">Código SKU</flux:label>
+                        @if($autoGenerateSku)
+                            <flux:text class="text-xs text-green-600 dark:text-green-400">
+                                Generación automática activada
+                            </flux:text>
+                        @endif
+                    </div>
+                    <flux:input
+                        wire:model="newProductSku"
+                        placeholder="{{ $autoGenerateSku ? 'Se generará automáticamente (Ej: PRO-A7K9M2)' : 'Código único del producto' }}"
+                        @if($autoGenerateSku) disabled @endif />
+                    <flux:error name="newProductSku" />
+                    @if($autoGenerateSku)
+                        <flux:text class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            El sistema generará un código único automáticamente al crear el producto
+                        </flux:text>
+                    @endif
                 </flux:field>
 
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <flux:field>
-                        <flux:label>Categoría</flux:label>
-                        <flux:select wire:model="newProduct.category_id" variant="listbox" placeholder="Seleccionar...">
-                            @foreach($this->categories as $category)
-                                <flux:select.option value="{{ $category->id }}">{{ $category->name }}</flux:select.option>
-                            @endforeach
-                        </flux:select>
-                    </flux:field>
+                <flux:field>
+                    <flux:label badge="Requerido">Categoría</flux:label>
+                    <flux:select wire:model.live="newProductParentCategoryId" variant="listbox" searchable placeholder="Seleccione una categoría">
+                        @foreach($this->parentCategories as $category)
+                            <flux:select.option value="{{ $category->id }}">{{ $category->legacy_code ?? $category->code }} - {{ $category->name }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:error name="newProductParentCategoryId" />
+                </flux:field>
 
-                    <flux:field>
-                        <flux:label>Unidad de Medida</flux:label>
-                        <flux:select wire:model="newProduct.unit_of_measure_id" variant="listbox" placeholder="Seleccionar...">
-                            @foreach($this->unitsOfMeasure as $unit)
-                                <flux:select.option value="{{ $unit->id }}">{{ $unit->name }} ({{ $unit->abbreviation }})</flux:select.option>
-                            @endforeach
-                        </flux:select>
-                    </flux:field>
-                </div>
+                <flux:field>
+                    <flux:label badge="Requerido">Subcategoría</flux:label>
+                    <flux:select wire:model="newProductCategoryId" variant="listbox" searchable placeholder="Seleccione una subcategoría" :disabled="!$newProductParentCategoryId">
+                        @foreach($this->subcategories as $subcategory)
+                            <flux:select.option value="{{ $subcategory->id }}">{{ $subcategory->legacy_code ?? $subcategory->code }} - {{ $subcategory->name }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:error name="newProductCategoryId" />
+                </flux:field>
 
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <flux:field>
-                        <flux:label>Costo</flux:label>
-                        <flux:input type="number" wire:model="newProduct.cost" step="0.01" readonly />
-                        <flux:text size="xs" class="text-zinc-500">Del DTE</flux:text>
-                    </flux:field>
+                <flux:field>
+                    <div class="flex items-center justify-between">
+                        <flux:label badge="Requerido">Unidad de Medida</flux:label>
+                        <button type="button" wire:click="openCreateUnitModal" class="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1">
+                            <flux:icon name="plus" class="h-3 w-3" />
+                            Nueva unidad
+                        </button>
+                    </div>
+                    <flux:select wire:model="newProductUnitOfMeasureId" variant="listbox" searchable placeholder="Seleccione una unidad">
+                        @foreach($this->unitsOfMeasure as $unit)
+                            <flux:select.option value="{{ $unit->id }}">{{ $unit->name }} ({{ $unit->abbreviation }})</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:error name="newProductUnitOfMeasureId" />
+                </flux:field>
 
-                    <flux:field>
-                        <flux:label>Precio de Venta</flux:label>
-                        <flux:input type="number" wire:model="newProduct.price" step="0.01" placeholder="0.00" />
-                    </flux:field>
-                </div>
+                <flux:field>
+                    <flux:label>Costo</flux:label>
+                    <flux:input type="number" wire:model="newProductCost" step="0.01" readonly />
+                    <flux:text size="xs" class="text-zinc-500">Del DTE</flux:text>
+                </flux:field>
 
                 <flux:field>
                     <flux:label>Descripción</flux:label>
-                    <flux:textarea wire:model="newProduct.description" rows="2" placeholder="Descripción opcional..." />
+                    <flux:textarea wire:model="newProductDescription" rows="2" placeholder="Descripción opcional..." />
                 </flux:field>
             </div>
 
@@ -741,6 +908,61 @@ new class extends Component
                 </flux:button>
                 <flux:button wire:click="createProduct" variant="primary" icon="plus">
                     Crear Producto
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
+    {{-- Create Unit of Measure Modal --}}
+    <flux:modal wire:model="showCreateUnitModal" class="max-w-lg">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">Nueva Unidad de Medida</flux:heading>
+                <flux:text class="text-zinc-600 dark:text-zinc-400">
+                    Completa la información para crear una nueva unidad de medida
+                </flux:text>
+            </div>
+
+            <div class="space-y-4">
+                <flux:field>
+                    <flux:label badge="Requerido">Nombre</flux:label>
+                    <flux:input wire:model="newUnitName" placeholder="Ej: Kilogramo, Litro, Pieza" />
+                    <flux:error name="newUnitName" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label badge="Requerido">Abreviatura</flux:label>
+                    <flux:input wire:model.blur="newUnitAbbreviation" placeholder="Ej: kg, L, pza" maxlength="10" />
+                    <flux:error name="newUnitAbbreviation" />
+                    <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">Máximo 10 caracteres</flux:text>
+                </flux:field>
+
+                <flux:field>
+                    <flux:label badge="Requerido">Tipo</flux:label>
+                    <flux:select wire:model="newUnitType">
+                        <flux:select.option value="quantity">Cantidad</flux:select.option>
+                        <flux:select.option value="weight">Peso</flux:select.option>
+                        <flux:select.option value="volume">Volumen</flux:select.option>
+                        <flux:select.option value="length">Longitud</flux:select.option>
+                        <flux:select.option value="area">Área</flux:select.option>
+                        <flux:select.option value="time">Tiempo</flux:select.option>
+                    </flux:select>
+                    <flux:error name="newUnitType" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>Descripción (Opcional)</flux:label>
+                    <flux:textarea wire:model="newUnitDescription" rows="3" placeholder="Descripción adicional..." />
+                    <flux:error name="newUnitDescription" />
+                </flux:field>
+            </div>
+
+            <div class="flex items-center justify-end gap-3">
+                <flux:button wire:click="closeCreateUnitModal" variant="ghost">
+                    Cancelar
+                </flux:button>
+                <flux:button wire:click="saveUnit" variant="primary">
+                    Guardar
                 </flux:button>
             </div>
         </div>
@@ -838,6 +1060,107 @@ new class extends Component
                 >
                     <span wire:loading.remove wire:target="createPurchase">Crear Compra</span>
                     <span wire:loading wire:target="createPurchase">Creando...</span>
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
+    {{-- Link to Existing Product Modal --}}
+    <flux:modal wire:model="showLinkProductModal" class="max-w-2xl">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">Vincular a Producto Existente</flux:heading>
+                <flux:text class="text-zinc-600 dark:text-zinc-400">
+                    Busca y selecciona un producto de tu inventario
+                </flux:text>
+            </div>
+
+            @if($currentItemIndex >= 0 && isset($itemMappings[$currentItemIndex]))
+                <flux:callout variant="info" size="sm">
+                    <flux:text size="sm">
+                        Vinculando item: <strong>{{ $itemMappings[$currentItemIndex]['supplier_description'] }}</strong>
+                    </flux:text>
+                </flux:callout>
+            @endif
+
+            {{-- Search Input --}}
+            <flux:field>
+                <flux:label>Buscar producto</flux:label>
+                <flux:input
+                    wire:model.live.debounce.300ms="productSearch"
+                    placeholder="Buscar por nombre, SKU o código de barras..."
+                    icon="magnifying-glass"
+                />
+                <flux:text size="xs" class="text-zinc-500">
+                    Escribe para buscar entre todos los productos de tu empresa
+                </flux:text>
+            </flux:field>
+
+            {{-- Products List --}}
+            <div class="rounded-lg border border-zinc-200 dark:border-zinc-700">
+                <div class="max-h-96 overflow-y-auto">
+                    @if($this->existingProducts->isEmpty())
+                        <div class="p-8 text-center">
+                            <flux:icon name="inbox" class="mx-auto h-12 w-12 text-zinc-400" />
+                            <flux:text class="mt-2 text-zinc-600 dark:text-zinc-400">
+                                @if($productSearch)
+                                    No se encontraron productos que coincidan con "{{ $productSearch }}"
+                                @else
+                                    No hay productos disponibles
+                                @endif
+                            </flux:text>
+                        </div>
+                    @else
+                        <div class="divide-y divide-zinc-200 dark:divide-zinc-700">
+                            @foreach($this->existingProducts as $product)
+                                <button
+                                    wire:click="linkToExistingProduct({{ $currentItemIndex }}, {{ $product->id }})"
+                                    type="button"
+                                    class="w-full px-4 py-3 text-left transition hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none dark:hover:bg-zinc-800 dark:focus:bg-zinc-800"
+                                >
+                                    <div class="flex items-start justify-between gap-4">
+                                        <div class="flex-1 min-w-0">
+                                            <flux:text class="font-medium text-zinc-900 dark:text-zinc-100">
+                                                {{ $product->name }}
+                                            </flux:text>
+                                            <div class="mt-1 flex flex-wrap gap-3 text-sm">
+                                                @if($product->sku)
+                                                    <span class="text-zinc-600 dark:text-zinc-400">
+                                                        SKU: <span class="font-mono">{{ $product->sku }}</span>
+                                                    </span>
+                                                @endif
+                                                @if($product->barcode)
+                                                    <span class="text-zinc-600 dark:text-zinc-400">
+                                                        Código: <span class="font-mono">{{ $product->barcode }}</span>
+                                                    </span>
+                                                @endif
+                                                @if($product->category)
+                                                    <span class="text-zinc-600 dark:text-zinc-400">
+                                                        <flux:badge color="zinc" size="sm">{{ $product->category->name }}</flux:badge>
+                                                    </span>
+                                                @endif
+                                            </div>
+                                        </div>
+                                        <flux:icon name="chevron-right" class="h-5 w-5 shrink-0 text-zinc-400" />
+                                    </div>
+                                </button>
+                            @endforeach
+                        </div>
+
+                        @if($this->existingProducts->count() >= 50)
+                            <div class="border-t border-zinc-200 bg-zinc-50 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800">
+                                <flux:text size="xs" class="text-zinc-600 dark:text-zinc-400">
+                                    Mostrando los primeros 50 resultados. Usa el buscador para refinar los resultados.
+                                </flux:text>
+                            </div>
+                        @endif
+                    @endif
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-3">
+                <flux:button wire:click="closeLinkProductModal" variant="ghost">
+                    Cancelar
                 </flux:button>
             </div>
         </div>

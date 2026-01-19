@@ -32,14 +32,14 @@ class Product extends Model
         'unit_of_measure_id',
         'company_id',
         'cost',
-        'price',
+        // 'price', // Comentado por petición del cliente: quitar precio de venta
         'barcode',
         'attributes',
         'image_path',
         'track_inventory',
         'is_active',
         'active_at',
-        'valuation_method',
+        // 'valuation_method', // Comentado por petición del cliente: quitar método de valuación
         'minimum_stock',
         'maximum_stock',
         'created_by',
@@ -55,7 +55,7 @@ class Product extends Model
     {
         return [
             'cost' => 'decimal:2',
-            'price' => 'decimal:2',
+            // 'price' => 'decimal:2', // Comentado por petición del cliente: quitar precio de venta
             'minimum_stock' => 'decimal:2',
             'maximum_stock' => 'decimal:2',
             'attributes' => 'array',
@@ -71,7 +71,7 @@ class Product extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'sku', 'cost', 'price', 'is_active', 'minimum_stock', 'maximum_stock'])
+            ->logOnly(['name', 'sku', 'cost', /* 'price', */ 'is_active', 'minimum_stock', 'maximum_stock']) // price comentado por petición del cliente
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->setDescriptionForEvent(fn (string $eventName) => "Producto '{$this->name}' {$eventName}");

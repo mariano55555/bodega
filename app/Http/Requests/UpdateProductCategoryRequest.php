@@ -22,11 +22,21 @@ class UpdateProductCategoryRequest extends FormRequest
      */
     public function rules(): array
     {
-        $categoryId = $this->route('category')?->id ?? $this->category;
+        $category = $this->route('category');
+        $categoryId = $category?->id ?? $this->category;
+        $companyId = $category?->company_id ?? auth()->user()->company_id;
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'code' => ['nullable', 'string', 'max:50', 'alpha_dash', Rule::unique('product_categories', 'code')->ignore($categoryId)],
+            'code' => [
+                'nullable',
+                'string',
+                'max:50',
+                'alpha_dash',
+                Rule::unique('product_categories', 'code')
+                    ->ignore($categoryId)
+                    ->where('company_id', $companyId),
+            ],
             'legacy_code' => ['nullable', 'string', 'max:10'],
             'parent_id' => ['nullable', 'integer', 'exists:product_categories,id'],
             'description' => ['nullable', 'string', 'max:1000'],

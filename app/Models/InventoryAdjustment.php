@@ -302,9 +302,18 @@ class InventoryAdjustment extends Model
             $previousBalance = $currentStock ? $currentStock->balance_quantity : 0;
             $newBalance = $previousBalance + $this->quantity; // Can be positive or negative
 
-            // Get movement reason for adjustments based on quantity direction
-            $isPositiveAdjustment = $this->isPositiveAdjustment();
-            $movementReasonCode = $isPositiveAdjustment ? 'ADJ_POS' : 'ADJ_NEG';
+            // Get movement reason for adjustments
+            // First try to get it from admin_notes (if user selected one)
+            $movementReasonCode = null;
+            if ($this->admin_notes && preg_match('/Code: ([A-Z_]+)\)/', $this->admin_notes, $matches)) {
+                $movementReasonCode = $matches[1];
+            }
+
+            // If no code in admin_notes, fallback to default based on quantity direction
+            if (! $movementReasonCode) {
+                $isPositiveAdjustment = $this->isPositiveAdjustment();
+                $movementReasonCode = $isPositiveAdjustment ? 'ADJ_POS' : 'ADJ_NEG';
+            }
 
             $movementReason = MovementReason::where('code', $movementReasonCode)->first();
 

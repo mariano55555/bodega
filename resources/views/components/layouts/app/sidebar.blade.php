@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         @include('partials.head')
     </head>
@@ -40,7 +40,7 @@
                     <flux:navlist.item icon="scale" :href="route('admin.units.index')" :current="request()->routeIs('admin.units.*')" wire:navigate>{{ __('Unidades de Medida') }}</flux:navlist.item>
                     <flux:navlist.item icon="building-storefront" :href="route('purchases.suppliers.index')" :current="request()->routeIs('purchases.suppliers.*')" wire:navigate>{{ __('Proveedores') }}</flux:navlist.item>
                     <flux:navlist.item icon="heart" :href="route('donors.index')" :current="request()->routeIs('donors.*')" wire:navigate>{{ __('Donantes') }}</flux:navlist.item>
-                    <flux:navlist.item icon="users" :href="route('customers.index')" :current="request()->routeIs('customers.*')" wire:navigate>{{ __('Clientes') }}</flux:navlist.item>
+                    <flux:navlist.item icon="users" :href="route('employees.index')" :current="request()->routeIs('employees.*')" wire:navigate>{{ __('Personal') }}</flux:navlist.item>
                     <flux:navlist.item icon="arrow-up-tray" :href="route('imports.index')" :current="request()->routeIs('imports.*')" wire:navigate>{{ __('Importación de Datos') }}</flux:navlist.item>
                 </flux:navlist.group>
 
@@ -50,6 +50,7 @@
                     <flux:navlist.item icon="building-office-2" :href="route('warehouse.companies.index')" :current="request()->routeIs('warehouse.companies.*')" wire:navigate>{{ __('Empresas') }}</flux:navlist.item>
                     <flux:navlist.item icon="building-storefront" :href="route('warehouse.branches.index')" :current="request()->routeIs('warehouse.branches.*')" wire:navigate>{{ __('Sucursales') }}</flux:navlist.item>
                     <flux:navlist.item icon="building-office" :href="route('warehouse.warehouses.index')" :current="request()->routeIs('warehouse.warehouses.*')" wire:navigate>{{ __('Bodegas') }}</flux:navlist.item>
+                    <flux:navlist.item icon="rectangle-group" :href="route('admin.areas.index')" :current="request()->routeIs('admin.areas.*')" wire:navigate>{{ __('Áreas') }}</flux:navlist.item>
                     <flux:navlist.item icon="map-pin" :href="route('storage-locations.index')" :current="request()->routeIs('storage-locations.*')" wire:navigate>{{ __('Ubicaciones de Almacenamiento') }}</flux:navlist.item>
                     <flux:navlist.item icon="chart-pie" :href="route('warehouse.capacity.index')" :current="request()->routeIs('warehouse.capacity.*')" wire:navigate>{{ __('Capacidad de Almacenes') }}</flux:navlist.item>
                 </flux:navlist.group>
