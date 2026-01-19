@@ -47,6 +47,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public $autoGenerateSku = false;
 
+    public $skuPreview = '';
+
     // Modal para crear unidad de medida
     public $newUnitName = '';
 
@@ -109,6 +111,16 @@ new #[Layout('components.layouts.app')] class extends Component
     {
         // Reset subcategory when parent changes
         $this->category_id = '';
+        $this->skuPreview = '';
+    }
+
+    public function updatedCategoryId($value): void
+    {
+        if ($this->autoGenerateSku && $value && $this->company_id) {
+            $this->skuPreview = Product::previewSkuForCategory((int) $this->company_id, (int) $value);
+        } else {
+            $this->skuPreview = '';
+        }
     }
 
     public function isSuperAdmin(): bool
@@ -380,13 +392,19 @@ new #[Layout('components.layouts.app')] class extends Component
                             </div>
                             <flux:input
                                 wire:model="sku"
-                                placeholder="{{ $autoGenerateSku ? 'Se generará automáticamente (Ej: PRO-A7K9M2)' : 'Ej: ALM-GAN-001' }}"
+                                placeholder="{{ $autoGenerateSku ? ($skuPreview ?: 'Seleccione una subcategoría para ver el SKU') : 'Ej: ALM-GAN-001' }}"
                                 @if($autoGenerateSku) disabled @endif />
                             <flux:error name="sku" />
                             @if($autoGenerateSku)
-                                <flux:text class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    El sistema generará un código único automáticamente al crear el producto
-                                </flux:text>
+                                @if($skuPreview)
+                                    <flux:text class="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                        <strong>Próximo SKU:</strong> {{ $skuPreview }}
+                                    </flux:text>
+                                @else
+                                    <flux:text class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        Seleccione una subcategoría para ver el SKU que se generará
+                                    </flux:text>
+                                @endif
                             @endif
                         </flux:field>
                     </div>
@@ -462,7 +480,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                     Nueva subcategoría
                                 </button>
                             </div>
-                            <flux:select wire:model="category_id" placeholder="Selecciona una subcategoría" :disabled="!$parent_category_id">
+                            <flux:select wire:model.live="category_id" placeholder="Selecciona una subcategoría" :disabled="!$parent_category_id">
                                 <flux:select.option value="">Seleccione una subcategoría</flux:select.option>
                                 @foreach($this->subcategories as $subcategory)
                                 <flux:select.option value="{{ $subcategory->id }}">{{ $subcategory->legacy_code ?? $subcategory->code }} - {{ $subcategory->name }}</flux:select.option>

@@ -89,14 +89,7 @@ class Product extends Model
             if (empty($product->sku) && $product->company_id) {
                 $company = \App\Models\Company::find($product->company_id);
                 if ($company && ($company->settings['auto_generate_sku'] ?? false)) {
-                    // Generar SKU único: PRO-XXXXXX
-                    do {
-                        $product->sku = 'PRO-'.strtoupper(Str::random(6));
-                        // Verificar unicidad por empresa
-                        $exists = static::where('company_id', $product->company_id)
-                            ->where('sku', $product->sku)
-                            ->exists();
-                    } while ($exists);
+                    $product->sku = static::generateCategorySku($product);
                 }
             }
 
@@ -281,5 +274,106 @@ class Product extends Model
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    /**
+     * Generate SKU based on category hierarchy.
+     * Format: {parent_legacy_code}-{subcategory_legacy_code}-{correlative}
+     * Example: 54-54101-00001
+     */
+    public static function generateCategorySku(self $product): string
+    {
+        // 1. Get the subcategory
+        $subcategory = ProductCategory::find($product->category_id);
+
+        if (! $subcategory || ! $subcategory->legacy_code) {
+            // Fallback to old format if no category or legacy_code
+            return static::generateFallbackSku($product->company_id);
+        }
+
+        // 2. Get parent's legacy_code
+        $parentLegacyCode = '';
+        if ($subcategory->parent_id) {
+            $parent = ProductCategory::find($subcategory->parent_id);
+            $parentLegacyCode = $parent?->legacy_code ?? '';
+        } else {
+            // If no parent, use own legacy_code as parent
+            $parentLegacyCode = $subcategory->legacy_code;
+        }
+
+        if (! $parentLegacyCode) {
+            return static::generateFallbackSku($product->company_id);
+        }
+
+        // 3. Count existing products in this subcategory for correlative
+        $count = static::where('company_id', $product->company_id)
+            ->where('category_id', $product->category_id)
+            ->count();
+
+        // 4. Generate correlative (next number, 5 digits)
+        $correlative = str_pad($count + 1, 5, '0', STR_PAD_LEFT);
+
+        // 5. Build SKU: parent-subcategory-correlative
+        $sku = "{$parentLegacyCode}-{$subcategory->legacy_code}-{$correlative}";
+
+        // 6. Verify uniqueness and adjust if necessary
+        while (static::where('company_id', $product->company_id)
+            ->where('sku', $sku)
+            ->exists()) {
+            $count++;
+            $correlative = str_pad($count + 1, 5, '0', STR_PAD_LEFT);
+            $sku = "{$parentLegacyCode}-{$subcategory->legacy_code}-{$correlative}";
+        }
+
+        return $sku;
+    }
+
+    /**
+     * Generate fallback SKU when category-based generation is not possible.
+     * Format: PRO-XXXXXX
+     */
+    protected static function generateFallbackSku(int $companyId): string
+    {
+        do {
+            $sku = 'PRO-'.strtoupper(Str::random(6));
+            $exists = static::where('company_id', $companyId)
+                ->where('sku', $sku)
+                ->exists();
+        } while ($exists);
+
+        return $sku;
+    }
+
+    /**
+     * Preview SKU generation for a given category.
+     * Useful for showing the user what SKU will be generated.
+     */
+    public static function previewSkuForCategory(int $companyId, int $categoryId): string
+    {
+        $subcategory = ProductCategory::find($categoryId);
+
+        if (! $subcategory || ! $subcategory->legacy_code) {
+            return 'Se generará automáticamente (PRO-XXXXXX)';
+        }
+
+        $parentLegacyCode = '';
+        if ($subcategory->parent_id) {
+            $parent = ProductCategory::find($subcategory->parent_id);
+            $parentLegacyCode = $parent?->legacy_code ?? '';
+        } else {
+            $parentLegacyCode = $subcategory->legacy_code;
+        }
+
+        if (! $parentLegacyCode) {
+            return 'Se generará automáticamente (PRO-XXXXXX)';
+        }
+
+        $count = static::where('company_id', $companyId)
+            ->where('category_id', $categoryId)
+            ->count();
+
+        $correlative = str_pad($count + 1, 5, '0', STR_PAD_LEFT);
+
+        return "{$parentLegacyCode}-{$subcategory->legacy_code}-{$correlative}";
     }
 }
