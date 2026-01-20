@@ -1,29 +1,42 @@
 <?php
 
-use App\Models\Company;
-use Livewire\Volt\Component;
-use Livewire\WithFileUploads;
-use Livewire\Attributes\Computed;
-use App\Imports\CategoriesImport;
-use App\Imports\ProductsImport;
-use App\Imports\InventoriesImport;
+use App\Exports\InventoriesTemplateExport;
 use App\Exports\ProductCategoriesTemplateExport;
 use App\Exports\ProductsTemplateExport;
-use App\Exports\InventoriesTemplateExport;
-use Maatwebsite\Excel\Facades\Excel;
+use App\Imports\CategoriesImport;
+use App\Imports\InventoriesImport;
+use App\Imports\InventoryBodegaGeneralImport;
+use App\Imports\ProductsImport;
+use App\Models\Company;
+use App\Models\Warehouse;
+use Livewire\Attributes\Computed;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
+use Maatwebsite\Excel\Facades\Excel;
 
-new class extends Component {
+new class extends Component
+{
     use WithFileUploads;
 
     public string $importType = 'categories';
+
     public ?int $selectedCompanyId = null;
+
+    public ?int $selectedWarehouseId = null;
+
     public ?TemporaryUploadedFile $file = null;
+
     public bool $importing = false;
+
     public bool $previewing = false;
+
     public array $importResults = [];
+
     public array $previewResults = [];
+
     public bool $showResults = false;
+
     public bool $showPreview = false;
 
     public function mount(): void
@@ -50,6 +63,28 @@ new class extends Component {
             ->get(['id', 'name']);
     }
 
+    #[Computed]
+    public function warehouses()
+    {
+        $companyId = $this->selectedCompanyId ?? auth()->user()->company_id;
+
+        if (! $companyId) {
+            return collect();
+        }
+
+        return Warehouse::query()
+            ->where('company_id', $companyId)
+            ->whereNotNull('active_at')
+            ->orderBy('name')
+            ->get(['id', 'name', 'code']);
+    }
+
+    public function updatedSelectedCompanyId(): void
+    {
+        // Reset warehouse when company changes
+        $this->selectedWarehouseId = null;
+    }
+
     public function updatedFile(): void
     {
         $this->validate([
@@ -71,14 +106,15 @@ new class extends Component {
 
         // Super admin uses selected company
         if ($user->isSuperAdmin()) {
-            if (!$this->selectedCompanyId) {
+            if (! $this->selectedCompanyId) {
                 throw new \Exception('Debe seleccionar una compañía.');
             }
+
             return $this->selectedCompanyId;
         }
 
         // Regular users use their assigned company
-        if (!$user->company_id) {
+        if (! $user->company_id) {
             throw new \Exception('No tiene una compañía asignada. Contacte al administrador.');
         }
 
@@ -89,15 +125,21 @@ new class extends Component {
     {
         $validationRules = [
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
-            'importType' => 'required|in:categories,products,inventories,adjustments',
+            'importType' => 'required|in:categories,products,inventories,adjustments,inventory_bodega_general',
         ];
 
         if (auth()->user()->isSuperAdmin()) {
             $validationRules['selectedCompanyId'] = 'required|exists:companies,id';
         }
 
+        // Require warehouse for inventory_bodega_general
+        if ($this->importType === 'inventory_bodega_general') {
+            $validationRules['selectedWarehouseId'] = 'required|exists:warehouses,id';
+        }
+
         $this->validate($validationRules, [
             'selectedCompanyId.required' => 'Debe seleccionar una compañía.',
+            'selectedWarehouseId.required' => 'Debe seleccionar una bodega.',
         ]);
 
         $this->previewing = true;
@@ -112,12 +154,13 @@ new class extends Component {
                 'categories' => new CategoriesImport($companyId, $userId, true), // preview mode
                 'products' => new ProductsImport($companyId, $userId, true), // preview mode
                 'inventories' => new InventoriesImport($companyId, $userId),
+                'inventory_bodega_general' => new InventoryBodegaGeneralImport($companyId, $userId, $this->selectedWarehouseId, true), // preview mode
                 default => throw new \Exception('Tipo de importación no válido'),
             };
 
             Excel::import($import, $this->file->getRealPath());
 
-            if (in_array($this->importType, ['categories', 'products'])) {
+            if (in_array($this->importType, ['categories', 'products', 'inventory_bodega_general'])) {
                 $this->previewResults = $import->getPreviewSummary();
             } else {
                 // For other imports, show basic preview
@@ -135,7 +178,7 @@ new class extends Component {
 
             $this->showPreview = true;
         } catch (\Exception $e) {
-            $this->addError('file', 'Error al validar: ' . $e->getMessage());
+            $this->addError('file', 'Error al validar: '.$e->getMessage());
         } finally {
             $this->previewing = false;
         }
@@ -145,11 +188,16 @@ new class extends Component {
     {
         $validationRules = [
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
-            'importType' => 'required|in:categories,products,inventories,adjustments',
+            'importType' => 'required|in:categories,products,inventories,adjustments,inventory_bodega_general',
         ];
 
         if (auth()->user()->isSuperAdmin()) {
             $validationRules['selectedCompanyId'] = 'required|exists:companies,id';
+        }
+
+        // Require warehouse for inventory_bodega_general
+        if ($this->importType === 'inventory_bodega_general') {
+            $validationRules['selectedWarehouseId'] = 'required|exists:warehouses,id';
         }
 
         $this->validate($validationRules);
@@ -166,6 +214,7 @@ new class extends Component {
                 'categories' => new CategoriesImport($companyId, $userId, false), // import mode
                 'products' => new ProductsImport($companyId, $userId, false), // import mode
                 'inventories' => new InventoriesImport($companyId, $userId),
+                'inventory_bodega_general' => new InventoryBodegaGeneralImport($companyId, $userId, $this->selectedWarehouseId, false), // import mode
                 default => throw new \Exception('Tipo de importación no válido'),
             };
 
@@ -183,7 +232,7 @@ new class extends Component {
                 ]);
             }
         } catch (\Exception $e) {
-            $this->addError('file', 'Error al importar: ' . $e->getMessage());
+            $this->addError('file', 'Error al importar: '.$e->getMessage());
         } finally {
             $this->importing = false;
         }
@@ -266,11 +315,30 @@ new class extends Component {
                         <flux:select.option value="products">2. Productos</flux:select.option>
                         <flux:select.option value="inventories">3. Inventarios Iniciales</flux:select.option>
                         <flux:select.option value="adjustments">4. Ajustes de Inventario</flux:select.option>
+                        <flux:select.option value="inventory_bodega_general">5. Inventario con Productos (Bodega General)</flux:select.option>
                     </flux:select>
                     <flux:text size="sm" class="text-zinc-500 dark:text-zinc-400">
                         Orden recomendado: Categorías → Productos → Inventarios
                     </flux:text>
                 </flux:field>
+
+                {{-- Warehouse Selector (for inventory_bodega_general) --}}
+                @if($importType === 'inventory_bodega_general')
+                    <flux:field>
+                        <flux:label>Bodega Destino</flux:label>
+                        <flux:select wire:model.live="selectedWarehouseId" variant="listbox" placeholder="Seleccione una bodega...">
+                            @foreach($this->warehouses as $warehouse)
+                                <flux:select.option value="{{ $warehouse->id }}">{{ $warehouse->name }} ({{ $warehouse->code }})</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                        @error('selectedWarehouseId')
+                            <flux:text size="sm" class="text-red-600 dark:text-red-400">{{ $message }}</flux:text>
+                        @enderror
+                        <flux:text size="sm" class="text-zinc-500 dark:text-zinc-400">
+                            Los productos e inventarios se crearán en esta bodega
+                        </flux:text>
+                    </flux:field>
+                @endif
 
                 {{-- File Upload --}}
                 <flux:field>
@@ -314,6 +382,15 @@ new class extends Component {
                                 <li>Las bodegas deben existir (usa el nombre exacto)</li>
                                 <li>Se creará un movimiento inicial por cada registro</li>
                                 <li>Las existencias anteriores se sobrescribirán</li>
+                            </ul>
+                        @elseif($importType === 'inventory_bodega_general')
+                            <ul class="list-inside list-disc space-y-1 text-sm">
+                                <li>Formato especial para importar productos e inventario juntos</li>
+                                <li>Los productos se crearán automáticamente si no existen</li>
+                                <li>Las categorías se buscan por código legacy (subcategoria)</li>
+                                <li>Si una categoría no existe, el producto se importa sin categoría</li>
+                                <li>Las unidades de medida se normalizan automáticamente</li>
+                                <li>Columnas: nombre_del_producto, codigo_de_barras, descripcion, bodega, subcategoria, unidad_de_medida, stock_minimo, stock_maximo, existencia_actual, c_peps</li>
                             </ul>
                         @else
                             <ul class="list-inside list-disc space-y-1 text-sm">
@@ -461,8 +538,30 @@ new class extends Component {
                     </div>
                 </div>
 
+                {{-- Products to Create/Update Summary (for inventory_bodega_general) --}}
+                @if($importType === 'inventory_bodega_general' && (isset($previewResults['products_to_create']) || isset($previewResults['products_to_update'])))
+                    <div class="mb-6 grid gap-4 md:grid-cols-2">
+                        <div class="rounded-lg border-l-4 border-emerald-500 bg-emerald-50 p-4 dark:bg-emerald-950/20">
+                            <flux:text size="sm" class="font-medium text-emerald-600 dark:text-emerald-400">
+                                Productos a Crear
+                            </flux:text>
+                            <flux:heading size="xl" class="mt-1 text-emerald-900 dark:text-emerald-100">
+                                {{ number_format($previewResults['products_to_create'] ?? 0) }}
+                            </flux:heading>
+                        </div>
+                        <div class="rounded-lg border-l-4 border-cyan-500 bg-cyan-50 p-4 dark:bg-cyan-950/20">
+                            <flux:text size="sm" class="font-medium text-cyan-600 dark:text-cyan-400">
+                                Productos a Actualizar
+                            </flux:text>
+                            <flux:heading size="xl" class="mt-1 text-cyan-900 dark:text-cyan-100">
+                                {{ number_format($previewResults['products_to_update'] ?? 0) }}
+                            </flux:heading>
+                        </div>
+                    </div>
+                @endif
+
                 {{-- New Entities to Create --}}
-                @if(!empty($previewResults['units_to_create']) || !empty($previewResults['categories_to_create']))
+                @if(!empty($previewResults['units_to_create']) || !empty($previewResults['categories_to_create']) || !empty($previewResults['categories_not_found']))
                     <div class="mb-6 grid gap-4 md:grid-cols-2">
                         @if(!empty($previewResults['units_to_create']))
                             <flux:callout variant="warning">
@@ -491,6 +590,20 @@ new class extends Component {
                                 </div>
                             </flux:callout>
                         @endif
+
+                        @if(!empty($previewResults['categories_not_found']))
+                            <flux:callout variant="danger">
+                                <flux:heading size="sm">Categorías No Encontradas</flux:heading>
+                                <flux:text size="sm" class="mt-2">
+                                    Los productos con estas categorías se importarán sin categoría asignada:
+                                </flux:text>
+                                <div class="mt-2 flex flex-wrap gap-2">
+                                    @foreach($previewResults['categories_not_found'] as $code => $count)
+                                        <flux:badge color="red">{{ $code }} ({{ $count }} productos)</flux:badge>
+                                    @endforeach
+                                </div>
+                            </flux:callout>
+                        @endif
                     </div>
                 @endif
 
@@ -511,6 +624,12 @@ new class extends Component {
                                             <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Código</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Nombre</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Código Padre</th>
+                                        @elseif($importType === 'inventory_bodega_general')
+                                            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Producto</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Categoría</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Unidad</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Cantidad</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Costo</th>
                                         @else
                                             <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">SKU</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Nombre</th>
@@ -559,6 +678,47 @@ new class extends Component {
                                                     @else
                                                         <flux:text class="text-zinc-400">Sin padre</flux:text>
                                                     @endif
+                                                </td>
+                                            @elseif($importType === 'inventory_bodega_general')
+                                                <td class="px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100">
+                                                    <div class="flex items-center gap-2">
+                                                        @if(isset($row['mappings']['product']))
+                                                            @if($row['mappings']['product']['action'] === 'update')
+                                                                <flux:badge color="cyan" size="sm">Actualizar</flux:badge>
+                                                            @else
+                                                                <flux:badge color="emerald" size="sm">Crear</flux:badge>
+                                                            @endif
+                                                        @endif
+                                                        <span>{{ Str::limit($row['nombre'] ?? '-', 25) }}</span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-3 text-sm">
+                                                    @if(isset($row['mappings']['category']))
+                                                        @if($row['mappings']['category']['action'] === 'use_existing')
+                                                            <flux:badge color="green" size="sm">{{ $row['subcategoria'] }}</flux:badge>
+                                                        @elseif($row['mappings']['category']['action'] === 'not_found')
+                                                            <flux:badge color="red" size="sm">{{ $row['subcategoria'] }} (no existe)</flux:badge>
+                                                        @endif
+                                                    @else
+                                                        {{ $row['subcategoria'] ?? '-' }}
+                                                    @endif
+                                                </td>
+                                                <td class="px-4 py-3 text-sm">
+                                                    @if(isset($row['mappings']['unit']))
+                                                        @if($row['mappings']['unit']['action'] === 'use_existing')
+                                                            <flux:badge color="green" size="sm">{{ $row['mappings']['unit']['abbreviation'] ?? $row['unidad_medida'] }}</flux:badge>
+                                                        @else
+                                                            <flux:badge color="yellow" size="sm">+ {{ $row['unidad_medida'] }}</flux:badge>
+                                                        @endif
+                                                    @else
+                                                        {{ $row['unidad_medida'] ?? '-' }}
+                                                    @endif
+                                                </td>
+                                                <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100">
+                                                    {{ number_format($row['cantidad'] ?? 0, 2) }}
+                                                </td>
+                                                <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100">
+                                                    ${{ number_format($row['costo'] ?? 0, 2) }}
                                                 </td>
                                             @else
                                                 <td class="whitespace-nowrap px-4 py-3 text-sm font-mono text-zinc-900 dark:text-zinc-100">

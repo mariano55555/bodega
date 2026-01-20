@@ -515,7 +515,8 @@ new #[Layout('components.layouts.app')] class extends Component
                     @forelse($this->movements as $movement)
                     <flux:table.row>
                         <flux:table.cell>
-                            {{ $movement->movement_date ? $movement->movement_date->format('d/m/Y H:i') : '-' }}
+                            <div>{{ $movement->movement_date ? $movement->movement_date->format('d/m/Y') : '-' }}</div>
+                            <div class="text-xs text-zinc-500">{{ $movement->movement_date ? $movement->movement_date->format('g:i A') : '' }}</div>
                         </flux:table.cell>
                         <flux:table.cell>
                             @php
@@ -564,8 +565,13 @@ new #[Layout('components.layouts.app')] class extends Component
                             {{ $movement->warehouse?->name ?? '-' }}
                         </flux:table.cell>
                         <flux:table.cell class="text-right">
-                            <span class="{{ $movement->quantity >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                                {{ $movement->quantity >= 0 ? '+' : '' }}{{ number_format($movement->quantity, 2) }}
+                            @php
+                                // Calculate display quantity: positive for entries, negative for exits
+                                $displayQuantity = $movement->quantity_in - $movement->quantity_out;
+                                $isPositive = $displayQuantity >= 0;
+                            @endphp
+                            <span class="{{ $isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
+                                {{ $isPositive ? '+' : '' }}{{ number_format($displayQuantity, 2) }}
                             </span>
                         </flux:table.cell>
                         <flux:table.cell class="text-right font-medium">
@@ -844,6 +850,9 @@ new #[Layout('components.layouts.app')] class extends Component
                 <div class="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
                     <flux:text class="text-sm text-zinc-500 dark:text-zinc-400">Fecha del Movimiento</flux:text>
                     <flux:text class="font-semibold">{{ $movement->movement_date?->format('d/m/Y') ?? '-' }}</flux:text>
+                    @if($movement->movement_date)
+                    <flux:text class="text-sm text-zinc-500">{{ $movement->movement_date->format('g:i A') }}</flux:text>
+                    @endif
                 </div>
             </div>
 
@@ -874,10 +883,14 @@ new #[Layout('components.layouts.app')] class extends Component
             <div class="border dark:border-zinc-700 rounded-lg p-4">
                 <flux:heading size="sm" class="mb-3">Cantidades</flux:heading>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    @php
+                        $modalDisplayQty = $movement->quantity_in - $movement->quantity_out;
+                        $modalIsPositive = $modalDisplayQty >= 0;
+                    @endphp
                     <div class="text-center p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
                         <flux:text class="text-sm text-zinc-500 dark:text-zinc-400">Cantidad</flux:text>
-                        <flux:text class="text-xl font-bold {{ $movement->quantity >= 0 ? 'text-green-600' : 'text-red-600' }}">
-                            {{ $movement->quantity >= 0 ? '+' : '' }}{{ number_format($movement->quantity, 2) }}
+                        <flux:text class="text-xl font-bold {{ $modalIsPositive ? 'text-green-600' : 'text-red-600' }}">
+                            {{ $modalIsPositive ? '+' : '' }}{{ number_format($modalDisplayQty, 2) }}
                         </flux:text>
                     </div>
                     <div class="text-center p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg">

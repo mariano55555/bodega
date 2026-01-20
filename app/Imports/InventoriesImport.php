@@ -112,12 +112,12 @@ class InventoriesImport implements SkipsOnError, SkipsOnFailure, ToCollection, W
             ]
         );
 
-        // Create initial movement record
+        // Create initial movement record (using 'adjustment' type for initial stock load)
         InventoryMovement::create([
             'company_id' => $this->companyId,
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
-            'movement_type' => 'initial_stock',
+            'movement_type' => 'adjustment',
             'quantity' => $quantity,
             'quantity_in' => $quantity,
             'quantity_out' => 0,

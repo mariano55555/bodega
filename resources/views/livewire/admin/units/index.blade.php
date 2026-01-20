@@ -17,11 +17,12 @@ new #[Layout('components.layouts.app')] class extends Component
     public function units()
     {
         return UnitOfMeasure::query()
-            ->when($this->search, fn($q) => $q->where('name', 'like', "%{$this->search}%")
-                ->orWhere('symbol', 'like', "%{$this->search}%"))
+            ->when($this->search, fn($q) => $q->where(function ($query) {
+                $query->where('name', 'like', "%{$this->search}%")
+                    ->orWhere('abbreviation', 'like', "%{$this->search}%");
+            }))
             ->when($this->typeFilter, fn($q) => $q->where('type', $this->typeFilter))
             ->withCount('products')
-            ->orderBy('type')
             ->orderBy('name')
             ->paginate(15);
     }
@@ -109,7 +110,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         @endif
                     </flux:table.cell>
                     <flux:table.cell>
-                        <flux:badge color="blue">{{ $unit->symbol }}</flux:badge>
+                        <flux:badge color="blue">{{ $unit->abbreviation }}</flux:badge>
                     </flux:table.cell>
                     <flux:table.cell>
                         <flux:text>{{ $this->getTypeLabel($unit->type) }}</flux:text>

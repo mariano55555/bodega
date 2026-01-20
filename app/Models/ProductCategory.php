@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Cviebrock\EloquentSluggable\Sluggable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -9,11 +10,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use Mattiverse\Userstamps\Traits\Userstamps;
 
 class ProductCategory extends Model
 {
     /** @use HasFactory<\Database\Factories\ProductCategoryFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, Sluggable, SoftDeletes, Userstamps;
 
     /**
      * The attributes that are mass assignable.
@@ -48,43 +50,56 @@ class ProductCategory extends Model
     }
 
     /**
+     * Return the sluggable configuration array for this model.
+     */
+    public function sluggable(): array
+    {
+        return [
+            'slug' => [
+                'source' => 'name',
+                'includeTrashed' => true,
+            ],
+        ];
+    }
+
+    /**
      * Boot the model.
      */
-    protected static function boot(): void
-    {
-        parent::boot();
+    // protected static function boot(): void
+    // {
+    //     parent::boot();
 
-        static::creating(function ($category) {
-            if (empty($category->slug)) {
-                $category->slug = Str::slug($category->name);
-            }
-            if (auth()->check()) {
-                $category->created_by = auth()->id();
-            }
-            if (is_null($category->active_at) && $category->is_active) {
-                $category->active_at = now();
-            }
-        });
+    //     static::creating(function ($category) {
+    //         if (empty($category->slug)) {
+    //             $category->slug = Str::slug($category->name);
+    //         }
+    //         if (auth()->check()) {
+    //             $category->created_by = auth()->id();
+    //         }
+    //         if (is_null($category->active_at) && $category->is_active) {
+    //             $category->active_at = now();
+    //         }
+    //     });
 
-        static::updating(function ($category) {
-            if ($category->isDirty('name') && empty($category->slug)) {
-                $category->slug = Str::slug($category->name);
-            }
-            if (auth()->check()) {
-                $category->updated_by = auth()->id();
-            }
-            if ($category->isDirty('is_active')) {
-                $category->active_at = $category->is_active ? now() : null;
-            }
-        });
+    //     static::updating(function ($category) {
+    //         if ($category->isDirty('name') && empty($category->slug)) {
+    //             $category->slug = Str::slug($category->name);
+    //         }
+    //         if (auth()->check()) {
+    //             $category->updated_by = auth()->id();
+    //         }
+    //         if ($category->isDirty('is_active')) {
+    //             $category->active_at = $category->is_active ? now() : null;
+    //         }
+    //     });
 
-        static::deleting(function ($category) {
-            if (auth()->check()) {
-                $category->deleted_by = auth()->id();
-                $category->save();
-            }
-        });
-    }
+    //     static::deleting(function ($category) {
+    //         if (auth()->check()) {
+    //             $category->deleted_by = auth()->id();
+    //             $category->save();
+    //         }
+    //     });
+    // }
 
     /**
      * Get the user who created this category.

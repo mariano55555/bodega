@@ -1,0 +1,22 @@
+[
+    {"parent_legacy_code": null, "legacy_code": "70", "name": "PRODUCCION INTERNA"},
+    {"parent_legacy_code": "70", "legacy_code": "70003", "name": "PROD.INT.-POLLOS"},
+    {"parent_legacy_code": "70", "legacy_code": "70004", "name": "PROD.INT.-CERDOS"},
+    {"parent_legacy_code": "70", "legacy_code": "70007", "name": "PROD. INT. FRUTALES"},
+    {"parent_legacy_code": "70", "legacy_code": "70008", "name": "PROD. INT. GRAMINEAS Y LEGUMIN"},
+    {"parent_legacy_code": null, "legacy_code": "71", "name": "DONACIONES"},
+    {"parent_legacy_code": "71", "legacy_code": "71005", "name": "DONACION CENTA"},
+    {"parent_legacy_code": "71", "legacy_code": "71011", "name": "DON.AUTOR.AVIACION CIVIL"},
+    {"parent_legacy_code": "71", "legacy_code": "71097", "name": "DON. SHERWIN WILLIAMS DE CENTR"},
+    {"parent_legacy_code": "71", "legacy_code": "71140", "name": "DONACION UNIVERSIDAD DE TEXAS"},
+    {"parent_legacy_code": "71", "legacy_code": "71156", "name": "DONACION IICA"},
+    {"parent_legacy_code": "71", "legacy_code": "71179", "name": "DON. INFRA DE EL SALVADOR, SA."},
+    {"parent_legacy_code": "71", "legacy_code": "71180", "name": "DON.DIR.GRAL. DE ECONOMIA AG"},
+    {"parent_legacy_code": "71", "legacy_code": "71184", "name": "DON.ESCUELA AGR.ZAMORANO"},
+    {"parent_legacy_code": "71", "legacy_code": "71186", "name": "DONACION-INCAF ZAMORANO"},
+    {"parent_legacy_code": "71", "legacy_code": "71194", "name": "DON.PROGRAMA RURAL ADELANTE"},
+    {"parent_legacy_code": null, "legacy_code": "72", "name": "CONVENIOS"},
+    {"parent_legacy_code": "72", "legacy_code": "72003", "name": "CONVENIO ENA-IICA"},
+    {"parent_legacy_code": null, "legacy_code": "73", "name": "AUTOCONSUMO"},
+    {"parent_legacy_code": "73", "legacy_code": "73000", "name": "AUTOCONSUMO"}
+]
