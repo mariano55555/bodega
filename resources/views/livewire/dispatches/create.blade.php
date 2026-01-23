@@ -35,8 +35,6 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public array $details = [];
 
-    public array $stockInfo = [];
-
     public function mount(): void
     {
         // Set default company to user's company if not super admin
@@ -54,7 +52,6 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->warehouse_id = '';
         $this->area_id = '';
         $this->employee_id = '';
-        $this->stockInfo = [];
         // Clear cached data since company changed
         unset($this->products);
         unset($this->employees);
@@ -91,10 +88,10 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function updatedWarehouseId(): void
     {
-        // Clear stock info when warehouse changes - will be lazy loaded when products are selected
-        $this->stockInfo = [];
         // Clear cached products so they reload for the new warehouse
         unset($this->products);
+        // Dispatch event to update Alpine's productsData
+        $this->dispatch('products-updated', productsData: $this->productsData);
     }
 
     public function isSuperAdmin(): bool
@@ -117,7 +114,6 @@ new #[Layout('components.layouts.app')] class extends Component
     {
         unset($this->details[$index]);
         $this->details = array_values($this->details);
-        unset($this->stockInfo[$index]);
     }
 
     public function addMoreRows(): void
@@ -136,16 +132,14 @@ new #[Layout('components.layouts.app')] class extends Component
             // Extract the index from the key (e.g., "0.product_id" -> 0)
             $index = (int) explode('.', $key)[0];
 
-            // Single optimized query to get unit_of_measure_id AND stock info
-            $this->updateProductAndStockInfo($index, $value);
+            // Update unit_of_measure_id and unit_price from cached products
+            $this->updateProductInfo($index, $value);
         }
     }
 
-    public function updateProductAndStockInfo(int $index, $productId): void
+    public function updateProductInfo(int $index, $productId): void
     {
         if (! $this->warehouse_id || ! $productId) {
-            $this->stockInfo[$index] = null;
-
             return;
         }
 
@@ -157,25 +151,6 @@ new #[Layout('components.layouts.app')] class extends Component
 
             // Always set unit price from product cost when product changes
             $this->details[$index]['unit_price'] = $product->cost ?? 0;
-
-            $this->stockInfo[$index] = [
-                'quantity' => $product->stock_quantity ?? 0,
-                'reserved' => $product->stock_reserved ?? 0,
-                'available' => $product->stock_available ?? 0,
-                'unit' => $product->unit_abbreviation ?? '',
-            ];
-        } else {
-            $this->stockInfo[$index] = null;
-        }
-    }
-
-    public function refreshAllStockInfo(): void
-    {
-        $this->stockInfo = [];
-        foreach ($this->details as $index => $detail) {
-            if (! empty($detail['product_id'])) {
-                $this->updateProductAndStockInfo($index, $detail['product_id']);
-            }
         }
     }
 
@@ -390,6 +365,22 @@ new #[Layout('components.layouts.app')] class extends Component
             ->select('id', 'name', 'abbreviation')
             ->get();
     }
+
+    /**
+     * Get products as a keyed array for Alpine.js
+     * This allows instant access to product data without server roundtrip
+     */
+    #[\Livewire\Attributes\Computed]
+    public function productsData(): array
+    {
+        return $this->products->keyBy('id')->map(fn($p) => [
+            'cost' => (float) ($p->cost ?? 0),
+            'unit' => $p->unit_abbreviation ?? '',
+            'unit_id' => $p->unit_of_measure_id,
+            'stock' => (float) ($p->stock_available ?? 0),
+            'reserved' => (float) ($p->stock_reserved ?? 0),
+        ])->toArray();
+    }
 }; ?>
 
 <div class="space-y-6">
@@ -536,7 +527,10 @@ new #[Layout('components.layouts.app')] class extends Component
                 <flux:text class="ml-2 text-blue-600 dark:text-blue-400">Cargando productos...</flux:text>
             </div>
 
-            <div wire:loading.remove wire:target="warehouse_id" class="overflow-x-auto">
+            <div wire:loading.remove wire:target="warehouse_id" class="overflow-x-auto"
+                 x-data="{ productsData: @js($this->productsData) }"
+                 x-on:products-updated.window="productsData = $event.detail.productsData"
+            >
                 <flux:table>
                     <flux:table.columns>
                         <flux:table.column class="w-12">#</flux:table.column>
@@ -549,7 +543,13 @@ new #[Layout('components.layouts.app')] class extends Component
 
                     <flux:table.rows>
                         @foreach($details as $index => $detail)
-                        <tbody x-data="{ expanded: false }" wire:key="detail-group-{{ $index }}">
+                        <tbody x-data="{
+                            expanded: false,
+                            productId: @js($detail['product_id']),
+                            get productInfo() {
+                                return this.productId ? productsData[this.productId] : null;
+                            }
+                        }" wire:key="detail-group-{{ $index }}">
                         <flux:table.row class="{{ $detail['product_id'] ? '' : 'opacity-60' }}">
                             <flux:table.cell class="text-center text-sm text-zinc-600 dark:text-zinc-400">
                                 {{ $index + 1 }}
@@ -562,6 +562,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                         variant="listbox"
                                         searchable
                                         wire:model.live="details.{{ $index }}.product_id"
+                                        x-on:change="productId = $event.target.value"
                                         :disabled="!$company_id || !$warehouse_id"
                                         placeholder="{{ !$company_id ? 'Seleccione empresa primero' : (!$warehouse_id ? 'Seleccione bodega primero' : 'Seleccionar producto...') }}"
                                         class="w-full"
@@ -573,34 +574,26 @@ new #[Layout('components.layouts.app')] class extends Component
                                         @endforeach
                                     </flux:select>
 
-                                    <!-- Unit and Stock Badge -->
-                                    @if($detail['product_id'] && isset($stockInfo[$index]) && $warehouse_id)
+                                    <!-- Unit and Stock Badge (Alpine.js - instant) -->
+                                    <template x-if="productInfo">
                                         <div class="flex items-center gap-2 flex-wrap">
-                                            @php
-                                                $stock = $stockInfo[$index];
-                                                $available = $stock['available'] ?? 0;
-                                                $unit = $stock['unit'] ?? '';
-                                                $badgeColor = $available > 10 ? 'green' : ($available > 0 ? 'amber' : 'red');
-                                            @endphp
-                                            @if($unit)
-                                                <flux:badge size="sm" color="zinc">
-                                                    Unidad: {{ $unit }}
-                                                </flux:badge>
-                                            @endif
-                                            <flux:badge size="sm" color="{{ $badgeColor }}">
-                                                Stock: {{ number_format($available, 2) }} {{ $unit }}
-                                            </flux:badge>
-                                            @if(($stock['reserved'] ?? 0) > 0)
-                                                <flux:badge size="sm" color="amber">
-                                                    {{ number_format($stock['reserved'], 2) }} reservado
-                                                </flux:badge>
-                                            @endif
+                                            <template x-if="productInfo.unit">
+                                                <span class="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-700 px-2 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                                                    Unidad: <span x-text="productInfo.unit" class="ml-1"></span>
+                                                </span>
+                                            </template>
+                                            <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium"
+                                                  :class="productInfo.stock > 10 ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' : (productInfo.stock > 0 ? 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300' : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300')">
+                                                Stock: <span x-text="productInfo.stock.toFixed(2)" class="ml-1"></span>
+                                                <span x-text="productInfo.unit" class="ml-1"></span>
+                                            </span>
+                                            <template x-if="productInfo.reserved > 0">
+                                                <span class="inline-flex items-center rounded-md bg-amber-100 dark:bg-amber-900 px-2 py-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                                                    <span x-text="productInfo.reserved.toFixed(2)"></span> reservado
+                                                </span>
+                                            </template>
                                         </div>
-                                    @elseif(!$warehouse_id && !empty($detail['product_id']))
-                                        <flux:text size="sm" class="text-amber-600 dark:text-amber-400">
-                                            Seleccione bodega primero
-                                        </flux:text>
-                                    @endif
+                                    </template>
                                     <flux:error name="details.{{ $index }}.product_id" />
                                 </div>
                             </flux:table.cell>
