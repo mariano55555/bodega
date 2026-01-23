@@ -42,8 +42,8 @@ new #[Layout('components.layouts.app')] class extends Component
             $this->company_id = auth()->user()->company_id;
         }
 
-        // Initialize with 5 empty rows
-        $this->details = array_fill(0, 5, [
+        // Initialize with 10 empty rows
+        $this->details = array_fill(0, 10, [
             'product_id' => '',
             'quantity' => 1,
             'unit_of_measure_id' => '',
@@ -73,23 +73,18 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->recipient_email = '';
         // Clear cached employees so they reload for the new area
         unset($this->employees);
+
+        // Skip full component re-render - only update the employee select
+        $this->skipRender();
+
+        // Dispatch browser event to update employees dropdown via Alpine
+        $this->dispatch('employees-updated', employees: $this->employees->toArray());
     }
 
     public function updatedEmployeeId(): void
     {
-        if ($this->employee_id) {
-            $employee = $this->employees->firstWhere('id', (int) $this->employee_id);
-            if ($employee) {
-                $this->recipient_name = $employee->name ?? '';
-                $this->recipient_phone = $employee->phone ?? $employee->mobile ?? '';
-                $this->recipient_email = $employee->email ?? '';
-            }
-        } else {
-            // Clear recipient fields if no employee selected
-            $this->recipient_name = '';
-            $this->recipient_phone = '';
-            $this->recipient_email = '';
-        }
+        // This is now handled via Alpine.js in the view for better performance
+        // Keeping this method for when employee_id is set directly via Livewire
     }
 
     public function updatedWarehouseId(): void
@@ -421,7 +416,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 </flux:field>
 
                 <!-- Unidad Solicitante (Área) -->
-                <flux:field>
+                <flux:field wire:key="area-field">
                     <flux:label badge="Requerido">Unidad Solicitante</flux:label>
                     <flux:select wire:model.live="area_id" :disabled="$this->isSuperAdmin() && !$company_id">
                         <option value="">Seleccione área</option>
@@ -433,48 +428,101 @@ new #[Layout('components.layouts.app')] class extends Component
                     <flux:error name="area_id" />
                 </flux:field>
 
-                <!-- Persona Solicitante -->
-                <flux:field>
-                    <flux:label badge="Requerido">Persona Solicitante</flux:label>
-                    <div wire:loading wire:target="area_id" class="flex items-center gap-2 py-2">
-                        <flux:icon name="arrow-path" class="w-4 h-4 animate-spin text-blue-500" />
-                        <flux:text size="sm" class="text-blue-600 dark:text-blue-400">Cargando personas...</flux:text>
-                    </div>
-                    <div wire:loading.remove wire:target="area_id">
-                        <flux:select wire:model.live="employee_id" :disabled="!$area_id">
-                            <option value="">Seleccione persona</option>
-                            @foreach ($this->employees as $employee)
-                                <option value="{{ $employee->id }}">{{ $employee->name }}{{ $employee->position ? ' (' . $employee->position . ')' : '' }}</option>
-                            @endforeach
-                        </flux:select>
-                    </div>
-                    <flux:description>
-                        @if(!$area_id)
-                            Primero seleccione una unidad solicitante
-                        @else
-                            Persona del área seleccionada
-                        @endif
-                    </flux:description>
-                    <flux:error name="employee_id" />
-                </flux:field>
+                <!-- Persona Solicitante y Receptor (Alpine-managed for performance) -->
+                <div
+                    class="contents"
+                    x-data="{
+                        employees: @js($this->employees),
+                        loading: false,
+                        selectedEmployee: '{{ $employee_id }}',
+                        recipientName: '{{ addslashes($recipient_name) }}',
+                        recipientPhone: '{{ addslashes($recipient_phone) }}',
+                        recipientEmail: '{{ addslashes($recipient_email) }}'
+                    }"
+                    x-on:employees-updated.window="employees = $event.detail.employees; loading = false; selectedEmployee = '';"
+                    x-init="
+                        $watch('selectedEmployee', value => {
+                            if (value) {
+                                const emp = employees.find(e => e.id == value);
+                                if (emp) {
+                                    recipientName = emp.name || '';
+                                    recipientPhone = emp.phone || emp.mobile || '';
+                                    recipientEmail = emp.email || '';
+                                    $wire.set('employee_id', value, false);
+                                    $wire.set('recipient_name', recipientName, false);
+                                    $wire.set('recipient_phone', recipientPhone, false);
+                                    $wire.set('recipient_email', recipientEmail, false);
+                                }
+                            } else {
+                                recipientName = '';
+                                recipientPhone = '';
+                                recipientEmail = '';
+                                $wire.set('employee_id', '', false);
+                                $wire.set('recipient_name', '', false);
+                                $wire.set('recipient_phone', '', false);
+                                $wire.set('recipient_email', '', false);
+                            }
+                        });
+                    "
+                >
+                    <flux:field wire:key="employee-field">
+                        <flux:label badge="Requerido">Persona Solicitante</flux:label>
+                        <div x-show="loading" class="flex items-center gap-2 py-2">
+                            <flux:icon name="arrow-path" class="w-4 h-4 animate-spin text-blue-500" />
+                            <flux:text size="sm" class="text-blue-600 dark:text-blue-400">Cargando personas...</flux:text>
+                        </div>
+                        <div x-show="!loading">
+                            <select
+                                x-model="selectedEmployee"
+                                :disabled="employees.length === 0"
+                                class="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:focus:border-zinc-500 dark:focus:ring-zinc-700 disabled:opacity-50"
+                            >
+                                <option value="">Seleccione persona</option>
+                                <template x-for="emp in employees" :key="emp.id">
+                                    <option :value="emp.id" x-text="emp.name + (emp.position ? ' (' + emp.position + ')' : '')"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <flux:description>
+                            <span x-show="employees.length === 0">Primero seleccione una unidad solicitante</span>
+                            <span x-show="employees.length > 0">Persona del área seleccionada</span>
+                        </flux:description>
+                        <flux:error name="employee_id" />
+                    </flux:field>
 
-                <flux:field>
-                    <flux:label>Nombre del Receptor</flux:label>
-                    <flux:input wire:model="recipient_name" />
-                    <flux:error name="recipient_name" />
-                </flux:field>
+                    <flux:field>
+                        <flux:label>Nombre del Receptor</flux:label>
+                        <input
+                            type="text"
+                            x-model="recipientName"
+                            @change="$wire.set('recipient_name', recipientName, false)"
+                            class="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                        />
+                        <flux:error name="recipient_name" />
+                    </flux:field>
 
-                <flux:field>
-                    <flux:label>Teléfono del Receptor</flux:label>
-                    <flux:input wire:model="recipient_phone" />
-                    <flux:error name="recipient_phone" />
-                </flux:field>
+                    <flux:field>
+                        <flux:label>Teléfono del Receptor</flux:label>
+                        <input
+                            type="text"
+                            x-model="recipientPhone"
+                            @change="$wire.set('recipient_phone', recipientPhone, false)"
+                            class="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                        />
+                        <flux:error name="recipient_phone" />
+                    </flux:field>
 
-                <flux:field>
-                    <flux:label>Email del Receptor</flux:label>
-                    <flux:input type="email" wire:model="recipient_email" />
-                    <flux:error name="recipient_email" />
-                </flux:field>
+                    <flux:field>
+                        <flux:label>Email del Receptor</flux:label>
+                        <input
+                            type="email"
+                            x-model="recipientEmail"
+                            @change="$wire.set('recipient_email', recipientEmail, false)"
+                            class="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                        />
+                        <flux:error name="recipient_email" />
+                    </flux:field>
+                </div>
 
                 {{-- Comentado por petición del cliente: quitar dirección de entrega
                 <flux:field class="md:col-span-2">
@@ -492,7 +540,7 @@ new #[Layout('components.layouts.app')] class extends Component
             </div>
         </flux:card>
 
-        <flux:card>
+        <flux:card wire:key="products-card-{{ $warehouse_id }}-{{ count($details) }}">
             <div class="flex items-center justify-between mb-4">
                 <flux:heading size="lg" badge="Requerido">Productos del Despacho</flux:heading>
                 <div class="flex gap-2">
@@ -519,10 +567,18 @@ new #[Layout('components.layouts.app')] class extends Component
                 <flux:text class="ml-2 text-blue-600 dark:text-blue-400">Agregando filas...</flux:text>
             </div>
 
-            <div wire:loading.remove wire:target="warehouse_id" class="overflow-x-auto"
+            <div wire:loading.remove wire:target="warehouse_id, addDetail, addMoreRows" class="overflow-x-auto"
                  x-data
-                 x-init="$store.dispatchProducts = @js($this->productsData)"
+                 x-init="
+                    $store.dispatchProducts = @js($this->productsData);
+                    $store.rowTotals = {};
+                    $store.grandTotal = 0;
+                 "
                  x-on:products-updated.window="$store.dispatchProducts = $event.detail.productsData"
+                 x-on:row-total-updated.window="
+                    $store.rowTotals[$event.detail.index] = $event.detail.total;
+                    $store.grandTotal = Object.values($store.rowTotals).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
+                 "
             >
                 <flux:table>
                     <flux:table.columns>
@@ -599,7 +655,8 @@ new #[Layout('components.layouts.app')] class extends Component
                                         step="0.01"
                                         min="0.01"
                                         x-model.number="quantity"
-                                        @change="syncToLivewire()"
+                                        @input="emitTotal()"
+                                        @change="updateQuantity()"
                                         class="block w-full text-center rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
                                     />
                                     <flux:error name="details.{{ $index }}.quantity" />
@@ -614,7 +671,8 @@ new #[Layout('components.layouts.app')] class extends Component
                                         step="0.01"
                                         min="0"
                                         x-model.number="unitPrice"
-                                        @change="syncToLivewire()"
+                                        @input="emitTotal()"
+                                        @change="updateUnitPrice()"
                                         placeholder="0.00"
                                         class="block w-full text-right rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
                                     />
@@ -681,9 +739,15 @@ new #[Layout('components.layouts.app')] class extends Component
                     window._dispatchRowInitialized = true;
 
                     document.addEventListener('alpine:init', () => {
-                        // Initialize store if not exists
+                        // Initialize stores if not exists
                         if (!Alpine.store('dispatchProducts')) {
                             Alpine.store('dispatchProducts', {});
+                        }
+                        if (!Alpine.store('rowTotals')) {
+                            Alpine.store('rowTotals', {});
+                        }
+                        if (Alpine.store('grandTotal') === undefined) {
+                            Alpine.store('grandTotal', 0);
                         }
 
                         Alpine.data('dispatchRow', (config) => ({
@@ -695,6 +759,13 @@ new #[Layout('components.layouts.app')] class extends Component
                             unitId: config.unitId,
                             notes: config.notes,
 
+                            init() {
+                                // Emit initial total on mount
+                                this.$nextTick(() => {
+                                    this.emitTotal();
+                                });
+                            },
+
                             get productInfo() {
                                 const data = this.$store.dispatchProducts || {};
                                 return this.productId ? data[this.productId] : null;
@@ -704,6 +775,12 @@ new #[Layout('components.layouts.app')] class extends Component
                                 return (parseFloat(this.quantity) || 0) * (parseFloat(this.unitPrice) || 0);
                             },
 
+                            emitTotal() {
+                                window.dispatchEvent(new CustomEvent('row-total-updated', {
+                                    detail: { index: this.index, total: this.total }
+                                }));
+                            },
+
                             selectProduct(id) {
                                 this.productId = id;
                                 const productsData = this.$store.dispatchProducts || {};
@@ -711,6 +788,17 @@ new #[Layout('components.layouts.app')] class extends Component
                                     this.unitPrice = productsData[id].cost || 0;
                                     this.unitId = productsData[id].unit_id || '';
                                 }
+                                this.emitTotal();
+                                this.syncToLivewire();
+                            },
+
+                            updateQuantity() {
+                                this.emitTotal();
+                                this.syncToLivewire();
+                            },
+
+                            updateUnitPrice() {
+                                this.emitTotal();
                                 this.syncToLivewire();
                             },
 
@@ -739,12 +827,12 @@ new #[Layout('components.layouts.app')] class extends Component
                 </flux:button>
             </div>
 
-            <!-- Grand Total (calculated by Livewire since Alpine scopes are per-row) -->
-            <div class="mt-4 flex justify-end">
+            <!-- Grand Total (calculated with Alpine.js for real-time updates) -->
+            <div class="mt-4 flex justify-end" x-data>
                 <div class="bg-zinc-100 dark:bg-zinc-800 px-6 py-3 rounded-lg">
                     <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">Total General</flux:text>
                     <flux:heading size="lg">
-                        ${{ number_format(collect($details)->sum(fn($d) => ((float) ($d['quantity'] ?? 0)) * ((float) ($d['unit_price'] ?? 0))), 2) }}
+                        $<span x-text="($store.grandTotal || 0).toFixed(2)">0.00</span>
                     </flux:heading>
                 </div>
             </div>
