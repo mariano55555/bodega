@@ -64,8 +64,29 @@ new #[Layout('components.layouts.app')] class extends Component
     {
         // Reset employee when area changes
         $this->employee_id = '';
+        // Clear recipient fields when area changes
+        $this->recipient_name = '';
+        $this->recipient_phone = '';
+        $this->recipient_email = '';
         // Clear cached employees so they reload for the new area
         unset($this->employees);
+    }
+
+    public function updatedEmployeeId(): void
+    {
+        if ($this->employee_id) {
+            $employee = $this->employees->firstWhere('id', (int) $this->employee_id);
+            if ($employee) {
+                $this->recipient_name = $employee->name ?? '';
+                $this->recipient_phone = $employee->phone ?? $employee->mobile ?? '';
+                $this->recipient_email = $employee->email ?? '';
+            }
+        } else {
+            // Clear recipient fields if no employee selected
+            $this->recipient_name = '';
+            $this->recipient_phone = '';
+            $this->recipient_email = '';
+        }
     }
 
     public function updatedWarehouseId(): void
@@ -134,6 +155,9 @@ new #[Layout('components.layouts.app')] class extends Component
         if ($product) {
             $this->details[$index]['unit_of_measure_id'] = $product->unit_of_measure_id;
 
+            // Always set unit price from product cost when product changes
+            $this->details[$index]['unit_price'] = $product->cost ?? 0;
+
             $this->stockInfo[$index] = [
                 'quantity' => $product->stock_quantity ?? 0,
                 'reserved' => $product->stock_reserved ?? 0,
@@ -189,7 +213,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'details.*.product_id' => 'required|exists:products,id',
             'details.*.quantity' => 'required|numeric|min:0.0001',
             'details.*.unit_of_measure_id' => 'required|exists:units_of_measure,id',
-            'details.*.unit_price' => 'required|numeric|min:0',
+            'details.*.unit_price' => 'required|numeric|min:0.01',
         ];
 
         // Add company_id validation for super admins
@@ -302,7 +326,7 @@ new #[Layout('components.layouts.app')] class extends Component
         return Employee::where('company_id', $this->company_id)
             ->where('area_id', $this->area_id)
             ->where('is_active', true)
-            ->select('id', 'name', 'position')
+            ->select('id', 'name', 'position', 'phone', 'mobile', 'email')
             ->orderBy('name')
             ->get();
     }
@@ -328,7 +352,7 @@ new #[Layout('components.layouts.app')] class extends Component
             return collect([]);
         }
 
-        // Load products with stock info in a single query
+        // Load products with stock info and cost in a single query
         // This prevents additional queries when selecting a product
         return Product::where('products.company_id', $this->company_id)
             ->where('products.is_active', true)
@@ -344,6 +368,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 'products.name',
                 'products.sku',
                 'products.unit_of_measure_id',
+                'products.cost',
                 'inventory.quantity as stock_quantity',
                 'inventory.reserved_quantity as stock_reserved',
                 'inventory.available_quantity as stock_available',
@@ -441,7 +466,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         <flux:text size="sm" class="text-blue-600 dark:text-blue-400">Cargando personas...</flux:text>
                     </div>
                     <div wire:loading.remove wire:target="area_id">
-                        <flux:select wire:model="employee_id" :disabled="!$area_id">
+                        <flux:select wire:model.live="employee_id" :disabled="!$area_id">
                             <option value="">Seleccione persona</option>
                             @foreach ($this->employees as $employee)
                                 <option value="{{ $employee->id }}">{{ $employee->name }}{{ $employee->position ? ' (' . $employee->position . ')' : '' }}</option>
@@ -516,9 +541,8 @@ new #[Layout('components.layouts.app')] class extends Component
                     <flux:table.columns>
                         <flux:table.column class="w-12">#</flux:table.column>
                         <flux:table.column class="min-w-[300px]">Producto</flux:table.column>
-                        <flux:table.column class="w-24 text-center">Cantidad</flux:table.column>
-                        <flux:table.column class="w-32">Unidad</flux:table.column>
-                        <flux:table.column class="w-32 text-right">Precio Unitario</flux:table.column>
+                        <flux:table.column class="w-28 text-center">Cantidad</flux:table.column>
+                        <flux:table.column class="w-32 text-right">Precio Unit.</flux:table.column>
                         <flux:table.column class="w-32 text-right">Total</flux:table.column>
                         <flux:table.column class="w-24 text-center">Acciones</flux:table.column>
                     </flux:table.columns>
@@ -531,7 +555,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                 {{ $index + 1 }}
                             </flux:table.cell>
 
-                            <!-- Product Select with Stock Badge -->
+                            <!-- Product Select with Unit and Stock Badge -->
                             <flux:table.cell>
                                 <div class="flex flex-col gap-1">
                                     <flux:select
@@ -549,16 +573,22 @@ new #[Layout('components.layouts.app')] class extends Component
                                         @endforeach
                                     </flux:select>
 
-                                    <!-- Stock Badge -->
+                                    <!-- Unit and Stock Badge -->
                                     @if($detail['product_id'] && isset($stockInfo[$index]) && $warehouse_id)
-                                        <div class="flex items-center gap-2">
+                                        <div class="flex items-center gap-2 flex-wrap">
                                             @php
                                                 $stock = $stockInfo[$index];
                                                 $available = $stock['available'] ?? 0;
+                                                $unit = $stock['unit'] ?? '';
                                                 $badgeColor = $available > 10 ? 'green' : ($available > 0 ? 'amber' : 'red');
                                             @endphp
+                                            @if($unit)
+                                                <flux:badge size="sm" color="zinc">
+                                                    Unidad: {{ $unit }}
+                                                </flux:badge>
+                                            @endif
                                             <flux:badge size="sm" color="{{ $badgeColor }}">
-                                                {{ number_format($available, 2) }} {{ $stock['unit'] ?? '' }} en stock
+                                                Stock: {{ number_format($available, 2) }} {{ $unit }}
                                             </flux:badge>
                                             @if(($stock['reserved'] ?? 0) > 0)
                                                 <flux:badge size="sm" color="amber">
@@ -587,23 +617,8 @@ new #[Layout('components.layouts.app')] class extends Component
                                     />
                                     <flux:error name="details.{{ $index }}.quantity" />
                                 </div>
-                            </flux:table.cell>
-
-                            <!-- Unit of Measure -->
-                            <flux:table.cell>
-                                <div class="flex flex-col gap-1">
-                                    <flux:select
-                                        wire:model="details.{{ $index }}.unit_of_measure_id"
-                                        :disabled="$this->isSuperAdmin() && !$company_id"
-                                        class="w-full"
-                                    >
-                                        <option value="">Unidad</option>
-                                        @foreach($this->units as $unit)
-                                            <option value="{{ $unit->id }}">{{ $unit->abbreviation }}</option>
-                                        @endforeach
-                                    </flux:select>
-                                    <flux:error name="details.{{ $index }}.unit_of_measure_id" />
-                                </div>
+                                <!-- Hidden unit_of_measure_id (auto-set from product) -->
+                                <input type="hidden" wire:model="details.{{ $index }}.unit_of_measure_id" />
                             </flux:table.cell>
 
                             <!-- Unit Price -->
@@ -656,7 +671,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                         <!-- Expandable Notes Row (Alpine.js - client-side only) -->
                         <flux:table.row x-show="expanded" x-collapse class="bg-zinc-50 dark:bg-zinc-800">
-                            <flux:table.cell colspan="7" class="py-3">
+                            <flux:table.cell colspan="6" class="py-3">
                                 <div class="px-4">
                                     <flux:label>Notas (opcional)</flux:label>
                                     <flux:textarea

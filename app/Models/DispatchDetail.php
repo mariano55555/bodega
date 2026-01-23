@@ -58,18 +58,26 @@ class DispatchDetail extends Model
         parent::boot();
 
         static::saving(function ($detail) {
-            // Calculate subtotal
-            $detail->subtotal = $detail->quantity * $detail->unit_price;
+            // Ensure numeric values
+            $quantity = (float) ($detail->quantity ?? 0);
+            $unitPrice = (float) ($detail->unit_price ?? 0);
+            $discountPercent = (float) ($detail->discount_percent ?? 0);
+            $taxPercent = (float) ($detail->tax_percent ?? 0);
+
+            // Calculate subtotal: quantity * unit_price
+            $detail->subtotal = $quantity * $unitPrice;
 
             // Calculate discount amount if percentage is set
-            if ($detail->discount_percent > 0) {
-                $detail->discount_amount = $detail->subtotal * ($detail->discount_percent / 100);
+            $detail->discount_amount = 0;
+            if ($discountPercent > 0) {
+                $detail->discount_amount = $detail->subtotal * ($discountPercent / 100);
             }
 
             // Calculate tax amount if percentage is set
-            if ($detail->tax_percent > 0) {
+            $detail->tax_amount = 0;
+            if ($taxPercent > 0) {
                 $taxableAmount = $detail->subtotal - $detail->discount_amount;
-                $detail->tax_amount = $taxableAmount * ($detail->tax_percent / 100);
+                $detail->tax_amount = $taxableAmount * ($taxPercent / 100);
             }
 
             // Calculate total
@@ -104,15 +112,22 @@ class DispatchDetail extends Model
 
     public function calculateTotal(): void
     {
-        $this->subtotal = $this->quantity * $this->unit_price;
+        $quantity = (float) ($this->quantity ?? 0);
+        $unitPrice = (float) ($this->unit_price ?? 0);
+        $discountPercent = (float) ($this->discount_percent ?? 0);
+        $taxPercent = (float) ($this->tax_percent ?? 0);
 
-        if ($this->discount_percent > 0) {
-            $this->discount_amount = $this->subtotal * ($this->discount_percent / 100);
+        $this->subtotal = $quantity * $unitPrice;
+
+        $this->discount_amount = 0;
+        if ($discountPercent > 0) {
+            $this->discount_amount = $this->subtotal * ($discountPercent / 100);
         }
 
-        if ($this->tax_percent > 0) {
+        $this->tax_amount = 0;
+        if ($taxPercent > 0) {
             $taxableAmount = $this->subtotal - $this->discount_amount;
-            $this->tax_amount = $taxableAmount * ($this->tax_percent / 100);
+            $this->tax_amount = $taxableAmount * ($taxPercent / 100);
         }
 
         $this->total = $this->subtotal - $this->discount_amount + $this->tax_amount;
