@@ -42,8 +42,14 @@ new #[Layout('components.layouts.app')] class extends Component
             $this->company_id = auth()->user()->company_id;
         }
 
-        // Initialize with 1 empty row (user can add more as needed)
-        $this->addDetail();
+        // Initialize with 5 empty rows
+        $this->details = array_fill(0, 5, [
+            'product_id' => '',
+            'quantity' => 1,
+            'unit_of_measure_id' => '',
+            'unit_price' => 0,
+            'notes' => '',
+        ]);
     }
 
     public function updatedCompanyId(): void
@@ -118,40 +124,18 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function addMoreRows(): void
     {
-        for ($i = 0; $i < 5; $i++) {
-            $this->addDetail();
-        }
+        // Add 5 rows at once (single array operation, single re-render)
+        $newRows = array_fill(0, 5, [
+            'product_id' => '',
+            'quantity' => 1,
+            'unit_of_measure_id' => '',
+            'unit_price' => 0,
+            'notes' => '',
+        ]);
+
+        $this->details = array_merge($this->details, $newRows);
 
         \Flux::toast('5 filas agregadas', variant: 'success');
-    }
-
-    public function updatedDetails($value, $key): void
-    {
-        // Check if product_id was updated
-        if (str_ends_with($key, 'product_id') && $value) {
-            // Extract the index from the key (e.g., "0.product_id" -> 0)
-            $index = (int) explode('.', $key)[0];
-
-            // Update unit_of_measure_id and unit_price from cached products
-            $this->updateProductInfo($index, $value);
-        }
-    }
-
-    public function updateProductInfo(int $index, $productId): void
-    {
-        if (! $this->warehouse_id || ! $productId) {
-            return;
-        }
-
-        // Get product from cached list - already has stock info (no DB query needed)
-        $product = $this->products->firstWhere('id', (int) $productId);
-
-        if ($product) {
-            $this->details[$index]['unit_of_measure_id'] = $product->unit_of_measure_id;
-
-            // Always set unit price from product cost when product changes
-            $this->details[$index]['unit_price'] = $product->cost ?? 0;
-        }
     }
 
     public function getAvailableStock(int $productId): float
@@ -512,11 +496,13 @@ new #[Layout('components.layouts.app')] class extends Component
             <div class="flex items-center justify-between mb-4">
                 <flux:heading size="lg" badge="Requerido">Productos del Despacho</flux:heading>
                 <div class="flex gap-2">
-                    <flux:button type="button" variant="outline" size="sm" icon="plus" wire:click="addDetail">
-                        +1 fila
+                    <flux:button type="button" variant="outline" size="sm" icon="plus" wire:click="addDetail" wire:loading.attr="disabled" wire:target="addDetail, addMoreRows">
+                        <span wire:loading.remove wire:target="addDetail">+1 fila</span>
+                        <span wire:loading wire:target="addDetail">...</span>
                     </flux:button>
-                    <flux:button type="button" variant="primary" size="sm" icon="plus" wire:click="addMoreRows">
-                        +5 filas
+                    <flux:button type="button" variant="primary" size="sm" icon="plus" wire:click="addMoreRows" wire:loading.attr="disabled" wire:target="addDetail, addMoreRows">
+                        <span wire:loading.remove wire:target="addMoreRows">+5 filas</span>
+                        <span wire:loading wire:target="addMoreRows">...</span>
                     </flux:button>
                 </div>
             </div>
@@ -527,9 +513,16 @@ new #[Layout('components.layouts.app')] class extends Component
                 <flux:text class="ml-2 text-blue-600 dark:text-blue-400">Cargando productos...</flux:text>
             </div>
 
+            <!-- Loading indicator when adding rows -->
+            <div wire:loading wire:target="addDetail, addMoreRows" class="flex items-center justify-center py-4">
+                <flux:icon name="arrow-path" class="w-5 h-5 animate-spin text-blue-500" />
+                <flux:text class="ml-2 text-blue-600 dark:text-blue-400">Agregando filas...</flux:text>
+            </div>
+
             <div wire:loading.remove wire:target="warehouse_id" class="overflow-x-auto"
-                 x-data="{ productsData: @js($this->productsData) }"
-                 x-on:products-updated.window="productsData = $event.detail.productsData"
+                 x-data
+                 x-init="$store.dispatchProducts = @js($this->productsData)"
+                 x-on:products-updated.window="$store.dispatchProducts = $event.detail.productsData"
             >
                 <flux:table>
                     <flux:table.columns>
@@ -543,14 +536,15 @@ new #[Layout('components.layouts.app')] class extends Component
 
                     <flux:table.rows>
                         @foreach($details as $index => $detail)
-                        <tbody x-data="{
-                            expanded: false,
-                            productId: @js($detail['product_id']),
-                            get productInfo() {
-                                return this.productId ? productsData[this.productId] : null;
-                            }
-                        }" wire:key="detail-group-{{ $index }}">
-                        <flux:table.row class="{{ $detail['product_id'] ? '' : 'opacity-60' }}">
+                        <tbody x-data="dispatchRow({
+                            index: {{ $index }},
+                            productId: '{{ $detail['product_id'] }}',
+                            quantity: {{ (float) ($detail['quantity'] ?? 1) }},
+                            unitPrice: {{ (float) ($detail['unit_price'] ?? 0) }},
+                            unitId: '{{ $detail['unit_of_measure_id'] }}',
+                            notes: `{{ addslashes($detail['notes'] ?? '') }}`
+                        })" wire:key="detail-group-{{ $index }}">
+                        <flux:table.row x-bind:class="productId ? '' : 'opacity-60'">
                             <flux:table.cell class="text-center text-sm text-zinc-600 dark:text-zinc-400">
                                 {{ $index + 1 }}
                             </flux:table.cell>
@@ -561,11 +555,10 @@ new #[Layout('components.layouts.app')] class extends Component
                                     <flux:select
                                         variant="listbox"
                                         searchable
-                                        wire:model.live="details.{{ $index }}.product_id"
-                                        x-on:change="productId = $event.target.value"
+                                        x-model="productId"
+                                        x-on:change="selectProduct($event.target.value)"
                                         :disabled="!$company_id || !$warehouse_id"
                                         placeholder="{{ !$company_id ? 'Seleccione empresa primero' : (!$warehouse_id ? 'Seleccione bodega primero' : 'Seleccionar producto...') }}"
-                                        class="w-full"
                                     >
                                         @foreach($this->products as $product)
                                             <flux:select.option value="{{ $product->id }}">
@@ -601,63 +594,61 @@ new #[Layout('components.layouts.app')] class extends Component
                             <!-- Quantity -->
                             <flux:table.cell>
                                 <div class="flex flex-col gap-1">
-                                    <flux:input
+                                    <input
                                         type="number"
                                         step="0.01"
                                         min="0.01"
-                                        wire:model.blur="details.{{ $index }}.quantity"
-                                        class="w-full text-center"
+                                        x-model.number="quantity"
+                                        @change="syncToLivewire()"
+                                        class="block w-full text-center rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
                                     />
                                     <flux:error name="details.{{ $index }}.quantity" />
                                 </div>
-                                <!-- Hidden unit_of_measure_id (auto-set from product) -->
-                                <input type="hidden" wire:model="details.{{ $index }}.unit_of_measure_id" />
                             </flux:table.cell>
 
                             <!-- Unit Price -->
                             <flux:table.cell>
                                 <div class="flex flex-col gap-1">
-                                    <flux:input
+                                    <input
                                         type="number"
                                         step="0.01"
                                         min="0"
-                                        wire:model.blur="details.{{ $index }}.unit_price"
+                                        x-model.number="unitPrice"
+                                        @change="syncToLivewire()"
                                         placeholder="0.00"
-                                        class="w-full text-right"
+                                        class="block w-full text-right rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
                                     />
                                     <flux:error name="details.{{ $index }}.unit_price" />
                                 </div>
                             </flux:table.cell>
 
-                            <!-- Total (Calculated) -->
+                            <!-- Total (Calculated with Alpine - instant) -->
                             <flux:table.cell class="text-right font-semibold">
-                                ${{ number_format(($detail['quantity'] ?? 0) * ($detail['unit_price'] ?? 0), 2) }}
+                                $<span x-text="total.toFixed(2)"></span>
                             </flux:table.cell>
 
                             <!-- Actions -->
                             <flux:table.cell class="text-center">
-                                <div class="flex items-center justify-center gap-1">
-                                    @if($detail['product_id'])
-                                        <!-- Expand/Collapse for Notes (Alpine.js - client-side only) -->
-                                        <flux:button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            x-on:click="expanded = !expanded"
-                                        >
-                                            <flux:icon x-show="!expanded" name="chevron-down" variant="mini" />
-                                            <flux:icon x-show="expanded" name="chevron-up" variant="mini" />
-                                        </flux:button>
+                                <div class="flex items-center justify-center gap-1" x-show="productId">
+                                    <!-- Expand/Collapse for Notes (Alpine.js - client-side only) -->
+                                    <flux:button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        x-on:click="expanded = !expanded"
+                                    >
+                                        <flux:icon x-show="!expanded" name="chevron-down" variant="mini" />
+                                        <flux:icon x-show="expanded" name="chevron-up" variant="mini" />
+                                    </flux:button>
 
-                                        <!-- Remove Button -->
-                                        <flux:button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            icon="trash"
-                                            wire:click="removeDetail({{ $index }})"
-                                        />
-                                    @endif
+                                    <!-- Remove Button -->
+                                    <flux:button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        icon="trash"
+                                        wire:click="removeDetail({{ $index }})"
+                                    />
                                 </div>
                             </flux:table.cell>
                         </flux:table.row>
@@ -667,11 +658,13 @@ new #[Layout('components.layouts.app')] class extends Component
                             <flux:table.cell colspan="6" class="py-3">
                                 <div class="px-4">
                                     <flux:label>Notas (opcional)</flux:label>
-                                    <flux:textarea
-                                        wire:model="details.{{ $index }}.notes"
+                                    <textarea
+                                        x-model="notes"
+                                        @blur="syncToLivewire()"
                                         placeholder="Información adicional sobre este producto..."
                                         rows="2"
-                                    />
+                                        class="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                                    ></textarea>
                                 </div>
                             </flux:table.cell>
                         </flux:table.row>
@@ -681,22 +674,77 @@ new #[Layout('components.layouts.app')] class extends Component
                 </flux:table>
             </div>
 
+            <!-- Alpine.js component for dispatch rows -->
+            <script data-dispatch-row-script>
+                // Only initialize once
+                if (!window._dispatchRowInitialized) {
+                    window._dispatchRowInitialized = true;
+
+                    document.addEventListener('alpine:init', () => {
+                        // Initialize store if not exists
+                        if (!Alpine.store('dispatchProducts')) {
+                            Alpine.store('dispatchProducts', {});
+                        }
+
+                        Alpine.data('dispatchRow', (config) => ({
+                            expanded: false,
+                            index: config.index,
+                            productId: config.productId,
+                            quantity: config.quantity,
+                            unitPrice: config.unitPrice,
+                            unitId: config.unitId,
+                            notes: config.notes,
+
+                            get productInfo() {
+                                const data = this.$store.dispatchProducts || {};
+                                return this.productId ? data[this.productId] : null;
+                            },
+
+                            get total() {
+                                return (parseFloat(this.quantity) || 0) * (parseFloat(this.unitPrice) || 0);
+                            },
+
+                            selectProduct(id) {
+                                this.productId = id;
+                                const productsData = this.$store.dispatchProducts || {};
+                                if (id && productsData[id]) {
+                                    this.unitPrice = productsData[id].cost || 0;
+                                    this.unitId = productsData[id].unit_id || '';
+                                }
+                                this.syncToLivewire();
+                            },
+
+                            syncToLivewire() {
+                                // Batch update to Livewire (single request with defer)
+                                this.$wire.set(`details.${this.index}.product_id`, this.productId, false);
+                                this.$wire.set(`details.${this.index}.quantity`, this.quantity, false);
+                                this.$wire.set(`details.${this.index}.unit_price`, this.unitPrice, false);
+                                this.$wire.set(`details.${this.index}.unit_of_measure_id`, this.unitId, false);
+                                this.$wire.set(`details.${this.index}.notes`, this.notes, false);
+                            }
+                        }));
+                    });
+                }
+            </script>
+
             <!-- Bottom buttons to add more rows -->
             <div class="mt-4 flex justify-end gap-2">
-                <flux:button type="button" variant="outline" size="sm" icon="plus" wire:click="addDetail">
-                    +1 fila
+                <flux:button type="button" variant="outline" size="sm" icon="plus" wire:click="addDetail" wire:loading.attr="disabled" wire:target="addDetail, addMoreRows">
+                    <span wire:loading.remove wire:target="addDetail">+1 fila</span>
+                    <span wire:loading wire:target="addDetail">Agregando...</span>
                 </flux:button>
-                <flux:button type="button" variant="primary" size="sm" icon="plus" wire:click="addMoreRows">
-                    +5 filas
+                <flux:button type="button" variant="primary" size="sm" icon="plus" wire:click="addMoreRows" wire:loading.attr="disabled" wire:target="addDetail, addMoreRows">
+                    <span wire:loading.remove wire:target="addMoreRows">+5 filas</span>
+                    <span wire:loading wire:target="addMoreRows">Agregando...</span>
                 </flux:button>
             </div>
 
-            <!-- Grand Total -->
+            <!-- Grand Total (calculated by Livewire since Alpine scopes are per-row) -->
             <div class="mt-4 flex justify-end">
                 <div class="bg-zinc-100 dark:bg-zinc-800 px-6 py-3 rounded-lg">
                     <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">Total General</flux:text>
                     <flux:heading size="lg">
-                        ${{ number_format(collect($details)->sum(fn($d) => ($d['quantity'] ?? 0) * ($d['unit_price'] ?? 0)), 2) }}
+                        ${{ number_format(collect($details)->sum(fn($d) => ((float) ($d['quantity'] ?? 0)) * ((float) ($d['unit_price'] ?? 0))), 2) }}
                     </flux:heading>
                 </div>
             </div>
