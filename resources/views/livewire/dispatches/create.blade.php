@@ -44,6 +44,7 @@ new #[Layout('components.layouts.app')] class extends Component
             $this->company_id = auth()->user()->company_id;
         }
 
+        // Initialize with 1 empty row (user can add more as needed)
         $this->addDetail();
     }
 
@@ -54,18 +55,25 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->area_id = '';
         $this->employee_id = '';
         $this->stockInfo = [];
+        // Clear cached data since company changed
+        unset($this->products);
+        unset($this->employees);
     }
 
     public function updatedAreaId(): void
     {
         // Reset employee when area changes
         $this->employee_id = '';
+        // Clear cached employees so they reload for the new area
+        unset($this->employees);
     }
 
     public function updatedWarehouseId(): void
     {
-        // Refresh stock info when warehouse changes
-        $this->refreshAllStockInfo();
+        // Clear stock info when warehouse changes - will be lazy loaded when products are selected
+        $this->stockInfo = [];
+        // Clear cached products so they reload for the new warehouse
+        unset($this->products);
     }
 
     public function isSuperAdmin(): bool
@@ -88,6 +96,16 @@ new #[Layout('components.layouts.app')] class extends Component
     {
         unset($this->details[$index]);
         $this->details = array_values($this->details);
+        unset($this->stockInfo[$index]);
+    }
+
+    public function addMoreRows(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            $this->addDetail();
+        }
+
+        \Flux::toast('5 filas agregadas', variant: 'success');
     }
 
     public function updatedDetails($value, $key): void
@@ -97,18 +115,12 @@ new #[Layout('components.layouts.app')] class extends Component
             // Extract the index from the key (e.g., "0.product_id" -> 0)
             $index = (int) explode('.', $key)[0];
 
-            // Find the product and set its unit of measure
-            $product = Product::find($value);
-            if ($product && $product->unit_of_measure_id) {
-                $this->details[$index]['unit_of_measure_id'] = $product->unit_of_measure_id;
-            }
-
-            // Get stock info for this product
-            $this->updateStockInfo($index, $value);
+            // Single optimized query to get unit_of_measure_id AND stock info
+            $this->updateProductAndStockInfo($index, $value);
         }
     }
 
-    public function updateStockInfo(int $index, $productId): void
+    public function updateProductAndStockInfo(int $index, $productId): void
     {
         if (! $this->warehouse_id || ! $productId) {
             $this->stockInfo[$index] = null;
@@ -116,28 +128,20 @@ new #[Layout('components.layouts.app')] class extends Component
             return;
         }
 
-        $inventory = Inventory::where('product_id', $productId)
-            ->where('warehouse_id', $this->warehouse_id)
-            ->where('is_active', true)
-            ->first();
+        // Get product from cached list - already has stock info (no DB query needed)
+        $product = $this->products->firstWhere('id', (int) $productId);
 
-        $product = Product::with('unitOfMeasure')->find($productId);
-        $unitCode = $product?->unitOfMeasure?->abbreviation ?? $product?->unitOfMeasure?->code ?? '';
+        if ($product) {
+            $this->details[$index]['unit_of_measure_id'] = $product->unit_of_measure_id;
 
-        if ($inventory) {
             $this->stockInfo[$index] = [
-                'quantity' => $inventory->quantity,
-                'reserved' => $inventory->reserved_quantity,
-                'available' => $inventory->available_quantity,
-                'unit' => $unitCode,
+                'quantity' => $product->stock_quantity ?? 0,
+                'reserved' => $product->stock_reserved ?? 0,
+                'available' => $product->stock_available ?? 0,
+                'unit' => $product->unit_abbreviation ?? '',
             ];
         } else {
-            $this->stockInfo[$index] = [
-                'quantity' => 0,
-                'reserved' => 0,
-                'available' => 0,
-                'unit' => $unitCode,
-            ];
+            $this->stockInfo[$index] = null;
         }
     }
 
@@ -146,7 +150,7 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->stockInfo = [];
         foreach ($this->details as $index => $detail) {
             if (! empty($detail['product_id'])) {
-                $this->updateStockInfo($index, $detail['product_id']);
+                $this->updateProductAndStockInfo($index, $detail['product_id']);
             }
         }
     }
@@ -167,6 +171,17 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function save(): void
     {
+        // Filter out empty rows (rows without product_id)
+        $filledDetails = array_filter($this->details, fn($detail) => !empty($detail['product_id']));
+
+        if (empty($filledDetails)) {
+            \Flux::toast('Debe agregar al menos un producto al despacho.', variant: 'danger');
+            return;
+        }
+
+        // Re-index the array
+        $this->details = array_values($filledDetails);
+
         $rules = [
             'warehouse_id' => 'required|exists:warehouses,id',
             'dispatch_type' => 'required|in:venta,interno,externo,donacion',
@@ -174,6 +189,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'details.*.product_id' => 'required|exists:products,id',
             'details.*.quantity' => 'required|numeric|min:0.0001',
             'details.*.unit_of_measure_id' => 'required|exists:units_of_measure,id',
+            'details.*.unit_price' => 'required|numeric|min:0',
         ];
 
         // Add company_id validation for super admins
@@ -188,6 +204,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'details.*.product_id' => 'producto',
             'details.*.quantity' => 'cantidad',
             'details.*.unit_of_measure_id' => 'unidad de medida',
+            'details.*.unit_price' => 'precio unitario',
         ];
 
         $this->validate($rules, [], $customAttributes);
@@ -269,11 +286,12 @@ new #[Layout('components.layouts.app')] class extends Component
 
         return Warehouse::where('company_id', $this->company_id)
             ->where('is_active', true)
+            ->select('id', 'name')
             ->orderBy('name')
             ->get();
     }
 
-    #[\Livewire\Attributes\Computed]
+    #[\Livewire\Attributes\Computed(persist: true)]
     public function employees()
     {
         // Requiere tanto company_id como area_id
@@ -284,6 +302,7 @@ new #[Layout('components.layouts.app')] class extends Component
         return Employee::where('company_id', $this->company_id)
             ->where('area_id', $this->area_id)
             ->where('is_active', true)
+            ->select('id', 'name', 'position')
             ->orderBy('name')
             ->get();
     }
@@ -297,20 +316,40 @@ new #[Layout('components.layouts.app')] class extends Component
 
         return \App\Models\Area::where('company_id', $this->company_id)
             ->where('is_active', true)
+            ->select('id', 'name')
             ->orderBy('name')
             ->get();
     }
 
-    #[\Livewire\Attributes\Computed]
+    #[\Livewire\Attributes\Computed(persist: true)]
     public function products()
     {
-        if (! $this->company_id) {
+        if (! $this->company_id || ! $this->warehouse_id) {
             return collect([]);
         }
 
-        return Product::where('company_id', $this->company_id)
-            ->where('is_active', true)
-            ->orderBy('name')
+        // Load products with stock info in a single query
+        // This prevents additional queries when selecting a product
+        return Product::where('products.company_id', $this->company_id)
+            ->where('products.is_active', true)
+            ->join('inventory', function ($join) {
+                $join->on('inventory.product_id', '=', 'products.id')
+                    ->where('inventory.warehouse_id', '=', $this->warehouse_id)
+                    ->where('inventory.is_active', '=', true)
+                    ->where('inventory.available_quantity', '>', 0);
+            })
+            ->leftJoin('units_of_measure', 'units_of_measure.id', '=', 'products.unit_of_measure_id')
+            ->select(
+                'products.id',
+                'products.name',
+                'products.sku',
+                'products.unit_of_measure_id',
+                'inventory.quantity as stock_quantity',
+                'inventory.reserved_quantity as stock_reserved',
+                'inventory.available_quantity as stock_available',
+                'units_of_measure.abbreviation as unit_abbreviation'
+            )
+            ->orderBy('products.name')
             ->get();
     }
 
@@ -321,7 +360,10 @@ new #[Layout('components.layouts.app')] class extends Component
             return collect([]);
         }
 
-        return UnitOfMeasure::forCompany($this->company_id)->active()->get();
+        return UnitOfMeasure::forCompany($this->company_id)
+            ->active()
+            ->select('id', 'name', 'abbreviation')
+            ->get();
     }
 }; ?>
 
@@ -357,6 +399,11 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label badge="Requerido">Bodega</flux:label>
+                    <div wire:loading.delay wire:target="company_id" class="mb-2">
+                        <flux:text size="sm" class="text-blue-600 dark:text-blue-400">
+                            Cargando bodegas...
+                        </flux:text>
+                    </div>
                     <flux:select wire:model.live="warehouse_id" :disabled="$this->isSuperAdmin() && !$company_id">
                         <option value="">Seleccione bodega</option>
                         @foreach ($this->warehouses as $warehouse)
@@ -389,12 +436,18 @@ new #[Layout('components.layouts.app')] class extends Component
                 <!-- Persona Solicitante -->
                 <flux:field>
                     <flux:label badge="Requerido">Persona Solicitante</flux:label>
-                    <flux:select wire:model="employee_id" :disabled="!$area_id">
-                        <option value="">Seleccione persona</option>
-                        @foreach ($this->employees as $employee)
-                            <option value="{{ $employee->id }}">{{ $employee->name }}{{ $employee->position ? ' (' . $employee->position . ')' : '' }}</option>
-                        @endforeach
-                    </flux:select>
+                    <div wire:loading wire:target="area_id" class="flex items-center gap-2 py-2">
+                        <flux:icon name="arrow-path" class="w-4 h-4 animate-spin text-blue-500" />
+                        <flux:text size="sm" class="text-blue-600 dark:text-blue-400">Cargando personas...</flux:text>
+                    </div>
+                    <div wire:loading.remove wire:target="area_id">
+                        <flux:select wire:model="employee_id" :disabled="!$area_id">
+                            <option value="">Seleccione persona</option>
+                            @foreach ($this->employees as $employee)
+                                <option value="{{ $employee->id }}">{{ $employee->name }}{{ $employee->position ? ' (' . $employee->position . ')' : '' }}</option>
+                            @endforeach
+                        </flux:select>
+                    </div>
                     <flux:description>
                         @if(!$area_id)
                             Primero seleccione una unidad solicitante
@@ -440,106 +493,207 @@ new #[Layout('components.layouts.app')] class extends Component
         </flux:card>
 
         <flux:card>
-            <div class="flex items-center justify-between mb-6">
-                <flux:heading size="lg" badge="Requerido">Productos</flux:heading>
-                <flux:button type="button" variant="primary" size="sm" icon="plus" wire:click="addDetail">
-                    Agregar Producto
+            <div class="flex items-center justify-between mb-4">
+                <flux:heading size="lg" badge="Requerido">Productos del Despacho</flux:heading>
+                <div class="flex gap-2">
+                    <flux:button type="button" variant="outline" size="sm" icon="plus" wire:click="addDetail">
+                        +1 fila
+                    </flux:button>
+                    <flux:button type="button" variant="primary" size="sm" icon="plus" wire:click="addMoreRows">
+                        +5 filas
+                    </flux:button>
+                </div>
+            </div>
+
+            <!-- Loading indicator when warehouse changes -->
+            <div wire:loading wire:target="warehouse_id" class="flex items-center justify-center py-8">
+                <flux:icon name="arrow-path" class="w-6 h-6 animate-spin text-blue-500" />
+                <flux:text class="ml-2 text-blue-600 dark:text-blue-400">Cargando productos...</flux:text>
+            </div>
+
+            <div wire:loading.remove wire:target="warehouse_id" class="overflow-x-auto">
+                <flux:table>
+                    <flux:table.columns>
+                        <flux:table.column class="w-12">#</flux:table.column>
+                        <flux:table.column class="min-w-[300px]">Producto</flux:table.column>
+                        <flux:table.column class="w-24 text-center">Cantidad</flux:table.column>
+                        <flux:table.column class="w-32">Unidad</flux:table.column>
+                        <flux:table.column class="w-32 text-right">Precio Unitario</flux:table.column>
+                        <flux:table.column class="w-32 text-right">Total</flux:table.column>
+                        <flux:table.column class="w-24 text-center">Acciones</flux:table.column>
+                    </flux:table.columns>
+
+                    <flux:table.rows>
+                        @foreach($details as $index => $detail)
+                        <tbody x-data="{ expanded: false }" wire:key="detail-group-{{ $index }}">
+                        <flux:table.row class="{{ $detail['product_id'] ? '' : 'opacity-60' }}">
+                            <flux:table.cell class="text-center text-sm text-zinc-600 dark:text-zinc-400">
+                                {{ $index + 1 }}
+                            </flux:table.cell>
+
+                            <!-- Product Select with Stock Badge -->
+                            <flux:table.cell>
+                                <div class="flex flex-col gap-1">
+                                    <flux:select
+                                        variant="listbox"
+                                        searchable
+                                        wire:model.live="details.{{ $index }}.product_id"
+                                        :disabled="!$company_id || !$warehouse_id"
+                                        placeholder="{{ !$company_id ? 'Seleccione empresa primero' : (!$warehouse_id ? 'Seleccione bodega primero' : 'Seleccionar producto...') }}"
+                                        class="w-full"
+                                    >
+                                        @foreach($this->products as $product)
+                                            <flux:select.option value="{{ $product->id }}">
+                                                {{ $product->name }}{{ $product->sku ? ' - ' . $product->sku : '' }}
+                                            </flux:select.option>
+                                        @endforeach
+                                    </flux:select>
+
+                                    <!-- Stock Badge -->
+                                    @if($detail['product_id'] && isset($stockInfo[$index]) && $warehouse_id)
+                                        <div class="flex items-center gap-2">
+                                            @php
+                                                $stock = $stockInfo[$index];
+                                                $available = $stock['available'] ?? 0;
+                                                $badgeColor = $available > 10 ? 'green' : ($available > 0 ? 'amber' : 'red');
+                                            @endphp
+                                            <flux:badge size="sm" color="{{ $badgeColor }}">
+                                                {{ number_format($available, 2) }} {{ $stock['unit'] ?? '' }} en stock
+                                            </flux:badge>
+                                            @if(($stock['reserved'] ?? 0) > 0)
+                                                <flux:badge size="sm" color="amber">
+                                                    {{ number_format($stock['reserved'], 2) }} reservado
+                                                </flux:badge>
+                                            @endif
+                                        </div>
+                                    @elseif(!$warehouse_id && !empty($detail['product_id']))
+                                        <flux:text size="sm" class="text-amber-600 dark:text-amber-400">
+                                            Seleccione bodega primero
+                                        </flux:text>
+                                    @endif
+                                    <flux:error name="details.{{ $index }}.product_id" />
+                                </div>
+                            </flux:table.cell>
+
+                            <!-- Quantity -->
+                            <flux:table.cell>
+                                <div class="flex flex-col gap-1">
+                                    <flux:input
+                                        type="number"
+                                        step="0.01"
+                                        min="0.01"
+                                        wire:model.blur="details.{{ $index }}.quantity"
+                                        class="w-full text-center"
+                                    />
+                                    <flux:error name="details.{{ $index }}.quantity" />
+                                </div>
+                            </flux:table.cell>
+
+                            <!-- Unit of Measure -->
+                            <flux:table.cell>
+                                <div class="flex flex-col gap-1">
+                                    <flux:select
+                                        wire:model="details.{{ $index }}.unit_of_measure_id"
+                                        :disabled="$this->isSuperAdmin() && !$company_id"
+                                        class="w-full"
+                                    >
+                                        <option value="">Unidad</option>
+                                        @foreach($this->units as $unit)
+                                            <option value="{{ $unit->id }}">{{ $unit->abbreviation }}</option>
+                                        @endforeach
+                                    </flux:select>
+                                    <flux:error name="details.{{ $index }}.unit_of_measure_id" />
+                                </div>
+                            </flux:table.cell>
+
+                            <!-- Unit Price -->
+                            <flux:table.cell>
+                                <div class="flex flex-col gap-1">
+                                    <flux:input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        wire:model.blur="details.{{ $index }}.unit_price"
+                                        placeholder="0.00"
+                                        class="w-full text-right"
+                                    />
+                                    <flux:error name="details.{{ $index }}.unit_price" />
+                                </div>
+                            </flux:table.cell>
+
+                            <!-- Total (Calculated) -->
+                            <flux:table.cell class="text-right font-semibold">
+                                ${{ number_format(($detail['quantity'] ?? 0) * ($detail['unit_price'] ?? 0), 2) }}
+                            </flux:table.cell>
+
+                            <!-- Actions -->
+                            <flux:table.cell class="text-center">
+                                <div class="flex items-center justify-center gap-1">
+                                    @if($detail['product_id'])
+                                        <!-- Expand/Collapse for Notes (Alpine.js - client-side only) -->
+                                        <flux:button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            x-on:click="expanded = !expanded"
+                                        >
+                                            <flux:icon x-show="!expanded" name="chevron-down" variant="mini" />
+                                            <flux:icon x-show="expanded" name="chevron-up" variant="mini" />
+                                        </flux:button>
+
+                                        <!-- Remove Button -->
+                                        <flux:button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            icon="trash"
+                                            wire:click="removeDetail({{ $index }})"
+                                        />
+                                    @endif
+                                </div>
+                            </flux:table.cell>
+                        </flux:table.row>
+
+                        <!-- Expandable Notes Row (Alpine.js - client-side only) -->
+                        <flux:table.row x-show="expanded" x-collapse class="bg-zinc-50 dark:bg-zinc-800">
+                            <flux:table.cell colspan="7" class="py-3">
+                                <div class="px-4">
+                                    <flux:label>Notas (opcional)</flux:label>
+                                    <flux:textarea
+                                        wire:model="details.{{ $index }}.notes"
+                                        placeholder="Información adicional sobre este producto..."
+                                        rows="2"
+                                    />
+                                </div>
+                            </flux:table.cell>
+                        </flux:table.row>
+                        </tbody>
+                        @endforeach
+                    </flux:table.rows>
+                </flux:table>
+            </div>
+
+            <!-- Bottom buttons to add more rows -->
+            <div class="mt-4 flex justify-end gap-2">
+                <flux:button type="button" variant="outline" size="sm" icon="plus" wire:click="addDetail">
+                    +1 fila
+                </flux:button>
+                <flux:button type="button" variant="primary" size="sm" icon="plus" wire:click="addMoreRows">
+                    +5 filas
                 </flux:button>
             </div>
 
-            <div class="space-y-4">
-                @foreach ($details as $index => $detail)
-                    <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg" wire:key="detail-{{ $index }}">
-                        <div class="flex items-start justify-between mb-4">
-                            <flux:heading size="sm">Producto #{{ $index + 1 }}</flux:heading>
-                            @if (count($details) > 1)
-                                <flux:button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    icon="trash"
-                                    wire:click="removeDetail({{ $index }})"
-                                >
-                                    Eliminar
-                                </flux:button>
-                            @endif
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <flux:field class="md:col-span-2">
-                                <flux:label badge="Requerido">Producto</flux:label>
-                                <flux:select
-                                    variant="listbox"
-                                    searchable
-                                    wire:model.live="details.{{ $index }}.product_id"
-                                    :disabled="$this->isSuperAdmin() && !$company_id"
-                                    placeholder="Buscar producto..."
-                                >
-                                    @foreach ($this->products as $product)
-                                        <flux:select.option value="{{ $product->id }}">
-                                            {{ $product->name }}{{ $product->sku ? ' - ' . $product->sku : '' }}
-                                        </flux:select.option>
-                                    @endforeach
-                                </flux:select>
-                                @if (isset($stockInfo[$index]) && $warehouse_id)
-                                    <div class="mt-1 text-sm">
-                                        @if ($stockInfo[$index]['available'] > 0)
-                                            <span class="text-green-600 dark:text-green-400">
-                                                Stock disponible: {{ number_format($stockInfo[$index]['available'], 2) }} {{ $stockInfo[$index]['unit'] }}
-                                            </span>
-                                            @if ($stockInfo[$index]['reserved'] > 0)
-                                                <span class="text-amber-600 dark:text-amber-400 ml-2">
-                                                    (Reservado: {{ number_format($stockInfo[$index]['reserved'], 2) }} {{ $stockInfo[$index]['unit'] }})
-                                                </span>
-                                            @endif
-                                        @else
-                                            <span class="text-red-600 dark:text-red-400">
-                                                Sin stock disponible
-                                            </span>
-                                        @endif
-                                    </div>
-                                @elseif (!$warehouse_id && !empty($detail['product_id']))
-                                    <flux:text size="sm" class="mt-1 text-amber-600 dark:text-amber-400">
-                                        Seleccione una bodega para ver el stock
-                                    </flux:text>
-                                @endif
-                                <flux:error name="details.{{ $index }}.product_id" />
-                            </flux:field>
-
-                            <flux:field>
-                                <flux:label badge="Requerido">Cantidad</flux:label>
-                                <flux:input type="number" step="0.01" wire:model="details.{{ $index }}.quantity" :max="isset($stockInfo[$index]) ? $stockInfo[$index]['available'] : null" />
-                                <flux:error name="details.{{ $index }}.quantity" />
-                            </flux:field>
-
-                            <flux:field>
-                                <flux:label badge="Requerido">Unidad</flux:label>
-                                <flux:select wire:model="details.{{ $index }}.unit_of_measure_id" :disabled="$this->isSuperAdmin() && !$company_id">
-                                    <option value="">Unidad</option>
-                                    @foreach ($this->units as $unit)
-                                        <option value="{{ $unit->id }}">{{ $unit->name }} ({{ $unit->abbreviation }})</option>
-                                    @endforeach
-                                </flux:select>
-                                <flux:error name="details.{{ $index }}.unit_of_measure_id" />
-                            </flux:field>
-
-                            <flux:field class="md:col-span-2">
-                                <flux:label>Precio Unitario</flux:label>
-                                <flux:input type="number" step="0.01" wire:model="details.{{ $index }}.unit_price" placeholder="0.00" />
-                                <flux:error name="details.{{ $index }}.unit_price" />
-                            </flux:field>
-
-                            <flux:field class="md:col-span-2">
-                                <flux:label>Notas del Producto</flux:label>
-                                <flux:textarea wire:model="details.{{ $index }}.notes" rows="2" />
-                                <flux:error name="details.{{ $index }}.notes" />
-                            </flux:field>
-                        </div>
-                    </div>
-                @endforeach
-
-                <flux:error name="details" />
+            <!-- Grand Total -->
+            <div class="mt-4 flex justify-end">
+                <div class="bg-zinc-100 dark:bg-zinc-800 px-6 py-3 rounded-lg">
+                    <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">Total General</flux:text>
+                    <flux:heading size="lg">
+                        ${{ number_format(collect($details)->sum(fn($d) => ($d['quantity'] ?? 0) * ($d['unit_price'] ?? 0)), 2) }}
+                    </flux:heading>
+                </div>
             </div>
+
+            <flux:error name="details" />
         </flux:card>
 
         <div class="flex items-center justify-between">

@@ -52,6 +52,14 @@ new #[Layout('components.layouts.app')] class extends Component
     #[Validate('boolean')]
     public bool $is_active = true;
 
+    // Code generation settings
+    public bool $auto_generate_sku = false;
+    public bool $auto_generate_employee_code = false;
+    public string $sku_prefix = '';
+    public int $sku_padding = 4;
+    public string $employee_code_prefix = 'EMP';
+    public int $employee_code_padding = 3;
+
     public function mount(Company $company): void
     {
         $this->authorize('update', $company);
@@ -62,6 +70,15 @@ new #[Layout('components.layouts.app')] class extends Component
             'phone', 'website', 'address', 'city', 'state', 'postal_code',
             'country', 'default_currency', 'timezone', 'is_active',
         ]));
+
+        // Load settings
+        $settings = $company->settings ?? [];
+        $this->auto_generate_sku = $settings['auto_generate_sku'] ?? false;
+        $this->auto_generate_employee_code = $settings['auto_generate_employee_code'] ?? false;
+        $this->sku_prefix = $settings['sku_prefix'] ?? '';
+        $this->sku_padding = $settings['sku_padding'] ?? 4;
+        $this->employee_code_prefix = $settings['employee_code_prefix'] ?? 'EMP';
+        $this->employee_code_padding = $settings['employee_code_padding'] ?? 3;
     }
 
     public function save(): void
@@ -78,6 +95,15 @@ new #[Layout('components.layouts.app')] class extends Component
         ]);
 
         try {
+            // Prepare settings array
+            $settings = $this->company->settings ?? [];
+            $settings['auto_generate_sku'] = $this->auto_generate_sku;
+            $settings['auto_generate_employee_code'] = $this->auto_generate_employee_code;
+            $settings['sku_prefix'] = $this->sku_prefix;
+            $settings['sku_padding'] = max(1, min(10, $this->sku_padding));
+            $settings['employee_code_prefix'] = $this->employee_code_prefix;
+            $settings['employee_code_padding'] = max(1, min(10, $this->employee_code_padding));
+
             $this->company->update([
                 'name' => $this->name,
                 'legal_name' => $this->legal_name,
@@ -93,6 +119,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 'default_currency' => $this->default_currency,
                 'timezone' => $this->timezone,
                 'is_active' => $this->is_active,
+                'settings' => $settings,
                 'updated_by' => auth()->id(),
             ]);
 
@@ -359,6 +386,84 @@ new #[Layout('components.layouts.app')] class extends Component
                 <div class="lg:col-span-2">
                     <flux:checkbox wire:model="is_active" :label="__('warehouse.company_active')" :description="__('warehouse.active_company_description')" />
                     <flux:error name="is_active" />
+                </div>
+            </div>
+        </flux:card>
+
+        <!-- Auto-Generation Settings -->
+        <flux:card>
+            <flux:heading>
+                <flux:heading size="lg">Configuración de Códigos Automáticos</flux:heading>
+                <flux:text class="text-zinc-600 dark:text-zinc-400">
+                    Configure la generación automática de códigos para productos y empleados
+                </flux:text>
+            </flux:heading>
+
+            <div class="space-y-6">
+                <!-- Product SKU Auto-Generation -->
+                <div class="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
+                    <flux:checkbox
+                        wire:model.live="auto_generate_sku"
+                        label="Generar códigos SKU de productos automáticamente"
+                        description="Cuando esté activo, el sistema generará automáticamente códigos SKU secuenciales para nuevos productos"
+                    />
+
+                    @if($auto_generate_sku)
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700">
+                            <flux:field>
+                                <flux:label>Prefijo SKU</flux:label>
+                                <flux:input wire:model="sku_prefix" placeholder="PRD, PROD, etc." maxlength="10" />
+                                <flux:description>Prefijo para los códigos SKU (opcional)</flux:description>
+                            </flux:field>
+
+                            <flux:field>
+                                <flux:label>Cantidad de dígitos</flux:label>
+                                <flux:input type="number" wire:model="sku_padding" min="1" max="10" />
+                                <flux:description>Número de dígitos para el código (ej: 3 = 001, 4 = 0001)</flux:description>
+                            </flux:field>
+
+                            <div class="md:col-span-2">
+                                <flux:callout color="blue" icon="information-circle">
+                                    @if($sku_prefix)
+                                        Ejemplo de código generado: <strong>{{ $sku_prefix }}-CAT-{{ str_pad('1', $sku_padding, '0', STR_PAD_LEFT) }}</strong>
+                                    @else
+                                        Ejemplo de código generado: <strong>CAT-{{ str_pad('1', $sku_padding, '0', STR_PAD_LEFT) }}</strong>
+                                    @endif
+                                </flux:callout>
+                            </div>
+                        </div>
+                    @endif
+                </div>
+
+                <!-- Employee Code Auto-Generation -->
+                <div class="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
+                    <flux:checkbox
+                        wire:model.live="auto_generate_employee_code"
+                        label="Generar códigos de empleado automáticamente"
+                        description="Cuando esté activo, el sistema generará automáticamente códigos secuenciales para nuevos empleados"
+                    />
+
+                    @if($auto_generate_employee_code)
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700">
+                            <flux:field>
+                                <flux:label>Prefijo de Código</flux:label>
+                                <flux:input wire:model="employee_code_prefix" placeholder="EMP, EMPL, etc." maxlength="10" />
+                                <flux:description>Prefijo para los códigos de empleado</flux:description>
+                            </flux:field>
+
+                            <flux:field>
+                                <flux:label>Cantidad de dígitos</flux:label>
+                                <flux:input type="number" wire:model="employee_code_padding" min="1" max="10" />
+                                <flux:description>Número de dígitos para el código (ej: 3 = 001, 4 = 0001)</flux:description>
+                            </flux:field>
+
+                            <div class="md:col-span-2">
+                                <flux:callout color="blue" icon="information-circle">
+                                    Ejemplo de código generado: <strong>{{ $employee_code_prefix }}-{{ str_pad('1', $employee_code_padding, '0', STR_PAD_LEFT) }}</strong>
+                                </flux:callout>
+                            </div>
+                        </div>
+                    @endif
                 </div>
             </div>
         </flux:card>

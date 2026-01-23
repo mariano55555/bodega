@@ -28,10 +28,34 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public $is_active = true;
 
+    public $autoGenerateCode = false;
+
+    public $codePreview = '';
+
     public function mount(): void
     {
         if (! $this->isSuperAdmin()) {
             $this->company_id = auth()->user()->company_id;
+
+            // Check if auto-generate employee code is enabled for non-super admin
+            $this->checkAutoGenerateCode();
+        }
+    }
+
+    public function checkAutoGenerateCode(): void
+    {
+        if ($this->company_id) {
+            $company = \App\Models\Company::find($this->company_id);
+            $this->autoGenerateCode = $company && ($company->settings['auto_generate_employee_code'] ?? false);
+
+            if ($this->autoGenerateCode) {
+                $this->codePreview = Employee::previewEmployeeCode((int) $this->company_id);
+            } else {
+                $this->codePreview = '';
+            }
+        } else {
+            $this->autoGenerateCode = false;
+            $this->codePreview = '';
         }
     }
 
@@ -66,15 +90,36 @@ new #[Layout('components.layouts.app')] class extends Component
     public function updatedCompanyId(): void
     {
         $this->area_id = '';
+
+        // Update auto-generate code status
+        $this->checkAutoGenerateCode();
+
+        // Clear employee code if auto-generation is enabled
+        if ($this->autoGenerateCode) {
+            $this->employee_code = '';
+        }
     }
 
     public function save(): void
     {
         try {
+            $companyId = $this->isSuperAdmin() ? $this->company_id : auth()->user()->company_id;
+
             $rules = [
                 'area_id' => 'required|exists:areas,id',
                 'name' => 'required|string|max:255',
-                'employee_code' => 'nullable|string|max:50',
+                'employee_code' => [
+                    'nullable',
+                    'string',
+                    'max:50',
+                    function ($attribute, $value, $fail) use ($companyId) {
+                        if ($value && Employee::where('company_id', $companyId)
+                            ->where('employee_code', $value)
+                            ->exists()) {
+                            $fail('El código de empleado ya existe en esta empresa.');
+                        }
+                    },
+                ],
                 'position' => 'nullable|string|max:255',
                 'phone' => 'nullable|string|max:50',
                 'mobile' => 'nullable|string|max:50',
@@ -89,13 +134,18 @@ new #[Layout('components.layouts.app')] class extends Component
 
             $validated = $this->validate($rules);
 
-            $companyId = $this->isSuperAdmin() ? $this->company_id : auth()->user()->company_id;
+            // Auto-generate employee code if enabled and no code provided
+            $employeeCode = $validated['employee_code'];
+            if ($this->autoGenerateCode && empty($employeeCode)) {
+                $employeeCode = Employee::generateEmployeeCode($companyId);
+            }
 
             $employee = Employee::create([
                 'company_id' => $companyId,
                 'area_id' => $validated['area_id'],
-                'employee_code' => $validated['employee_code'] ?? null,
+                'employee_code' => $employeeCode,
                 'name' => $validated['name'],
+                'slug' => \Illuminate\Support\Str::slug($validated['name']),
                 'position' => $validated['position'] ?? null,
                 'phone' => $validated['phone'] ?? null,
                 'mobile' => $validated['mobile'] ?? null,
@@ -106,6 +156,12 @@ new #[Layout('components.layouts.app')] class extends Component
 
             Flux::toast('Empleado creado exitosamente.', variant: 'success');
             $this->redirect(route('employees.index'), navigate: true);
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() === '23000') {
+                Flux::toast('El código de empleado ya está en uso. Por favor use un código diferente.', variant: 'danger');
+            } else {
+                Flux::toast('Error al crear el empleado: '.$e->getMessage(), variant: 'danger');
+            }
         } catch (\Exception $e) {
             Flux::toast('Error al crear el empleado: '.$e->getMessage(), variant: 'danger');
         }
@@ -162,7 +218,16 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label>Código de Empleado</flux:label>
-                    <flux:input wire:model="employee_code" placeholder="Ej: EMP-001" />
+                    <flux:input
+                        wire:model="employee_code"
+                        placeholder="Ej: EMP-001"
+                        :disabled="$autoGenerateCode"
+                    />
+                    @if($autoGenerateCode && $codePreview)
+                        <flux:description>
+                            Se generará automáticamente: <strong class="text-zinc-900 dark:text-zinc-100">{{ $codePreview }}</strong>
+                        </flux:description>
+                    @endif
                     @error('employee_code') <flux:text variant="danger">{{ $message }}</flux:text> @enderror
                 </flux:field>
 

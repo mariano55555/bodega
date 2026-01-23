@@ -77,7 +77,19 @@ new #[Layout('components.layouts.app')] class extends Component
                 'company_id' => 'required|exists:companies,id',
                 'area_id' => 'required|exists:areas,id',
                 'name' => 'required|string|max:255',
-                'employee_code' => 'nullable|string|max:50',
+                'employee_code' => [
+                    'nullable',
+                    'string',
+                    'max:50',
+                    function ($attribute, $value, $fail) {
+                        if ($value && Employee::where('company_id', $this->company_id)
+                            ->where('employee_code', $value)
+                            ->where('id', '!=', $this->employee->id)
+                            ->exists()) {
+                            $fail('El código de empleado ya existe en esta empresa.');
+                        }
+                    },
+                ],
                 'position' => 'nullable|string|max:255',
                 'phone' => 'nullable|string|max:50',
                 'mobile' => 'nullable|string|max:50',

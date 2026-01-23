@@ -15,7 +15,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 class Employee extends Model
 {
     /** @use HasFactory<\Database\Factories\EmployeeFactory> */
-    use HasFactory, LogsActivity, SoftDeletes, Sluggable;
+    use HasFactory, LogsActivity, Sluggable, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -53,21 +53,18 @@ class Employee extends Model
         ];
     }
 
-
     /**
-        * Return the sluggable configuration array for this model.
-        *
-        * @return array
-        */
-        public function sluggable(): array
-        {
-           return [
-              'slug' => [
-                 'source' => 'name',
-                 'includeTrashed' => true,
-              ]
-           ];
-        }
+     * Return the sluggable configuration array for this model.
+     */
+    public function sluggable(): array
+    {
+        return [
+            'slug' => [
+                'source' => 'name',
+                'includeTrashed' => true,
+            ],
+        ];
+    }
 
     /**
      * Boot the model.
@@ -198,5 +195,46 @@ class Employee extends Model
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    /**
+     * Generate the next employee code for a company.
+     */
+    public static function generateEmployeeCode(int $companyId): string
+    {
+        $company = Company::find($companyId);
+
+        if (! $company) {
+            return 'EMP-001';
+        }
+
+        $prefix = $company->settings['employee_code_prefix'] ?? 'EMP';
+        $padding = $company->settings['employee_code_padding'] ?? 3;
+
+        // Get the last employee code for this company
+        $lastEmployee = static::where('company_id', $companyId)
+            ->whereNotNull('employee_code')
+            ->where('employee_code', 'like', $prefix.'-%')
+            ->orderByRaw('CAST(SUBSTRING(employee_code, '.(strlen($prefix) + 2).') AS UNSIGNED) DESC')
+            ->first();
+
+        if (! $lastEmployee) {
+            return $prefix.'-'.str_pad('1', $padding, '0', STR_PAD_LEFT);
+        }
+
+        // Extract the numeric part from the last code
+        $lastCode = $lastEmployee->employee_code;
+        $numericPart = (int) substr($lastCode, strlen($prefix) + 1);
+        $nextNumber = $numericPart + 1;
+
+        return $prefix.'-'.str_pad((string) $nextNumber, $padding, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Preview the next employee code for a company.
+     */
+    public static function previewEmployeeCode(int $companyId): string
+    {
+        return static::generateEmployeeCode($companyId);
     }
 }
