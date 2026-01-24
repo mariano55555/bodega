@@ -419,7 +419,7 @@ class Dispatch extends Model
             'aprobado' => 'Aprobado',
             'despachado' => 'Despachado',
             'entregado' => 'Entregado',
-            'cancelado' => 'Cancelado',
+            'cancelado' => 'Anulado',
         ];
 
         return $statuses[$this->status] ?? $this->status;

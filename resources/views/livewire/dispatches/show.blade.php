@@ -55,10 +55,10 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function cancel(): void
     {
         if ($this->dispatch->cancel()) {
-            session()->flash('success', 'Despacho cancelado exitosamente.');
+            session()->flash('success', 'Despacho anulado exitosamente.');
             $this->dispatch->refresh();
         } else {
-            session()->flash('error', 'No se pudo cancelar el despacho.');
+            session()->flash('error', 'No se pudo anular el despacho.');
         }
     }
 }; ?>
@@ -144,7 +144,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         </flux:card>
     @else
         <flux:callout variant="danger" icon="x-circle">
-            Este despacho ha sido cancelado.
+            Este despacho ha sido anulado.
         </flux:callout>
     @endif
 
@@ -364,7 +364,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <div class="pt-3 border-t border-gray-200 dark:border-gray-700">
                             <flux:modal.trigger name="cancel-modal">
                                 <flux:button variant="danger" class="w-full" icon="x-mark">
-                                    Cancelar Despacho
+                                    Anular Despacho
                                 </flux:button>
                             </flux:modal.trigger>
                         </div>
@@ -378,7 +378,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
                     @if ($dispatch->status === 'cancelado')
                         <flux:callout variant="danger" icon="x-circle">
-                            Este despacho fue cancelado.
+                            Este despacho fue anulado.
                         </flux:callout>
                     @endif
                 </div>
@@ -564,9 +564,9 @@ new #[Layout('components.layouts.app')] class extends Component {
         <flux:modal name="cancel-modal" class="min-w-[22rem]">
             <div class="space-y-6">
                 <div>
-                    <flux:heading size="lg">Cancelar Despacho</flux:heading>
+                    <flux:heading size="lg">Anular Despacho</flux:heading>
                     <flux:text class="mt-2">
-                        <p>¿Está seguro de que desea cancelar este despacho?</p>
+                        <p>¿Está seguro de que desea anular este despacho?</p>
                         <p class="mt-1 font-semibold text-red-600 dark:text-red-400">Esta acción no se puede deshacer.</p>
                     </flux:text>
                 </div>
@@ -575,7 +575,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                     <flux:modal.close>
                         <flux:button variant="ghost">Volver</flux:button>
                     </flux:modal.close>
-                    <flux:button variant="danger" wire:click="cancel">Cancelar Despacho</flux:button>
+                    <flux:button variant="danger" wire:click="cancel">Anular Despacho</flux:button>
                 </div>
             </div>
         </flux:modal>

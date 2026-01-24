@@ -54,23 +54,48 @@ class Area extends Model
             ],
         ];
     }
-    // Boot para auto-generar slug
-    // protected static function boot(): void
-    // {
-    //     parent::boot();
 
-    //     static::creating(function ($area) {
-    //         if (empty($area->slug)) {
-    //             $area->slug = Str::slug($area->name);
-    //         }
-    //     });
+    protected static function boot(): void
+    {
+        parent::boot();
 
-    //     static::updating(function ($area) {
-    //         if ($area->isDirty('name') && empty($area->slug)) {
-    //             $area->slug = Str::slug($area->name);
-    //         }
-    //     });
-    // }
+        static::creating(function ($area) {
+            // Convert empty code to null to avoid unique constraint issues
+            if (empty($area->code)) {
+                $area->code = null;
+            }
+
+            if (auth()->check()) {
+                $area->created_by = auth()->id();
+            }
+
+            if ($area->is_active && is_null($area->active_at)) {
+                $area->active_at = now();
+            }
+        });
+
+        static::updating(function ($area) {
+            // Convert empty code to null to avoid unique constraint issues
+            if (empty($area->code)) {
+                $area->code = null;
+            }
+
+            if (auth()->check()) {
+                $area->updated_by = auth()->id();
+            }
+
+            if ($area->isDirty('is_active')) {
+                $area->active_at = $area->is_active ? now() : null;
+            }
+        });
+
+        static::deleting(function ($area) {
+            if (auth()->check()) {
+                $area->deleted_by = auth()->id();
+                $area->save();
+            }
+        });
+    }
 
     // Relationships
     public function company(): BelongsTo

@@ -668,12 +668,12 @@ new #[Layout('components.layouts.app')] class extends Component
                                 <div class="flex flex-col gap-1">
                                     <input
                                         type="number"
-                                        step="0.01"
+                                        step="0.0001"
                                         min="0"
                                         x-model.number="unitPrice"
                                         @input="emitTotal()"
                                         @change="updateUnitPrice()"
-                                        placeholder="0.00"
+                                        placeholder="0.0000"
                                         class="block w-full text-right rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
                                     />
                                     <flux:error name="details.{{ $index }}.unit_price" />
@@ -682,7 +682,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                             <!-- Total (Calculated with Alpine - instant) -->
                             <flux:table.cell class="text-right font-semibold">
-                                $<span x-text="total.toFixed(2)"></span>
+                                $<span x-text="total.toFixed(4)"></span>
                             </flux:table.cell>
 
                             <!-- Actions -->
@@ -699,13 +699,13 @@ new #[Layout('components.layouts.app')] class extends Component
                                         <flux:icon x-show="expanded" name="chevron-up" variant="mini" />
                                     </flux:button>
 
-                                    <!-- Remove Button -->
+                                    <!-- Clear Button (Alpine.js - instant) -->
                                     <flux:button
                                         type="button"
                                         variant="ghost"
                                         size="sm"
                                         icon="trash"
-                                        wire:click="removeDetail({{ $index }})"
+                                        x-on:click="clearRow()"
                                     />
                                 </div>
                             </flux:table.cell>
@@ -802,6 +802,19 @@ new #[Layout('components.layouts.app')] class extends Component
                                 this.syncToLivewire();
                             },
 
+                            clearRow() {
+                                // Instant client-side clear - no server request
+                                this.productId = '';
+                                this.quantity = 1;
+                                this.unitPrice = 0;
+                                this.unitId = '';
+                                this.notes = '';
+                                this.expanded = false;
+                                this.emitTotal();
+                                // Sync cleared state to Livewire in background (deferred)
+                                this.syncToLivewire();
+                            },
+
                             syncToLivewire() {
                                 // Batch update to Livewire (single request with defer)
                                 this.$wire.set(`details.${this.index}.product_id`, this.productId, false);
@@ -832,7 +845,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 <div class="bg-zinc-100 dark:bg-zinc-800 px-6 py-3 rounded-lg">
                     <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">Total General</flux:text>
                     <flux:heading size="lg">
-                        $<span x-text="($store.grandTotal || 0).toFixed(2)">0.00</span>
+                        $<span x-text="($store.grandTotal || 0).toFixed(4)">0.0000</span>
                     </flux:heading>
                 </div>
             </div>
