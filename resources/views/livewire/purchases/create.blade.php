@@ -62,12 +62,23 @@ new #[Layout('components.layouts.app')] class extends Component
     public function mount(): void
     {
         $this->document_date = now()->format('Y-m-d');
-        $this->addDetail();
 
         // If not super admin, set company_id to user's company
         if (! $this->isSuperAdmin()) {
             $this->company_id = auth()->user()->company_id;
         }
+
+        // Initialize with 10 empty rows
+        $this->details = array_fill(0, 10, [
+            'product_id' => '',
+            'quantity' => 1,
+            'unit_cost' => 0,
+            'discount_percentage' => 0,
+            'tax_percentage' => 13,
+            'lot_number' => '',
+            'expiration_date' => '',
+            'notes' => '',
+        ]);
     }
 
     public function updatedCompanyId(): void
@@ -102,8 +113,39 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->details = array_values($this->details);
     }
 
+    public function addMoreRows(): void
+    {
+        // Add 5 rows at once (single array operation, single re-render)
+        $newRows = array_fill(0, 5, [
+            'product_id' => '',
+            'quantity' => 1,
+            'unit_cost' => 0,
+            'discount_percentage' => 0,
+            'tax_percentage' => 13,
+            'lot_number' => '',
+            'expiration_date' => '',
+            'notes' => '',
+        ]);
+
+        $this->details = array_merge($this->details, $newRows);
+
+        \Flux::toast('5 filas agregadas', variant: 'success');
+    }
+
     public function save(): void
     {
+        // Filter out empty rows (rows without product_id)
+        $filledDetails = array_filter($this->details, fn ($detail) => ! empty($detail['product_id']));
+
+        if (empty($filledDetails)) {
+            \Flux::toast('Debe agregar al menos un producto a la compra.', variant: 'danger');
+
+            return;
+        }
+
+        // Re-index the array
+        $this->details = array_values($filledDetails);
+
         $request = new StorePurchaseRequest;
         $rules = $request->rules();
         $messages = $request->messages();
@@ -363,6 +405,22 @@ new #[Layout('components.layouts.app')] class extends Component
             'name' => $product?->unitOfMeasure?->name ?? '',
         ];
     }
+
+    /**
+     * Get products as a keyed array for Alpine.js
+     * This allows instant access to product data without server roundtrip
+     */
+    #[Computed]
+    public function productsData(): array
+    {
+        return $this->products->keyBy('id')->map(fn ($p) => [
+            'name' => $p->name,
+            'sku' => $p->sku,
+            'cost' => (float) ($p->cost ?? 0),
+            'unit' => $p->unitOfMeasure?->abbreviation ?? '',
+            'unit_name' => $p->unitOfMeasure?->name ?? '',
+        ])->toArray();
+    }
 }; ?>
 
 <div class="space-y-6">
@@ -541,100 +599,276 @@ new #[Layout('components.layouts.app')] class extends Component
             @endif
         </flux:card>
 
-        <flux:card>
-            <div class="flex items-center justify-between mb-6">
+        <flux:card wire:key="products-card-{{ $company_id }}-{{ count($details) }}">
+            <div class="flex items-center justify-between mb-4">
                 <flux:heading size="lg" badge="Requerido">Productos</flux:heading>
-                <flux:button type="button" wire:click="addDetail" variant="primary" size="sm" icon="plus">
-                    Agregar Producto
+                <div class="flex gap-2">
+                    <flux:button type="button" variant="outline" size="sm" icon="plus" wire:click="addDetail" wire:loading.attr="disabled" wire:target="addDetail, addMoreRows">
+                        <span wire:loading.remove wire:target="addDetail">+1 fila</span>
+                        <span wire:loading wire:target="addDetail">...</span>
+                    </flux:button>
+                    <flux:button type="button" variant="primary" size="sm" icon="plus" wire:click="addMoreRows" wire:loading.attr="disabled" wire:target="addDetail, addMoreRows">
+                        <span wire:loading.remove wire:target="addMoreRows">+5 filas</span>
+                        <span wire:loading wire:target="addMoreRows">...</span>
+                    </flux:button>
+                </div>
+            </div>
+
+            <!-- Loading indicator when company changes -->
+            <div wire:loading wire:target="company_id" class="flex items-center justify-center py-8">
+                <flux:icon name="arrow-path" class="w-6 h-6 animate-spin text-blue-500" />
+                <flux:text class="ml-2 text-blue-600 dark:text-blue-400">Cargando productos...</flux:text>
+            </div>
+
+            <!-- Loading indicator when adding rows -->
+            <div wire:loading wire:target="addDetail, addMoreRows" class="flex items-center justify-center py-4">
+                <flux:icon name="arrow-path" class="w-5 h-5 animate-spin text-blue-500" />
+                <flux:text class="ml-2 text-blue-600 dark:text-blue-400">Agregando filas...</flux:text>
+            </div>
+
+            <div wire:loading.remove wire:target="company_id, addDetail, addMoreRows" class="overflow-x-auto"
+                 x-data
+                 x-init="
+                    $store.purchaseProducts = @js($this->productsData);
+                    $store.purchaseRowTotals = {};
+                    $store.purchaseGrandTotal = 0;
+                 "
+                 x-on:purchase-row-total-updated.window="
+                    $store.purchaseRowTotals[$event.detail.index] = $event.detail.total;
+                    $store.purchaseGrandTotal = Object.values($store.purchaseRowTotals).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
+                 "
+            >
+                <flux:table>
+                    <flux:table.columns>
+                        <flux:table.column class="w-12">#</flux:table.column>
+                        <flux:table.column class="min-w-[280px]">Producto</flux:table.column>
+                        <flux:table.column class="w-28 text-center">Cantidad</flux:table.column>
+                        <flux:table.column class="w-32 text-right">Costo Unit.</flux:table.column>
+                        <flux:table.column class="w-32 text-right">Total</flux:table.column>
+                        <flux:table.column class="w-24 text-center">Acciones</flux:table.column>
+                    </flux:table.columns>
+
+                    <flux:table.rows>
+                        @foreach($details as $index => $detail)
+                        <tbody x-data="purchaseRow({
+                            index: {{ $index }},
+                            productId: '{{ $detail['product_id'] }}',
+                            quantity: {{ (float) ($detail['quantity'] ?? 1) }},
+                            unitCost: {{ (float) ($detail['unit_cost'] ?? 0) }},
+                            discountPercentage: {{ (float) ($detail['discount_percentage'] ?? 0) }},
+                            taxPercentage: {{ (float) ($detail['tax_percentage'] ?? 13) }},
+                            lotNumber: `{{ addslashes($detail['lot_number'] ?? '') }}`,
+                            expirationDate: '{{ $detail['expiration_date'] ?? '' }}',
+                            notes: `{{ addslashes($detail['notes'] ?? '') }}`
+                        })" wire:key="detail-group-{{ $index }}">
+                        <flux:table.row x-bind:class="productId ? '' : 'opacity-60'">
+                            <flux:table.cell class="text-center text-sm text-zinc-600 dark:text-zinc-400">
+                                {{ $index + 1 }}
+                            </flux:table.cell>
+
+                            <!-- Product Select with Unit Badge -->
+                            <flux:table.cell>
+                                <div class="flex flex-col gap-1">
+                                    <flux:select
+                                        variant="listbox"
+                                        searchable
+                                        x-model="productId"
+                                        x-on:change="selectProduct($event.target.value)"
+                                        :disabled="$this->isSuperAdmin() && !$company_id"
+                                        placeholder="{{ $this->isSuperAdmin() && !$company_id ? 'Seleccione empresa primero' : 'Buscar producto...' }}"
+                                    >
+                                        @foreach($this->products as $product)
+                                            <flux:select.option value="{{ $product->id }}">
+                                                {{ $product->name }}{{ $product->sku ? ' - ' . $product->sku : '' }}
+                                            </flux:select.option>
+                                        @endforeach
+                                    </flux:select>
+
+                                    <!-- Unit Badge (Alpine.js - instant) -->
+                                    <template x-if="productInfo && productInfo.unit">
+                                        <div class="flex items-center gap-2">
+                                            <span class="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-700 px-2 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                                                Unidad: <span x-text="productInfo.unit" class="ml-1"></span>
+                                            </span>
+                                        </div>
+                                    </template>
+                                    <flux:error name="details.{{ $index }}.product_id" />
+                                </div>
+                            </flux:table.cell>
+
+                            <!-- Quantity -->
+                            <flux:table.cell>
+                                <div class="flex flex-col gap-1">
+                                    <input
+                                        type="number"
+                                        step="0.0001"
+                                        min="0.0001"
+                                        x-model.number="quantity"
+                                        @input="emitTotal()"
+                                        @change="updateQuantity()"
+                                        class="block w-full text-center rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                                    />
+                                    <flux:error name="details.{{ $index }}.quantity" />
+                                </div>
+                            </flux:table.cell>
+
+                            <!-- Unit Cost -->
+                            <flux:table.cell>
+                                <div class="flex flex-col gap-1">
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        x-model.number="unitCost"
+                                        @input="emitTotal()"
+                                        @change="updateUnitCost()"
+                                        placeholder="0.00"
+                                        class="block w-full text-right rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                                    />
+                                    <flux:error name="details.{{ $index }}.unit_cost" />
+                                </div>
+                            </flux:table.cell>
+
+                            <!-- Total (Calculated with Alpine - instant) -->
+                            <flux:table.cell class="text-right font-semibold">
+                                $<span x-text="total.toFixed(2)"></span>
+                            </flux:table.cell>
+
+                            <!-- Actions -->
+                            <flux:table.cell class="text-center">
+                                <div class="flex items-center justify-center gap-1" x-show="productId">
+                                    <!-- Expand/Collapse for extra fields (Alpine.js - client-side only) -->
+                                    <flux:button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        x-on:click="expanded = !expanded"
+                                        x-tooltip="'Más opciones'"
+                                    >
+                                        <flux:icon x-show="!expanded" name="chevron-down" variant="mini" />
+                                        <flux:icon x-show="expanded" name="chevron-up" variant="mini" />
+                                    </flux:button>
+
+                                    <!-- Clear Button (Alpine.js - instant) -->
+                                    <flux:button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        icon="trash"
+                                        x-on:click="clearRow()"
+                                    />
+                                </div>
+                            </flux:table.cell>
+                        </flux:table.row>
+
+                        <!-- Expandable Row for additional fields (Alpine.js - client-side only) -->
+                        <flux:table.row x-show="expanded" x-collapse class="bg-zinc-50 dark:bg-zinc-800">
+                            <flux:table.cell colspan="6" class="py-3">
+                                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 px-4">
+                                    <!-- Discount -->
+                                    <div>
+                                        <flux:label class="text-xs">Descuento (%)</flux:label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            max="100"
+                                            x-model.number="discountPercentage"
+                                            @input="emitTotal()"
+                                            @change="updateDiscount()"
+                                            placeholder="0"
+                                            class="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                                        />
+                                    </div>
+
+                                    <!-- Tax -->
+                                    <div>
+                                        <flux:label class="text-xs">IVA (%)</flux:label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            x-model.number="taxPercentage"
+                                            @input="emitTotal()"
+                                            @change="updateTax()"
+                                            placeholder="13"
+                                            class="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                                        />
+                                    </div>
+
+                                    <!-- Lot Number -->
+                                    <div>
+                                        <flux:label class="text-xs">Número de Lote</flux:label>
+                                        <input
+                                            type="text"
+                                            x-model="lotNumber"
+                                            @blur="syncToLivewire()"
+                                            placeholder="Ej: LOT-001"
+                                            class="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                                        />
+                                    </div>
+
+                                    <!-- Expiration Date -->
+                                    <div>
+                                        <flux:label class="text-xs">Fecha Vencimiento</flux:label>
+                                        <input
+                                            type="date"
+                                            x-model="expirationDate"
+                                            @change="syncToLivewire()"
+                                            class="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                                        />
+                                    </div>
+
+                                    <!-- Notes -->
+                                    <div>
+                                        <flux:label class="text-xs">Notas</flux:label>
+                                        <input
+                                            type="text"
+                                            x-model="notes"
+                                            @blur="syncToLivewire()"
+                                            placeholder="Notas opcionales..."
+                                            class="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                                        />
+                                    </div>
+                                </div>
+
+                                <!-- Summary when expanded -->
+                                <div class="flex justify-end gap-4 mt-3 px-4 text-xs text-zinc-500 dark:text-zinc-400">
+                                    <span>Subtotal: $<span x-text="subtotal.toFixed(2)"></span></span>
+                                    <span x-show="discountAmount > 0">Descuento: -$<span x-text="discountAmount.toFixed(2)"></span></span>
+                                    <span x-show="taxAmount > 0">IVA: +$<span x-text="taxAmount.toFixed(2)"></span></span>
+                                </div>
+                            </flux:table.cell>
+                        </flux:table.row>
+                        </tbody>
+                        @endforeach
+                    </flux:table.rows>
+                </flux:table>
+            </div>
+
+            <!-- Bottom buttons to add more rows -->
+            <div class="mt-4 flex justify-end gap-2">
+                <flux:button type="button" variant="outline" size="sm" icon="plus" wire:click="addDetail" wire:loading.attr="disabled" wire:target="addDetail, addMoreRows">
+                    <span wire:loading.remove wire:target="addDetail">+1 fila</span>
+                    <span wire:loading wire:target="addDetail">Agregando...</span>
+                </flux:button>
+                <flux:button type="button" variant="primary" size="sm" icon="plus" wire:click="addMoreRows" wire:loading.attr="disabled" wire:target="addDetail, addMoreRows">
+                    <span wire:loading.remove wire:target="addMoreRows">+5 filas</span>
+                    <span wire:loading wire:target="addMoreRows">Agregando...</span>
                 </flux:button>
             </div>
 
-            <div class="space-y-4">
-                @foreach ($details as $index => $detail)
-                    <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg" wire:key="detail-{{ $index }}">
-                        <div class="flex items-start justify-between mb-4">
-                            <flux:heading size="sm">Producto #{{ $index + 1 }}</flux:heading>
-                            @if (count($details) > 1)
-                                <flux:button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    icon="trash"
-                                    wire:click="removeDetail({{ $index }})"
-                                >
-                                    Eliminar
-                                </flux:button>
-                            @endif
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <flux:field class="md:col-span-2">
-                                <flux:label badge="Requerido">Producto</flux:label>
-                                <flux:select wire:model.live="details.{{ $index }}.product_id" variant="listbox" searchable placeholder="Buscar producto..." :disabled="$this->isSuperAdmin() && !$company_id">
-                                    @foreach ($this->products as $product)
-                                        <flux:select.option value="{{ $product->id }}">{{ $product->name }} - {{ $product->sku }}</flux:select.option>
-                                    @endforeach
-                                </flux:select>
-                                <flux:error name="details.{{ $index }}.product_id" />
-                            </flux:field>
-
-                            <flux:field>
-                                <flux:label badge="Requerido">Cantidad</flux:label>
-                                <div class="flex items-center gap-2">
-                                    <flux:input type="number" step="0.0001" wire:model="details.{{ $index }}.quantity" class="flex-1" />
-                                    @if($detail['product_id'])
-                                        @php $unit = $this->getProductUnit($detail['product_id']); @endphp
-                                        @if($unit['abbreviation'])
-                                            <flux:tooltip content="{{ $unit['name'] }}">
-                                                <flux:badge color="zinc" class="whitespace-nowrap cursor-help">
-                                                    {{ $unit['abbreviation'] }}
-                                                </flux:badge>
-                                            </flux:tooltip>
-                                        @endif
-                                    @endif
-                                </div>
-                                <flux:error name="details.{{ $index }}.quantity" />
-                            </flux:field>
-
-                            <flux:field>
-                                <flux:label badge="Requerido">Costo Unitario ($)</flux:label>
-                                <flux:input type="number" step="0.01" wire:model="details.{{ $index }}.unit_cost" />
-                                <flux:error name="details.{{ $index }}.unit_cost" />
-                            </flux:field>
-
-                            <flux:field>
-                                <flux:label>Descuento (%)</flux:label>
-                                <flux:input type="number" step="0.01" wire:model="details.{{ $index }}.discount_percentage" />
-                                <flux:error name="details.{{ $index }}.discount_percentage" />
-                            </flux:field>
-
-                            <flux:field>
-                                <flux:label>IVA (%)</flux:label>
-                                <flux:input type="number" step="0.01" wire:model="details.{{ $index }}.tax_percentage" />
-                                <flux:error name="details.{{ $index }}.tax_percentage" />
-                            </flux:field>
-
-                            <flux:field>
-                                <flux:label>Número de Lote</flux:label>
-                                <flux:input wire:model="details.{{ $index }}.lot_number" />
-                                <flux:error name="details.{{ $index }}.lot_number" />
-                            </flux:field>
-
-                            <flux:field>
-                                <flux:label>Fecha de Vencimiento</flux:label>
-                                <flux:input type="date" wire:model="details.{{ $index }}.expiration_date" />
-                                <flux:error name="details.{{ $index }}.expiration_date" />
-                            </flux:field>
-                        </div>
-
-                        <flux:field class="mt-4">
-                            <flux:label>Notas del Producto</flux:label>
-                            <flux:textarea wire:model="details.{{ $index }}.notes" rows="2" />
-                            <flux:error name="details.{{ $index }}.notes" />
-                        </flux:field>
-                    </div>
-                @endforeach
+            <!-- Grand Total (calculated with Alpine.js for real-time updates) -->
+            <div class="mt-4 flex justify-end" x-data>
+                <div class="bg-zinc-100 dark:bg-zinc-800 px-6 py-3 rounded-lg">
+                    <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">Total General</flux:text>
+                    <flux:heading size="lg">
+                        $<span x-text="($store.purchaseGrandTotal || 0).toFixed(2)">0.00</span>
+                    </flux:heading>
+                </div>
             </div>
+
+            <flux:error name="details" />
         </flux:card>
 
         <flux:card>

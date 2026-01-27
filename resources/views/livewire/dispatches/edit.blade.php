@@ -98,6 +98,23 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->details = array_values($this->details);
     }
 
+    public function addMoreRows(): void
+    {
+        // Add 5 rows at once (single array operation, single re-render)
+        $newRows = array_fill(0, 5, [
+            'id' => null,
+            'product_id' => '',
+            'quantity' => 1,
+            'unit_of_measure_id' => '',
+            'unit_price' => 0,
+            'notes' => '',
+        ]);
+
+        $this->details = array_merge($this->details, $newRows);
+
+        \Flux::toast('5 filas agregadas', variant: 'success');
+    }
+
     #[\Livewire\Attributes\Computed]
     public function employees()
     {
@@ -127,6 +144,18 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function save(): void
     {
+        // Filter out empty rows (rows without product_id)
+        $filledDetails = array_filter($this->details, fn ($detail) => ! empty($detail['product_id']));
+
+        if (empty($filledDetails)) {
+            \Flux::toast('Debe agregar al menos un producto al despacho.', variant: 'danger');
+
+            return;
+        }
+
+        // Re-index the array
+        $this->details = array_values($filledDetails);
+
         $this->validate([
             'warehouse_id' => 'required|exists:warehouses,id',
             'dispatch_type' => 'required|in:venta,interno,externo,donacion',
@@ -192,6 +221,27 @@ new #[Layout('components.layouts.app')] class extends Component
         return auth()->user()->isSuperAdmin();
     }
 
+    /**
+     * Get products as a keyed array for Alpine.js
+     * This allows instant access to product data without server roundtrip
+     */
+    #[\Livewire\Attributes\Computed]
+    public function productsData(): array
+    {
+        $companyId = $this->dispatch->company_id;
+
+        return Product::with('unitOfMeasure')
+            ->where('company_id', $companyId)
+            ->where('is_active', true)
+            ->get()
+            ->keyBy('id')
+            ->map(fn ($p) => [
+                'cost' => (float) ($p->cost ?? 0),
+                'unit' => $p->unitOfMeasure?->abbreviation ?? '',
+                'unit_id' => $p->unit_of_measure_id,
+            ])->toArray();
+    }
+
     public function with(): array
     {
         // Get the company_id from the dispatch being edited
@@ -200,7 +250,7 @@ new #[Layout('components.layouts.app')] class extends Component
         return [
             'warehouses' => Warehouse::where('company_id', $companyId)->where('is_active', true)->orderBy('name')->get(),
             'employees' => Employee::where('company_id', $companyId)->where('is_active', true)->orderBy('name')->get(),
-            'products' => Product::where('company_id', $companyId)->where('is_active', true)->orderBy('name')->get(),
+            'products' => Product::with('unitOfMeasure')->where('company_id', $companyId)->where('is_active', true)->orderBy('name')->get(),
             'units' => UnitOfMeasure::forCompany($companyId)->active()->get(),
         ];
     }
@@ -305,72 +355,203 @@ new #[Layout('components.layouts.app')] class extends Component
             </div>
         </flux:card>
 
-        <flux:card>
-            <div class="flex items-center justify-between">
-                <flux:heading size="lg">Productos</flux:heading>
-                <flux:button type="button" size="sm" icon="plus" wire:click="addDetail">
-                    Agregar Producto
+        <flux:card wire:key="products-card-{{ count($details) }}">
+            <div class="flex items-center justify-between mb-4">
+                <flux:heading size="lg" badge="Requerido">Productos del Despacho</flux:heading>
+                <div class="flex gap-2">
+                    <flux:button type="button" variant="outline" size="sm" icon="plus" wire:click="addDetail" wire:loading.attr="disabled" wire:target="addDetail, addMoreRows">
+                        <span wire:loading.remove wire:target="addDetail">+1 fila</span>
+                        <span wire:loading wire:target="addDetail">...</span>
+                    </flux:button>
+                    <flux:button type="button" variant="primary" size="sm" icon="plus" wire:click="addMoreRows" wire:loading.attr="disabled" wire:target="addDetail, addMoreRows">
+                        <span wire:loading.remove wire:target="addMoreRows">+5 filas</span>
+                        <span wire:loading wire:target="addMoreRows">...</span>
+                    </flux:button>
+                </div>
+            </div>
+
+            <!-- Loading indicator when adding rows -->
+            <div wire:loading wire:target="addDetail, addMoreRows" class="flex items-center justify-center py-4">
+                <flux:icon name="arrow-path" class="w-5 h-5 animate-spin text-blue-500" />
+                <flux:text class="ml-2 text-blue-600 dark:text-blue-400">Agregando filas...</flux:text>
+            </div>
+
+            <div wire:loading.remove wire:target="addDetail, addMoreRows" class="overflow-x-auto"
+                 x-data
+                 x-init="
+                    $store.dispatchProducts = @js($this->productsData);
+                    $store.rowTotals = {};
+                    $store.grandTotal = 0;
+                 "
+                 x-on:row-total-updated.window="
+                    $store.rowTotals[$event.detail.index] = $event.detail.total;
+                    $store.grandTotal = Object.values($store.rowTotals).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
+                 "
+            >
+                <flux:table>
+                    <flux:table.columns>
+                        <flux:table.column class="w-12">#</flux:table.column>
+                        <flux:table.column class="min-w-[300px]">Producto</flux:table.column>
+                        <flux:table.column class="w-28 text-center">Cantidad</flux:table.column>
+                        <flux:table.column class="w-32 text-right">Precio Unit.</flux:table.column>
+                        <flux:table.column class="w-32 text-right">Total</flux:table.column>
+                        <flux:table.column class="w-24 text-center">Acciones</flux:table.column>
+                    </flux:table.columns>
+
+                    <flux:table.rows>
+                        @foreach($details as $index => $detail)
+                        <tbody x-data="dispatchRow({
+                            index: {{ $index }},
+                            productId: '{{ $detail['product_id'] }}',
+                            quantity: {{ (float) ($detail['quantity'] ?? 1) }},
+                            unitPrice: {{ (float) ($detail['unit_price'] ?? 0) }},
+                            unitId: '{{ $detail['unit_of_measure_id'] }}',
+                            notes: `{{ addslashes($detail['notes'] ?? '') }}`
+                        })" wire:key="detail-group-{{ $index }}">
+                        <flux:table.row x-bind:class="productId ? '' : 'opacity-60'">
+                            <flux:table.cell class="text-center text-sm text-zinc-600 dark:text-zinc-400">
+                                {{ $index + 1 }}
+                            </flux:table.cell>
+
+                            <!-- Product Select with Unit Badge -->
+                            <flux:table.cell>
+                                <div class="flex flex-col gap-1">
+                                    <flux:select
+                                        variant="listbox"
+                                        searchable
+                                        x-model="productId"
+                                        x-on:change="selectProduct($event.target.value)"
+                                        placeholder="Buscar producto..."
+                                    >
+                                        @foreach($products as $product)
+                                            <flux:select.option value="{{ $product->id }}">
+                                                {{ $product->name }}{{ $product->sku ? ' - ' . $product->sku : '' }}
+                                            </flux:select.option>
+                                        @endforeach
+                                    </flux:select>
+
+                                    <!-- Unit Badge (Alpine.js - instant) -->
+                                    <template x-if="productInfo">
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <template x-if="productInfo.unit">
+                                                <span class="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-700 px-2 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                                                    Unidad: <span x-text="productInfo.unit" class="ml-1"></span>
+                                                </span>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <flux:error name="details.{{ $index }}.product_id" />
+                                </div>
+                            </flux:table.cell>
+
+                            <!-- Quantity -->
+                            <flux:table.cell>
+                                <div class="flex flex-col gap-1">
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0.01"
+                                        x-model.number="quantity"
+                                        @input="emitTotal()"
+                                        @change="updateQuantity()"
+                                        class="block w-full text-center rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                                    />
+                                    <flux:error name="details.{{ $index }}.quantity" />
+                                </div>
+                            </flux:table.cell>
+
+                            <!-- Unit Price -->
+                            <flux:table.cell>
+                                <div class="flex flex-col gap-1">
+                                    <input
+                                        type="number"
+                                        step="0.0001"
+                                        min="0"
+                                        x-model.number="unitPrice"
+                                        @input="emitTotal()"
+                                        @change="updateUnitPrice()"
+                                        placeholder="0.0000"
+                                        class="block w-full text-right rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                                    />
+                                    <flux:error name="details.{{ $index }}.unit_price" />
+                                </div>
+                            </flux:table.cell>
+
+                            <!-- Total (Calculated with Alpine - instant) -->
+                            <flux:table.cell class="text-right font-semibold">
+                                $<span x-text="total.toFixed(4)"></span>
+                            </flux:table.cell>
+
+                            <!-- Actions -->
+                            <flux:table.cell class="text-center">
+                                <div class="flex items-center justify-center gap-1" x-show="productId">
+                                    <!-- Expand/Collapse for Notes (Alpine.js - client-side only) -->
+                                    <flux:button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        x-on:click="expanded = !expanded"
+                                    >
+                                        <flux:icon x-show="!expanded" name="chevron-down" variant="mini" />
+                                        <flux:icon x-show="expanded" name="chevron-up" variant="mini" />
+                                    </flux:button>
+
+                                    <!-- Clear Button (Alpine.js - instant) -->
+                                    <flux:button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        icon="trash"
+                                        x-on:click="clearRow()"
+                                    />
+                                </div>
+                            </flux:table.cell>
+                        </flux:table.row>
+
+                        <!-- Expandable Notes Row (Alpine.js - client-side only) -->
+                        <flux:table.row x-show="expanded" x-collapse class="bg-zinc-50 dark:bg-zinc-800">
+                            <flux:table.cell colspan="6" class="py-3">
+                                <div class="px-4">
+                                    <flux:label>Notas (opcional)</flux:label>
+                                    <textarea
+                                        x-model="notes"
+                                        @blur="syncToLivewire()"
+                                        placeholder="Información adicional sobre este producto..."
+                                        rows="2"
+                                        class="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                                    ></textarea>
+                                </div>
+                            </flux:table.cell>
+                        </flux:table.row>
+                        </tbody>
+                        @endforeach
+                    </flux:table.rows>
+                </flux:table>
+            </div>
+
+            <!-- Bottom buttons to add more rows -->
+            <div class="mt-4 flex justify-end gap-2">
+                <flux:button type="button" variant="outline" size="sm" icon="plus" wire:click="addDetail" wire:loading.attr="disabled" wire:target="addDetail, addMoreRows">
+                    <span wire:loading.remove wire:target="addDetail">+1 fila</span>
+                    <span wire:loading wire:target="addDetail">Agregando...</span>
+                </flux:button>
+                <flux:button type="button" variant="primary" size="sm" icon="plus" wire:click="addMoreRows" wire:loading.attr="disabled" wire:target="addDetail, addMoreRows">
+                    <span wire:loading.remove wire:target="addMoreRows">+5 filas</span>
+                    <span wire:loading wire:target="addMoreRows">Agregando...</span>
                 </flux:button>
             </div>
 
-            <div class="mt-4 space-y-4">
-                @foreach ($details as $index => $detail)
-                    <div class="p-4 border rounded-lg dark:border-gray-700">
-                        <div class="flex items-start justify-between mb-4">
-                            <flux:heading size="sm">Producto #{{ $index + 1 }}</flux:heading>
-                            @if (count($details) > 1)
-                                <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeDetail({{ $index }})">
-                                    Eliminar
-                                </flux:button>
-                            @endif
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <flux:field class="md:col-span-2">
-                                <flux:label badge="Requerido">Producto</flux:label>
-                                <flux:select wire:model="details.{{ $index }}.product_id" required>
-                                    <option value="">Seleccione producto</option>
-                                    @foreach ($products as $product)
-                                        <option value="{{ $product->id }}">{{ $product->name }}</option>
-                                    @endforeach
-                                </flux:select>
-                                <flux:error name="details.{{ $index }}.product_id" />
-                            </flux:field>
-
-                            <flux:field>
-                                <flux:label badge="Requerido">Cantidad</flux:label>
-                                <flux:input type="number" step="0.01" wire:model="details.{{ $index }}.quantity" required />
-                                <flux:error name="details.{{ $index }}.quantity" />
-                            </flux:field>
-
-                            <flux:field>
-                                <flux:label badge="Requerido">Unidad</flux:label>
-                                <flux:select wire:model="details.{{ $index }}.unit_of_measure_id" required>
-                                    <option value="">Unidad</option>
-                                    @foreach ($units as $unit)
-                                        <option value="{{ $unit->id }}">{{ $unit->name }} ({{ $unit->abbreviation }})</option>
-                                    @endforeach
-                                </flux:select>
-                                <flux:error name="details.{{ $index }}.unit_of_measure_id" />
-                            </flux:field>
-
-                            <flux:field class="md:col-span-2">
-                                <flux:label>Precio Unitario</flux:label>
-                                <flux:input type="number" step="0.01" wire:model="details.{{ $index }}.unit_price" placeholder="0.00" />
-                                <flux:error name="details.{{ $index }}.unit_price" />
-                            </flux:field>
-
-                            <flux:field class="md:col-span-2">
-                                <flux:label>Notas del Producto</flux:label>
-                                <flux:textarea wire:model="details.{{ $index }}.notes" rows="2" />
-                                <flux:error name="details.{{ $index }}.notes" />
-                            </flux:field>
-                        </div>
-                    </div>
-                @endforeach
-
-                @error('details') <flux:text size="sm" class="text-red-600">{{ $message }}</flux:text> @enderror
+            <!-- Grand Total (calculated with Alpine.js for real-time updates) -->
+            <div class="mt-4 flex justify-end" x-data>
+                <div class="bg-zinc-100 dark:bg-zinc-800 px-6 py-3 rounded-lg">
+                    <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">Total General</flux:text>
+                    <flux:heading size="lg">
+                        $<span x-text="($store.grandTotal || 0).toFixed(4)">0.0000</span>
+                    </flux:heading>
+                </div>
             </div>
+
+            <flux:error name="details" />
         </flux:card>
 
         <div class="flex justify-end gap-2">

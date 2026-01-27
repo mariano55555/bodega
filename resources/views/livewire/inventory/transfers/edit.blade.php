@@ -2,6 +2,7 @@
 
 use App\Http\Requests\UpdateInventoryTransferRequest;
 use App\Models\{InventoryTransfer, InventoryTransferDetail, Warehouse, Product, Inventory};
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 
@@ -13,7 +14,6 @@ new #[Layout('components.layouts.app')] class extends Component {
     public $notes = '';
     public $shipping_cost = 0;
     public $products = [];
-    public $availableStock = [];
 
     public function mount(InventoryTransfer $transfer): void
     {
@@ -34,17 +34,21 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->notes = $transfer->notes;
         $this->shipping_cost = $transfer->shipping_cost ?? 0;
 
-        // Populate products
+        // Populate existing products from transfer details
         foreach ($transfer->details as $detail) {
             $this->products[] = [
                 'id' => $detail->id,
                 'product_id' => $detail->product_id,
                 'quantity' => $detail->quantity,
-                'notes' => $detail->notes,
+                'notes' => $detail->notes ?? '',
             ];
+        }
 
-            // Check stock for existing products
-            $this->checkAvailableStock(count($this->products) - 1);
+        // Add empty rows to make total of 10 (or more if existing > 10)
+        $existingCount = count($this->products);
+        $targetCount = max(10, $existingCount);
+        for ($i = $existingCount; $i < $targetCount; $i++) {
+            $this->addProduct();
         }
     }
 
@@ -57,51 +61,119 @@ new #[Layout('components.layouts.app')] class extends Component {
         ];
     }
 
+    public function addMoreRows(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            $this->addProduct();
+        }
+        \Flux::toast('5 filas agregadas', variant: 'success');
+    }
+
     public function removeProduct($index): void
     {
         unset($this->products[$index]);
         $this->products = array_values($this->products);
-        unset($this->availableStock[$index]);
-        $this->availableStock = array_values($this->availableStock);
     }
 
-    public function updatedProducts($value, $key): void
+    #[Computed]
+    public function productsData(): array
     {
-        // Check if product_id was updated
-        if (str_contains($key, 'product_id')) {
-            $index = explode('.', $key)[0];
-            $this->checkAvailableStock($index);
+        $companyId = $this->transfer->company_id;
+
+        if (! $this->from_warehouse_id) {
+            return [];
         }
+
+        // Get product IDs already in the transfer (to always show them)
+        $existingProductIds = collect($this->products)->pluck('product_id')->filter()->toArray();
+
+        // Only get products that have stock OR are already in the transfer
+        return Product::where('company_id', $companyId)
+            ->where('is_active', true)
+            ->where(function ($query) use ($existingProductIds) {
+                $query->whereHas('inventory', function ($q) {
+                    $q->where('warehouse_id', $this->from_warehouse_id)
+                        ->where('available_quantity', '>', 0);
+                })->orWhereIn('id', $existingProductIds);
+            })
+            ->with(['unitOfMeasure', 'inventory' => function ($query) {
+                $query->where('warehouse_id', $this->from_warehouse_id);
+            }])
+            ->get()
+            ->keyBy('id')
+            ->map(fn($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'sku' => $p->sku,
+                'unit_abbreviation' => $p->unitOfMeasure?->abbreviation ?? 'UND',
+                'unit_name' => $p->unitOfMeasure?->name ?? 'Unidad',
+                'available_stock' => $p->inventory->first()?->available_quantity ?? 0,
+            ])
+            ->toArray();
+    }
+
+    #[Computed]
+    public function availableStockData(): array
+    {
+        if (! $this->from_warehouse_id) {
+            return [];
+        }
+
+        return Inventory::where('warehouse_id', $this->from_warehouse_id)
+            ->where('available_quantity', '>', 0)
+            ->get()
+            ->keyBy('product_id')
+            ->map(fn($inv) => $inv->available_quantity)
+            ->toArray();
+    }
+
+    /**
+     * Get products with stock for the dropdown
+     */
+    #[Computed]
+    public function productsWithStock()
+    {
+        $companyId = $this->transfer->company_id;
+
+        if (! $this->from_warehouse_id) {
+            return collect();
+        }
+
+        // Get product IDs already in the transfer (to always show them)
+        $existingProductIds = collect($this->products)->pluck('product_id')->filter()->toArray();
+
+        return Product::where('company_id', $companyId)
+            ->where('is_active', true)
+            ->where(function ($query) use ($existingProductIds) {
+                $query->whereHas('inventory', function ($q) {
+                    $q->where('warehouse_id', $this->from_warehouse_id)
+                        ->where('available_quantity', '>', 0);
+                })->orWhereIn('id', $existingProductIds);
+            })
+            ->with(['unitOfMeasure', 'inventory' => function ($query) {
+                $query->where('warehouse_id', $this->from_warehouse_id);
+            }])
+            ->orderBy('name')
+            ->get();
     }
 
     public function updatedFromWarehouseId(): void
     {
-        // Recheck stock for all products when warehouse changes
-        foreach ($this->products as $index => $product) {
-            if (! empty($product['product_id'])) {
-                $this->checkAvailableStock($index);
-            }
-        }
-    }
-
-    private function checkAvailableStock($index): void
-    {
-        if (empty($this->from_warehouse_id) || empty($this->products[$index]['product_id'])) {
-            unset($this->availableStock[$index]);
-
-            return;
-        }
-
-        // Get current available quantity from inventory table
-        $inventory = Inventory::where('warehouse_id', $this->from_warehouse_id)
-            ->where('product_id', $this->products[$index]['product_id'])
-            ->first();
-
-        $this->availableStock[$index] = $inventory ? $inventory->available_quantity : 0;
+        // Stock data will be automatically refreshed via computed property
     }
 
     public function save(): void
     {
+        // Filter out empty rows before validation
+        $this->products = array_values(array_filter($this->products, function ($product) {
+            return ! empty($product['product_id']);
+        }));
+
+        if (empty($this->products)) {
+            $this->addError('products', 'Debe agregar al menos un producto al traslado.');
+            return;
+        }
+
         $validated = $this->validate((new UpdateInventoryTransferRequest())->rules());
 
         \DB::beginTransaction();
@@ -146,11 +218,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function with(): array
     {
         return [
-            'warehouses' => Warehouse::where('company_id', auth()->user()->company_id)
-                ->where('is_active', true)
-                ->orderBy('name')
-                ->get(),
-            'allProducts' => Product::where('company_id', auth()->user()->company_id)
+            'warehouses' => Warehouse::where('company_id', $this->transfer->company_id)
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(),
@@ -168,28 +236,25 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     <form wire:submit="save" class="space-y-8">
         <flux:card>
-            <flux:heading size="lg">Información del Traslado</flux:heading>
-            <flux:separator />
+            <flux:heading size="lg" class="mb-6">Información del Traslado</flux:heading>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <flux:field>
-                    <flux:label>Bodega de Origen *</flux:label>
-                    <flux:select wire:model.live="from_warehouse_id">
-                        <option value="">Seleccione bodega de origen</option>
+                    <flux:label badge="Requerido">Bodega de Origen</flux:label>
+                    <flux:select variant="listbox" searchable wire:model.live="from_warehouse_id" placeholder="Seleccione bodega de origen">
                         @foreach ($warehouses as $warehouse)
-                            <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
+                            <flux:select.option value="{{ $warehouse->id }}">{{ $warehouse->name }}</flux:select.option>
                         @endforeach
                     </flux:select>
                     <flux:error name="from_warehouse_id" />
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>Bodega de Destino *</flux:label>
-                    <flux:select wire:model="to_warehouse_id">
-                        <option value="">Seleccione bodega de destino</option>
+                    <flux:label badge="Requerido">Bodega de Destino</flux:label>
+                    <flux:select variant="listbox" searchable wire:model="to_warehouse_id" placeholder="Seleccione bodega de destino">
                         @foreach ($warehouses as $warehouse)
                             @if ($warehouse->id != $from_warehouse_id)
-                                <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
+                                <flux:select.option value="{{ $warehouse->id }}">{{ $warehouse->name }}</flux:select.option>
                             @endif
                         @endforeach
                     </flux:select>
@@ -210,80 +275,196 @@ new #[Layout('components.layouts.app')] class extends Component {
             </div>
         </flux:card>
 
-        <flux:card>
+        <flux:card wire:key="products-card-{{ $from_warehouse_id }}-{{ count($products) }}">
             <div class="flex items-center justify-between mb-4">
-                <flux:heading size="lg">Productos *</flux:heading>
-                <flux:button type="button" wire:click="addProduct" variant="primary" size="sm" icon="plus">
-                    Agregar Producto
-                </flux:button>
+                <flux:heading size="lg" badge="Requerido">Productos</flux:heading>
+                <div class="flex gap-2">
+                    <flux:button type="button" wire:click="addProduct" variant="outline" size="sm" icon="plus" wire:loading.attr="disabled" wire:target="addProduct, addMoreRows">
+                        <span wire:loading.remove wire:target="addProduct">+1 fila</span>
+                        <span wire:loading wire:target="addProduct">...</span>
+                    </flux:button>
+                    <flux:button type="button" wire:click="addMoreRows" variant="primary" size="sm" icon="plus" wire:loading.attr="disabled" wire:target="addProduct, addMoreRows">
+                        <span wire:loading.remove wire:target="addMoreRows">+5 filas</span>
+                        <span wire:loading wire:target="addMoreRows">...</span>
+                    </flux:button>
+                </div>
             </div>
-            <flux:separator />
 
             @if (empty($from_warehouse_id))
                 <flux:callout color="yellow" class="mb-6">
-                    Por favor seleccione la bodega de origen para ver el inventario disponible.
+                    Por favor seleccione la bodega de origen para ver los productos con stock disponible.
+                </flux:callout>
+            @elseif ($from_warehouse_id && $this->productsWithStock->isEmpty())
+                <flux:callout color="red" class="mb-6" icon="exclamation-triangle">
+                    No hay productos con stock disponible en la bodega seleccionada.
                 </flux:callout>
             @endif
 
-            <div class="space-y-4">
-                @foreach ($products as $index => $product)
-                    <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg" wire:key="product-{{ $index }}">
-                        <div class="flex items-start justify-between mb-4">
-                            <flux:heading size="sm">Producto #{{ $index + 1 }}</flux:heading>
-                            @if (count($products) > 1)
-                                <flux:button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    icon="trash"
-                                    wire:click="removeProduct({{ $index }})"
-                                >
-                                    Eliminar
-                                </flux:button>
-                            @endif
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <flux:field class="md:col-span-2">
-                                <flux:label>Producto *</flux:label>
-                                <flux:select wire:model.live="products.{{ $index }}.product_id">
-                                    <option value="">Seleccione un producto</option>
-                                    @foreach ($allProducts as $prod)
-                                        <option value="{{ $prod->id }}">{{ $prod->name }} - {{ $prod->sku }}</option>
-                                    @endforeach
-                                </flux:select>
-                                <flux:error name="products.{{ $index }}.product_id" />
-                            </flux:field>
-
-                            <flux:field>
-                                <flux:label>Cantidad *</flux:label>
-                                <flux:input type="number" step="0.0001" wire:model="products.{{ $index }}.quantity" />
-                                <flux:error name="products.{{ $index }}.quantity" />
-
-                                @if (isset($availableStock[$index]))
-                                    <div class="mt-2 text-sm">
-                                        <span class="text-gray-600 dark:text-gray-400">Stock disponible:</span>
-                                        <span class="font-medium {{ $availableStock[$index] > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                                            {{ number_format($availableStock[$index], 4) }} unidades
-                                        </span>
-                                    </div>
-                                @endif
-                            </flux:field>
-
-                            <flux:field>
-                                <flux:label>Notas del Producto</flux:label>
-                                <flux:input wire:model="products.{{ $index }}.notes" placeholder="Observaciones específicas" />
-                                <flux:error name="products.{{ $index }}.notes" />
-                            </flux:field>
-                        </div>
-                    </div>
-                @endforeach
+            <!-- Loading indicator when warehouse changes -->
+            <div wire:loading wire:target="from_warehouse_id" class="flex items-center justify-center py-8">
+                <flux:icon name="arrow-path" class="w-6 h-6 animate-spin text-blue-500" />
+                <flux:text class="ml-2 text-blue-600">Cargando inventario...</flux:text>
             </div>
+
+            <!-- Loading indicator when adding rows -->
+            <div wire:loading wire:target="addProduct, addMoreRows" class="flex items-center justify-center py-4">
+                <flux:icon name="arrow-path" class="w-5 h-5 animate-spin text-blue-500" />
+                <flux:text class="ml-2 text-blue-600 dark:text-blue-400">Agregando filas...</flux:text>
+            </div>
+
+            <div wire:loading.remove wire:target="from_warehouse_id, addProduct, addMoreRows" class="overflow-x-auto"
+                 x-data
+                 x-init="
+                    Alpine.store('transferProducts', @js($this->productsData));
+                    Alpine.store('transferAvailableStock', @js($this->availableStockData));
+                 ">
+                <flux:table>
+                    <flux:table.columns>
+                        <flux:table.column class="w-12">#</flux:table.column>
+                        <flux:table.column class="min-w-[300px]">Producto</flux:table.column>
+                        <flux:table.column class="w-28 text-center">Cantidad</flux:table.column>
+                        <flux:table.column class="w-32 text-center">Stock Disp.</flux:table.column>
+                        <flux:table.column class="w-24 text-center">Acciones</flux:table.column>
+                    </flux:table.columns>
+
+                    <flux:table.rows>
+                        @foreach ($products as $index => $product)
+                        <tbody x-data="transferRow({
+                            index: {{ $index }},
+                            productId: '{{ $product['product_id'] ?? '' }}',
+                            quantity: {{ $product['quantity'] ?? 1 }},
+                            notes: `{{ addslashes($product['notes'] ?? '') }}`
+                        })" wire:key="product-group-{{ $index }}">
+                        <flux:table.row x-bind:class="productId ? '' : 'opacity-60'">
+                            <flux:table.cell class="text-center text-sm text-zinc-600 dark:text-zinc-400">
+                                {{ $index + 1 }}
+                            </flux:table.cell>
+
+                            <!-- Product Selection -->
+                            <flux:table.cell>
+                                <div class="flex flex-col gap-1">
+                                    <flux:select
+                                        variant="listbox"
+                                        searchable
+                                        x-model="productId"
+                                        x-on:change="selectProduct($event.target.value)"
+                                        :disabled="!$from_warehouse_id"
+                                        placeholder="{{ !$from_warehouse_id ? 'Seleccione bodega primero' : ($this->productsWithStock->isEmpty() ? 'Sin productos con stock' : 'Seleccionar producto...') }}"
+                                    >
+                                        @foreach ($this->productsWithStock as $prod)
+                                            <flux:select.option value="{{ $prod->id }}">
+                                                {{ $prod->name }}{{ $prod->sku ? ' - ' . $prod->sku : '' }} ({{ number_format($prod->inventory->first()?->available_quantity ?? 0, 2) }} disp.)
+                                            </flux:select.option>
+                                        @endforeach
+                                    </flux:select>
+
+                                    <!-- Unit Badge (Alpine.js - instant) -->
+                                    <template x-if="productInfo">
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <template x-if="productInfo.unit_abbreviation">
+                                                <span class="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-700 px-2 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                                                    Unidad: <span x-text="productInfo.unit_abbreviation" class="ml-1"></span>
+                                                </span>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <flux:error name="products.{{ $index }}.product_id" />
+                                </div>
+                            </flux:table.cell>
+
+                            <!-- Quantity -->
+                            <flux:table.cell>
+                                <div class="flex flex-col gap-1">
+                                    <input
+                                        type="number"
+                                        x-model="quantity"
+                                        @change="updateQuantity()"
+                                        step="0.0001"
+                                        min="0"
+                                        class="block w-full text-center rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                                    />
+                                    <flux:error name="products.{{ $index }}.quantity" />
+                                </div>
+                            </flux:table.cell>
+
+                            <!-- Available Stock -->
+                            <flux:table.cell class="text-center">
+                                <template x-if="productId && {{ $from_warehouse_id ? 'true' : 'false' }}">
+                                    <span :class="availableStock > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'"
+                                          class="text-sm font-medium">
+                                        <span x-text="availableStock.toFixed(2)"></span>
+                                        <span x-text="productInfo?.unit_abbreviation" class="text-xs"></span>
+                                    </span>
+                                </template>
+                                <template x-if="!productId || !{{ $from_warehouse_id ? 'true' : 'false' }}">
+                                    <span class="text-gray-400 text-sm">-</span>
+                                </template>
+                            </flux:table.cell>
+
+                            <!-- Actions -->
+                            <flux:table.cell class="text-center">
+                                <div class="flex items-center justify-center gap-1" x-show="productId">
+                                    <!-- Expand/Collapse for Notes -->
+                                    <flux:button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        x-on:click="expanded = !expanded"
+                                    >
+                                        <flux:icon x-show="!expanded" name="chevron-down" variant="mini" />
+                                        <flux:icon x-show="expanded" name="chevron-up" variant="mini" />
+                                    </flux:button>
+
+                                    <!-- Clear Button -->
+                                    <flux:button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        icon="trash"
+                                        x-on:click="clearRow()"
+                                    />
+                                </div>
+                            </flux:table.cell>
+                        </flux:table.row>
+
+                        <!-- Expandable Notes Row -->
+                        <flux:table.row x-show="expanded" x-collapse class="bg-zinc-50 dark:bg-zinc-800">
+                            <flux:table.cell colspan="5" class="py-3">
+                                <div class="px-4">
+                                    <flux:label>Notas (opcional)</flux:label>
+                                    <textarea
+                                        x-model="notes"
+                                        @blur="syncToLivewire()"
+                                        placeholder="Observaciones del producto..."
+                                        rows="2"
+                                        class="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                                    ></textarea>
+                                </div>
+                            </flux:table.cell>
+                        </flux:table.row>
+                        </tbody>
+                        @endforeach
+                    </flux:table.rows>
+                </flux:table>
+            </div>
+
+            <!-- Bottom buttons to add more rows -->
+            <div class="mt-4 flex justify-end gap-2">
+                <flux:button type="button" variant="outline" size="sm" icon="plus" wire:click="addProduct" wire:loading.attr="disabled" wire:target="addProduct, addMoreRows">
+                    <span wire:loading.remove wire:target="addProduct">+1 fila</span>
+                    <span wire:loading wire:target="addProduct">Agregando...</span>
+                </flux:button>
+                <flux:button type="button" variant="primary" size="sm" icon="plus" wire:click="addMoreRows" wire:loading.attr="disabled" wire:target="addProduct, addMoreRows">
+                    <span wire:loading.remove wire:target="addMoreRows">+5 filas</span>
+                    <span wire:loading wire:target="addMoreRows">Agregando...</span>
+                </flux:button>
+            </div>
+
+            <flux:error name="products" class="mt-2" />
         </flux:card>
 
         <flux:card>
-            <flux:heading size="lg">Notas Generales</flux:heading>
-            <flux:separator />
+            <flux:heading size="lg" class="mb-6">Notas Generales</flux:heading>
 
             <flux:field>
                 <flux:label>Notas del Traslado</flux:label>
