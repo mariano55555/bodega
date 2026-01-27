@@ -30,6 +30,7 @@
                     <flux:navlist.item icon="gift" :href="route('donations.index')" :current="request()->routeIs('donations.*')" wire:navigate>{{ __('Donaciones') }}</flux:navlist.item>
                     <flux:navlist.item icon="arrow-path" :href="route('transfers.index')" :current="request()->routeIs('transfers.*')" wire:navigate>{{ __('Traslados') }}</flux:navlist.item>
                     <flux:navlist.item icon="truck" :href="route('dispatches.index')" :current="request()->routeIs('dispatches.*')" wire:navigate>{{ __('Despachos') }}</flux:navlist.item>
+                    <flux:navlist.item icon="cog-6-tooth" :href="route('internal-productions.index')" :current="request()->routeIs('internal-productions.*')" wire:navigate>{{ __('Producción Interna') }}</flux:navlist.item>
                     <flux:navlist.item icon="adjustments-horizontal" :href="route('adjustments.index')" :current="request()->routeIs('adjustments.*')" wire:navigate>{{ __('Ajustes de Inventario') }}</flux:navlist.item>
                     <flux:navlist.item icon="lock-closed" :href="route('closures.index')" :current="request()->routeIs('closures.*')" wire:navigate>{{ __('Cierres Mensuales') }}</flux:navlist.item>
                 </flux:navlist.group>

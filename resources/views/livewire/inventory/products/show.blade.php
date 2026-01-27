@@ -38,6 +38,9 @@ new #[Layout('components.layouts.app')] class extends Component
             <flux:button variant="ghost" size="sm" icon="arrow-left" wire:click="back">
                 Volver
             </flux:button>
+            <flux:button variant="primary" size="sm" icon="plus" href="{{ route('inventory.products.create') }}" wire:navigate>
+                Nuevo Producto
+            </flux:button>
         </div>
         <div class="flex items-start justify-between">
             <div class="flex-1">

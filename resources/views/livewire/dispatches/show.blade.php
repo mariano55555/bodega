@@ -89,6 +89,12 @@ new #[Layout('components.layouts.app')] class extends Component {
                 Volver
             </flux:button>
 
+            @if ($dispatch->status === 'entregado')
+                <flux:button variant="primary" href="{{ route('dispatches.create') }}" wire:navigate icon="plus">
+                    Nuevo Despacho
+                </flux:button>
+            @endif
+
             @if ($dispatch->canBeEdited())
                 <flux:button variant="primary" icon="pencil" href="{{ route('dispatches.edit', $dispatch) }}" wire:navigate>
                     Editar

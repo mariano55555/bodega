@@ -112,6 +112,14 @@ Route::middleware(['auth'])->group(function () {
         Volt::route('{dispatch:slug}/edit', 'dispatches.edit')->name('edit');
     });
 
+    // Internal Production Management Routes
+    Route::prefix('internal-productions')->name('internal-productions.')->group(function () {
+        Volt::route('/', 'internal-productions.index')->name('index');
+        Volt::route('create', 'internal-productions.create')->name('create');
+        Volt::route('{internalProduction:slug}', 'internal-productions.show')->name('show');
+        Volt::route('{internalProduction:slug}/edit', 'internal-productions.edit')->name('edit');
+    });
+
     // Donation Management Routes
     Route::prefix('donations')->name('donations.')->group(function () {
         Volt::route('/', 'donations.index')->name('index');

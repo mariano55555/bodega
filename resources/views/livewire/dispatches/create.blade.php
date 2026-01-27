@@ -5,6 +5,7 @@ use App\Models\Dispatch;
 use App\Models\DispatchDetail;
 use App\Models\Inventory;
 use App\Models\Product;
+use App\Models\Purchase;
 use App\Models\UnitOfMeasure;
 use App\Models\Warehouse;
 use Livewire\Attributes\Layout;
@@ -37,6 +38,15 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public array $details = [];
 
+    // Purchase loading properties
+    public string $purchaseSearch = '';
+
+    public ?int $loadedPurchaseId = null;
+
+    public ?string $loadedPurchaseNumber = null;
+
+    public array $purchaseLoadErrors = [];
+
     public function mount(): void
     {
         // Set default company to user's company if not super admin
@@ -63,6 +73,8 @@ new #[Layout('components.layouts.app')] class extends Component
         // Clear cached data since company changed
         unset($this->products);
         unset($this->employees);
+        // Clear loaded purchase
+        $this->clearLoadedPurchase();
     }
 
     public function updatedAreaId(): void
@@ -95,6 +107,11 @@ new #[Layout('components.layouts.app')] class extends Component
         unset($this->products);
         // Dispatch event to update Alpine's productsData
         $this->dispatch('products-updated', productsData: $this->productsData);
+        // Clear loaded purchase since warehouse changed
+        $this->purchaseSearch = '';
+        $this->loadedPurchaseId = null;
+        $this->loadedPurchaseNumber = null;
+        $this->purchaseLoadErrors = [];
     }
 
     public function isSuperAdmin(): bool
@@ -133,6 +150,143 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->details = array_merge($this->details, $newRows);
 
         \Flux::toast('5 filas agregadas', variant: 'success');
+    }
+
+    public function searchAndLoadPurchase(): void
+    {
+        $this->purchaseLoadErrors = [];
+
+        if (empty($this->purchaseSearch)) {
+            $this->purchaseLoadErrors[] = 'Ingrese un número de compra o factura.';
+
+            return;
+        }
+
+        if (empty($this->company_id)) {
+            $this->purchaseLoadErrors[] = 'Seleccione una empresa primero.';
+
+            return;
+        }
+
+        if (empty($this->warehouse_id)) {
+            $this->purchaseLoadErrors[] = 'Seleccione una bodega primero.';
+
+            return;
+        }
+
+        // Find purchase by purchase_number or document_number
+        $purchase = Purchase::where('company_id', $this->company_id)
+            ->where(function ($query) {
+                $query->where('purchase_number', $this->purchaseSearch)
+                    ->orWhere('document_number', $this->purchaseSearch);
+            })
+            ->with(['details.product', 'warehouse'])
+            ->first();
+
+        if (! $purchase) {
+            $this->purchaseLoadErrors[] = 'No se encontró la compra con el código: '.$this->purchaseSearch;
+
+            return;
+        }
+
+        // Validate status
+        if ($purchase->status !== 'recibido') {
+            $statusLabels = [
+                'borrador' => 'Borrador',
+                'pendiente' => 'Pendiente',
+                'aprobado' => 'Aprobado',
+                'cancelado' => 'Cancelado',
+            ];
+            $statusLabel = $statusLabels[$purchase->status] ?? $purchase->status;
+            $this->purchaseLoadErrors[] = 'La compra debe estar en estado "Recibido" para poder despachar. Estado actual: '.$statusLabel;
+
+            return;
+        }
+
+        // Validate warehouse matches
+        if ((int) $purchase->warehouse_id !== (int) $this->warehouse_id) {
+            $this->purchaseLoadErrors[] = 'La compra fue recibida en "'.$purchase->warehouse->name.'" pero la bodega seleccionada es diferente.';
+
+            return;
+        }
+
+        // Load products from purchase
+        $this->loadProductsFromPurchase($purchase);
+    }
+
+    private function loadProductsFromPurchase(Purchase $purchase): void
+    {
+        // Clear existing details
+        $this->details = [];
+
+        // Get available stock for validation
+        $availableStock = Inventory::where('warehouse_id', $this->warehouse_id)
+            ->whereIn('product_id', $purchase->details->pluck('product_id'))
+            ->get()
+            ->keyBy('product_id');
+
+        $stockWarnings = [];
+
+        // Load each purchase detail as a dispatch detail
+        foreach ($purchase->details as $detail) {
+            $currentStock = $availableStock->get($detail->product_id)?->available_quantity ?? 0;
+
+            // Add detail row
+            $this->details[] = [
+                'product_id' => (string) $detail->product_id,
+                'quantity' => min($detail->quantity, $currentStock), // Don't exceed available stock
+                'unit_of_measure_id' => (string) ($detail->product->unit_of_measure_id ?? ''),
+                'unit_price' => $detail->unit_cost ?? 0,
+                'notes' => $detail->notes ?? '',
+            ];
+
+            // Check for stock issues
+            if ($currentStock < $detail->quantity) {
+                $productName = $detail->product?->name ?? 'Producto #'.$detail->product_id;
+                $stockWarnings[] = "{$productName}: solicitado ".number_format($detail->quantity, 5).", disponible ".number_format($currentStock, 5);
+            }
+        }
+
+        // Set loaded purchase info
+        $this->loadedPurchaseId = $purchase->id;
+        $this->loadedPurchaseNumber = $purchase->purchase_number;
+
+        // Auto-fill notes
+        $this->notes = "Despacho de compra {$purchase->purchase_number}";
+
+        // Show success/warnings
+        if (empty($stockWarnings)) {
+            \Flux::toast(
+                heading: 'Compra Cargada',
+                text: 'Se cargaron '.count($this->details)." productos de la compra {$purchase->purchase_number}",
+                variant: 'success',
+            );
+        } else {
+            $this->purchaseLoadErrors = $stockWarnings;
+            \Flux::toast(
+                heading: 'Compra Cargada con Advertencias',
+                text: 'Algunos productos no tienen stock suficiente. Se ajustaron las cantidades.',
+                variant: 'warning',
+            );
+        }
+    }
+
+    public function clearLoadedPurchase(): void
+    {
+        $this->purchaseSearch = '';
+        $this->loadedPurchaseId = null;
+        $this->loadedPurchaseNumber = null;
+        $this->purchaseLoadErrors = [];
+        $this->notes = '';
+
+        // Reset to default empty rows
+        $this->details = array_fill(0, 10, [
+            'product_id' => '',
+            'quantity' => 1,
+            'unit_of_measure_id' => '',
+            'unit_price' => 0,
+            'notes' => '',
+        ]);
     }
 
     public function getAvailableStock(int $productId): float
@@ -547,6 +701,89 @@ new #[Layout('components.layouts.app')] class extends Component
                     <flux:error name="notes" />
                 </flux:field>
             </div>
+        </flux:card>
+
+        {{-- Load from Purchase Section --}}
+        <flux:card>
+            <flux:accordion>
+                <flux:accordion.item>
+                    <flux:accordion.heading>
+                        <div class="flex items-center gap-2">
+                            <flux:icon name="document-arrow-down" class="w-5 h-5" />
+                            <span>Cargar desde Compra</span>
+                            @if($loadedPurchaseNumber)
+                                <flux:badge color="green" size="sm">{{ $loadedPurchaseNumber }}</flux:badge>
+                            @endif
+                        </div>
+                    </flux:accordion.heading>
+                    <flux:accordion.content>
+                        <div class="space-y-4 pt-4">
+                            <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">
+                                Ingrese el número de compra o número de factura para cargar todos los productos automáticamente.
+                            </flux:text>
+
+                            <div class="flex gap-3" x-data="{ searchValue: '' }">
+                                <flux:field class="flex-1">
+                                    <flux:input
+                                        wire:model="purchaseSearch"
+                                        x-model="searchValue"
+                                        placeholder="Ej: PUR-20260127-ABC123 o FAC-001234"
+                                        :disabled="!$company_id || !$warehouse_id"
+                                        wire:keydown.enter="searchAndLoadPurchase"
+                                    />
+                                </flux:field>
+                                <flux:button
+                                    type="button"
+                                    variant="primary"
+                                    icon="magnifying-glass"
+                                    wire:click="searchAndLoadPurchase"
+                                    wire:loading.attr="disabled"
+                                    x-bind:disabled="!searchValue.trim() || {{ (!$company_id || !$warehouse_id) ? 'true' : 'false' }}"
+                                >
+                                    <span wire:loading.remove wire:target="searchAndLoadPurchase">Buscar</span>
+                                    <span wire:loading wire:target="searchAndLoadPurchase">Buscando...</span>
+                                </flux:button>
+                            </div>
+
+                            @if(!$company_id || !$warehouse_id)
+                                <flux:callout color="yellow" icon="information-circle">
+                                    Seleccione empresa y bodega primero para buscar compras.
+                                </flux:callout>
+                            @endif
+
+                            @if(!empty($purchaseLoadErrors))
+                                <flux:callout color="amber" icon="exclamation-triangle">
+                                    <div class="space-y-1">
+                                        @foreach($purchaseLoadErrors as $error)
+                                            <div>{{ $error }}</div>
+                                        @endforeach
+                                    </div>
+                                </flux:callout>
+                            @endif
+
+                            @if($loadedPurchaseNumber)
+                                <div class="flex items-center justify-between bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800">
+                                    <div class="flex items-center gap-2">
+                                        <flux:icon name="check-circle" class="w-5 h-5 text-green-600" />
+                                        <span class="text-green-700 dark:text-green-300">
+                                            Compra cargada: <strong>{{ $loadedPurchaseNumber }}</strong>
+                                        </span>
+                                    </div>
+                                    <flux:button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        icon="x-mark"
+                                        wire:click="clearLoadedPurchase"
+                                    >
+                                        Limpiar
+                                    </flux:button>
+                                </div>
+                            @endif
+                        </div>
+                    </flux:accordion.content>
+                </flux:accordion.item>
+            </flux:accordion>
         </flux:card>
 
         <flux:card wire:key="products-card-{{ $warehouse_id }}-{{ count($details) }}">
