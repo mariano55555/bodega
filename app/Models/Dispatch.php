@@ -31,6 +31,7 @@ class Dispatch extends Model
         // 'delivery_address', // Comentado por petición del cliente: quitar dirección de entrega
         'document_type',
         'document_number',
+        'physical_document_number',
         'document_date',
         'subtotal',
         'tax_amount',
@@ -88,7 +89,7 @@ class Dispatch extends Model
 
         static::creating(function ($dispatch) {
             if (empty($dispatch->dispatch_number)) {
-                $dispatch->dispatch_number = 'DIS-'.now()->format('Ymd').'-'.strtoupper(Str::random(6));
+                $dispatch->dispatch_number = self::generateDispatchNumber($dispatch->warehouse_id);
             }
             if (empty($dispatch->slug)) {
                 $dispatch->slug = Str::slug($dispatch->dispatch_number);
@@ -238,6 +239,40 @@ class Dispatch extends Model
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    /**
+     * Generate the dispatch number in format: BOD-XXX-D-YY
+     * Where XXX is the warehouse code suffix and YY is sequential per warehouse.
+     */
+    public static function generateDispatchNumber(int $warehouseId): string
+    {
+        $warehouse = Warehouse::find($warehouseId);
+
+        if (! $warehouse || empty($warehouse->code)) {
+            // Fallback to old format if warehouse not found
+            return 'DIS-'.now()->format('Ymd').'-'.strtoupper(Str::random(6));
+        }
+
+        // Extract the numeric part from warehouse code (e.g., "BOD-001" -> "001")
+        $warehouseCodeSuffix = substr($warehouse->code, -3);
+
+        // Get the last dispatch number for this warehouse
+        $lastDispatch = self::where('warehouse_id', $warehouseId)
+            ->where('dispatch_number', 'like', "BOD-{$warehouseCodeSuffix}-D-%")
+            ->orderByRaw('CAST(SUBSTRING(dispatch_number, -2) AS UNSIGNED) DESC')
+            ->first();
+
+        if ($lastDispatch) {
+            // Extract the sequential number and increment
+            $lastNumber = (int) substr($lastDispatch->dispatch_number, -2);
+            $nextNumber = $lastNumber + 1;
+        } else {
+            $nextNumber = 1;
+        }
+
+        // Format: BOD-XXX-D-YY (e.g., BOD-001-D-01)
+        return sprintf('BOD-%s-D-%02d', $warehouseCodeSuffix, $nextNumber);
     }
 
     public function calculateTotals(): void

@@ -216,7 +216,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 <div>
                     <flux:text class="text-sm font-medium text-green-600 dark:text-green-400">Valor Total</flux:text>
                     <flux:heading size="xl" class="text-green-900 dark:text-green-100">
-                        ${{ number_format($this->summaryStats['total_value'], 2) }}
+                        ${{ number_format($this->summaryStats['total_value'], 5) }}
                     </flux:heading>
                 </div>
                 <flux:icon name="currency-dollar" class="h-8 w-8 text-green-500" />
@@ -364,7 +364,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         </flux:table.cell>
 
                         <flux:table.cell>
-                            <span class="font-semibold">${{ number_format($purchase->total, 2) }}</span>
+                            <span class="font-semibold">${{ number_format($purchase->total, 5) }}</span>
                         </flux:table.cell>
 
                         <flux:table.cell>

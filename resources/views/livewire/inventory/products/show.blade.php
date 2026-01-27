@@ -130,7 +130,7 @@ new #[Layout('components.layouts.app')] class extends Component
                     <div>
                         <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Costo Unitario</dt>
                         <dd class="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                            ${{ number_format($product->cost, 2) }}
+                            ${{ number_format($product->cost, 5) }}
                         </dd>
                     </div>
 
@@ -192,7 +192,7 @@ new #[Layout('components.layouts.app')] class extends Component
                     <div>
                         <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Stock Mínimo</dt>
                         <dd class="mt-1 text-sm text-zinc-900 dark:text-zinc-100">
-                            {{ number_format($product->minimum_stock, 2) }}
+                            {{ number_format($product->minimum_stock, 5) }}
                         </dd>
                     </div>
                     @endif
@@ -201,7 +201,7 @@ new #[Layout('components.layouts.app')] class extends Component
                     <div>
                         <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Stock Máximo</dt>
                         <dd class="mt-1 text-sm text-zinc-900 dark:text-zinc-100">
-                            {{ number_format($product->maximum_stock, 2) }}
+                            {{ number_format($product->maximum_stock, 5) }}
                         </dd>
                     </div>
                     @endif

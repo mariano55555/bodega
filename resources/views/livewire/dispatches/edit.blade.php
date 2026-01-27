@@ -29,6 +29,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     // public $delivery_address = ''; // Comentado por petición del cliente: quitar dirección de entrega
 
+    public $physical_document_number = '';
+
     public $notes = '';
 
     public $status = 'borrador';
@@ -54,6 +56,7 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->recipient_email = $dispatch->recipient_email;
         $this->recipient_phone = $dispatch->recipient_phone;
         // $this->delivery_address = $dispatch->delivery_address; // Comentado por petición del cliente: quitar dirección de entrega
+        $this->physical_document_number = $dispatch->physical_document_number;
         $this->notes = $dispatch->notes;
         $this->status = $dispatch->status;
 
@@ -171,6 +174,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 'area_id' => $this->area_id,
                 'employee_id' => $this->employee_id ?: null,
                 'dispatch_type' => $this->dispatch_type,
+                'physical_document_number' => $this->physical_document_number,
                 'recipient_name' => $this->recipient_name,
                 'recipient_email' => $this->recipient_email,
                 'recipient_phone' => $this->recipient_phone,
@@ -292,6 +296,12 @@ new #[Layout('components.layouts.app')] class extends Component
                         <option value="externo">Externo</option>
                         <option value="donacion">Donación</option>
                     </flux:select>
+                </flux:field>
+
+                <flux:field>
+                    <flux:label badge="Requerido">Número de documento físico</flux:label>
+                    <flux:input wire:model="physical_document_number" placeholder="Ingrese el número de documento físico" />
+                    <flux:error name="physical_document_number" />
                 </flux:field>
 
                 <!-- Unidad Solicitante (Área) -->
@@ -449,8 +459,8 @@ new #[Layout('components.layouts.app')] class extends Component
                                 <div class="flex flex-col gap-1">
                                     <input
                                         type="number"
-                                        step="0.01"
-                                        min="0.01"
+                                        step="0.00001"
+                                        min="0.00001"
                                         x-model.number="quantity"
                                         @input="emitTotal()"
                                         @change="updateQuantity()"
@@ -465,12 +475,12 @@ new #[Layout('components.layouts.app')] class extends Component
                                 <div class="flex flex-col gap-1">
                                     <input
                                         type="number"
-                                        step="0.0001"
+                                        step="0.00001"
                                         min="0"
                                         x-model.number="unitPrice"
                                         @input="emitTotal()"
                                         @change="updateUnitPrice()"
-                                        placeholder="0.0000"
+                                        placeholder="0.00000"
                                         class="block w-full text-right rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
                                     />
                                     <flux:error name="details.{{ $index }}.unit_price" />
@@ -479,7 +489,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                             <!-- Total (Calculated with Alpine - instant) -->
                             <flux:table.cell class="text-right font-semibold">
-                                $<span x-text="total.toFixed(4)"></span>
+                                $<span x-text="total.toFixed(5)"></span>
                             </flux:table.cell>
 
                             <!-- Actions -->
@@ -546,7 +556,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 <div class="bg-zinc-100 dark:bg-zinc-800 px-6 py-3 rounded-lg">
                     <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">Total General</flux:text>
                     <flux:heading size="lg">
-                        $<span x-text="($store.grandTotal || 0).toFixed(4)">0.0000</span>
+                        $<span x-text="($store.grandTotal || 0).toFixed(5)">0.00000</span>
                     </flux:heading>
                 </div>
             </div>

@@ -45,7 +45,7 @@ class UpdateInventoryTransferRequest extends FormRequest
             ],
             'reason' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:1000'],
-            'shipping_cost' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'shipping_cost' => ['nullable', 'numeric', 'min:0', 'max:999999.99999'],
             'products' => ['required', 'array', 'min:1'],
             'products.*.product_id' => [
                 'required',
@@ -55,7 +55,7 @@ class UpdateInventoryTransferRequest extends FormRequest
                         ->where('is_active', true);
                 }),
             ],
-            'products.*.quantity' => ['required', 'numeric', 'min:0.0001', 'max:999999.9999'],
+            'products.*.quantity' => ['required', 'numeric', 'min:0.00001', 'max:999999.99999'],
             'products.*.notes' => ['nullable', 'string', 'max:500'],
         ];
     }

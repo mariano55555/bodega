@@ -18,7 +18,7 @@ class UpdateInventoryAdjustmentRequest extends FormRequest
             'product_id' => ['required', 'integer', 'exists:products,id'],
             'adjustment_type' => ['required', 'string', 'in:positive,negative,damage,expiry,loss,correction,return,other'],
             'quantity' => ['required', 'numeric', 'not_in:0'],
-            'unit_cost' => ['nullable', 'numeric', 'min:0', 'max:9999999.9999'],
+            'unit_cost' => ['nullable', 'numeric', 'min:0', 'max:9999999.99999'],
             'reason' => ['required', 'string', 'max:500'],
             'justification' => ['nullable', 'string', 'max:2000'],
             'corrective_actions' => ['nullable', 'string', 'max:2000'],

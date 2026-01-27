@@ -35,8 +35,8 @@ class StoreDonationRequest extends FormRequest
             'project_name' => ['nullable', 'string', 'max:255'],
 
             // Financial Information
-            'estimated_value' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
-            'tax_deduction_value' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
+            'estimated_value' => ['nullable', 'numeric', 'min:0', 'max:999999999.99999'],
+            'tax_deduction_value' => ['nullable', 'numeric', 'min:0', 'max:999999999.99999'],
 
             // Additional Information
             'notes' => ['nullable', 'string', 'max:1000'],
@@ -49,8 +49,8 @@ class StoreDonationRequest extends FormRequest
             // Donation Details (Line Items)
             'details' => ['required', 'array', 'min:1'],
             'details.*.product_id' => ['required', 'integer', 'exists:products,id'],
-            'details.*.quantity' => ['required', 'numeric', 'min:0.0001', 'max:999999.9999'],
-            'details.*.estimated_unit_value' => ['required', 'numeric', 'min:0', 'max:999999999.99'],
+            'details.*.quantity' => ['required', 'numeric', 'min:0.00001', 'max:999999.99999'],
+            'details.*.estimated_unit_value' => ['required', 'numeric', 'min:0', 'max:999999999.99999'],
             'details.*.condition' => ['required', 'string', 'in:nuevo,usado,reacondicionado'],
             'details.*.condition_notes' => ['nullable', 'string', 'max:500'],
             'details.*.lot_number' => ['nullable', 'string', 'max:100'],

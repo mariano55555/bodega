@@ -357,14 +357,14 @@ new #[Layout('components.layouts.app')] class extends Component
                                         </div>
                                     </flux:table.cell>
 
-                                    <flux:table.cell>{{ number_format($detail->quantity, 4) }}</flux:table.cell>
+                                    <flux:table.cell>{{ number_format($detail->quantity, 5) }}</flux:table.cell>
 
-                                    <flux:table.cell>${{ number_format($detail->unit_cost, 2) }}</flux:table.cell>
+                                    <flux:table.cell>${{ number_format($detail->unit_cost, 5) }}</flux:table.cell>
 
                                     <flux:table.cell>
                                         @if ($detail->discount_percentage > 0)
                                             {{ number_format($detail->discount_percentage, 2) }}%
-                                            <div class="text-xs text-gray-500">-${{ number_format($detail->discount_amount, 2) }}</div>
+                                            <div class="text-xs text-gray-500">-${{ number_format($detail->discount_amount, 5) }}</div>
                                         @else
                                             -
                                         @endif
@@ -373,13 +373,13 @@ new #[Layout('components.layouts.app')] class extends Component
                                     <flux:table.cell>
                                         @if ($detail->tax_percentage > 0)
                                             {{ number_format($detail->tax_percentage, 2) }}%
-                                            <div class="text-xs text-gray-500">+${{ number_format($detail->tax_amount, 2) }}</div>
+                                            <div class="text-xs text-gray-500">+${{ number_format($detail->tax_amount, 5) }}</div>
                                         @else
                                             -
                                         @endif
                                     </flux:table.cell>
 
-                                    <flux:table.cell class="font-semibold">${{ number_format($detail->total, 2) }}</flux:table.cell>
+                                    <flux:table.cell class="font-semibold">${{ number_format($detail->total, 5) }}</flux:table.cell>
                                 </flux:table.row>
                             @endforeach
                         </flux:table.rows>
@@ -417,27 +417,27 @@ new #[Layout('components.layouts.app')] class extends Component
                 <div class="space-y-3">
                     <div class="flex justify-between">
                         <flux:text class="text-gray-600 dark:text-gray-400">Subtotal</flux:text>
-                        <flux:text class="font-semibold">${{ number_format($purchase->subtotal, 2) }}</flux:text>
+                        <flux:text class="font-semibold">${{ number_format($purchase->subtotal, 5) }}</flux:text>
                     </div>
 
                     @if ($purchase->discount_amount > 0)
                         <div class="flex justify-between text-red-600 dark:text-red-400">
                             <flux:text>Descuento</flux:text>
-                            <flux:text class="font-semibold">-${{ number_format($purchase->discount_amount, 2) }}</flux:text>
+                            <flux:text class="font-semibold">-${{ number_format($purchase->discount_amount, 5) }}</flux:text>
                         </div>
                     @endif
 
                     @if ($purchase->tax_amount > 0)
                         <div class="flex justify-between">
                             <flux:text class="text-gray-600 dark:text-gray-400">IVA</flux:text>
-                            <flux:text class="font-semibold">${{ number_format($purchase->tax_amount, 2) }}</flux:text>
+                            <flux:text class="font-semibold">${{ number_format($purchase->tax_amount, 5) }}</flux:text>
                         </div>
                     @endif
 
                     @if ($purchase->shipping_cost > 0)
                         <div class="flex justify-between">
                             <flux:text class="text-gray-600 dark:text-gray-400">Envío</flux:text>
-                            <flux:text class="font-semibold">${{ number_format($purchase->shipping_cost, 2) }}</flux:text>
+                            <flux:text class="font-semibold">${{ number_format($purchase->shipping_cost, 5) }}</flux:text>
                         </div>
                     @endif
 
@@ -445,7 +445,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                     <div class="flex justify-between text-lg">
                         <flux:text class="font-bold">Total</flux:text>
-                        <flux:text class="font-bold text-primary-600 dark:text-primary-400">${{ number_format($purchase->total, 2) }}</flux:text>
+                        <flux:text class="font-bold text-primary-600 dark:text-primary-400">${{ number_format($purchase->total, 5) }}</flux:text>
                     </div>
                 </div>
             </flux:card>

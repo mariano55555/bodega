@@ -347,7 +347,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label>Costo de Envío ($)</flux:label>
-                    <flux:input type="number" step="0.01" wire:model="shipping_cost" />
+                    <flux:input type="number" step="0.00001" wire:model="shipping_cost" />
                     <flux:error name="shipping_cost" />
                 </flux:field>
             </div>
@@ -431,7 +431,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                     >
                                         @foreach ($this->productsWithStock as $prod)
                                             <flux:select.option value="{{ $prod->id }}">
-                                                {{ $prod->name }}{{ $prod->sku ? ' - ' . $prod->sku : '' }} ({{ number_format($prod->inventory->first()?->available_quantity ?? 0, 2) }} disp.)
+                                                {{ $prod->name }}{{ $prod->sku ? ' - ' . $prod->sku : '' }} ({{ number_format($prod->inventory->first()?->available_quantity ?? 0, 5) }} disp.)
                                             </flux:select.option>
                                         @endforeach
                                     </flux:select>
@@ -457,7 +457,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                         type="number"
                                         x-model="quantity"
                                         @change="updateQuantity()"
-                                        step="0.0001"
+                                        step="0.00001"
                                         min="0"
                                         class="block w-full text-center rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
                                     />
@@ -470,7 +470,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                 <template x-if="productId && {{ $from_warehouse_id ? 'true' : 'false' }}">
                                     <span :class="availableStock > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'"
                                           class="text-sm font-medium">
-                                        <span x-text="availableStock.toFixed(2)"></span>
+                                        <span x-text="availableStock.toFixed(5)"></span>
                                         <span x-text="productInfo?.unit_abbreviation" class="text-xs"></span>
                                     </span>
                                 </template>

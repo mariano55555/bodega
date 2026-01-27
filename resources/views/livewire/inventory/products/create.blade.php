@@ -536,7 +536,7 @@ new #[Layout('components.layouts.app')] class extends Component
                     <div>
                         <flux:field>
                             <flux:label badge="Requerido">Costo Unitario ($)</flux:label>
-                            <flux:input type="number" step="0.01" min="0" wire:model="cost" placeholder="0.00" />
+                            <flux:input type="number" step="0.00001" min="0" wire:model="cost" placeholder="0.00000" />
                             <flux:error name="cost" />
                         </flux:field>
                     </div>
@@ -572,7 +572,7 @@ new #[Layout('components.layouts.app')] class extends Component
                     <div>
                         <flux:field>
                             <flux:label>Stock Mínimo (Opcional)</flux:label>
-                            <flux:input type="number" step="0.01" min="0" wire:model="minimum_stock" placeholder="0.00" description="Nivel de alerta para reposición de inventario" />
+                            <flux:input type="number" step="0.00001" min="0" wire:model="minimum_stock" placeholder="0.00000" description="Nivel de alerta para reposición de inventario" />
                             <flux:error name="minimum_stock" />
                         </flux:field>
                     </div>
@@ -581,7 +581,7 @@ new #[Layout('components.layouts.app')] class extends Component
                     <div>
                         <flux:field>
                             <flux:label>Stock Máximo (Opcional)</flux:label>
-                            <flux:input type="number" step="0.01" min="0" wire:model="maximum_stock" placeholder="0.00" description="Nivel máximo de inventario permitido" />
+                            <flux:input type="number" step="0.00001" min="0" wire:model="maximum_stock" placeholder="0.00000" description="Nivel máximo de inventario permitido" />
                             <flux:error name="maximum_stock" />
                         </flux:field>
                     </div>

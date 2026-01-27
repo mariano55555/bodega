@@ -264,13 +264,13 @@ new #[Layout('components.layouts.app')] class extends Component {
                                         </div>
                                     </flux:table.cell>
                                     <flux:table.cell class="text-right">
-                                        {{ number_format($detail->quantity, 2) }} {{ $detail->unitOfMeasure->abbreviation ?? $detail->unitOfMeasure->code }}
+                                        {{ number_format($detail->quantity, 5) }} {{ $detail->unitOfMeasure->abbreviation ?? $detail->unitOfMeasure->code }}
                                     </flux:table.cell>
                                     <flux:table.cell class="text-right">
-                                        ${{ number_format($detail->unit_price, 2) }}
+                                        ${{ number_format($detail->unit_price, 5) }}
                                     </flux:table.cell>
                                     <flux:table.cell class="text-right font-medium">
-                                        ${{ number_format($detail->subtotal, 2) }}
+                                        ${{ number_format($detail->subtotal, 5) }}
                                     </flux:table.cell>
                                 </flux:table.row>
                             @endforeach
@@ -283,29 +283,29 @@ new #[Layout('components.layouts.app')] class extends Component {
                     <div class="flex flex-col items-end space-y-2">
                         <div class="flex justify-between w-full sm:w-64">
                             <flux:text class="text-gray-500">Subtotal:</flux:text>
-                            <flux:text>${{ number_format($dispatch->subtotal, 2) }}</flux:text>
+                            <flux:text>${{ number_format($dispatch->subtotal, 5) }}</flux:text>
                         </div>
                         @if ($dispatch->tax_amount > 0)
                             <div class="flex justify-between w-full sm:w-64">
                                 <flux:text class="text-gray-500">Impuesto:</flux:text>
-                                <flux:text>${{ number_format($dispatch->tax_amount, 2) }}</flux:text>
+                                <flux:text>${{ number_format($dispatch->tax_amount, 5) }}</flux:text>
                             </div>
                         @endif
                         @if ($dispatch->discount_amount > 0)
                             <div class="flex justify-between w-full sm:w-64">
                                 <flux:text class="text-gray-500">Descuento:</flux:text>
-                                <flux:text class="text-red-600">-${{ number_format($dispatch->discount_amount, 2) }}</flux:text>
+                                <flux:text class="text-red-600">-${{ number_format($dispatch->discount_amount, 5) }}</flux:text>
                             </div>
                         @endif
                         @if ($dispatch->shipping_cost > 0)
                             <div class="flex justify-between w-full sm:w-64">
                                 <flux:text class="text-gray-500">Envío:</flux:text>
-                                <flux:text>${{ number_format($dispatch->shipping_cost, 2) }}</flux:text>
+                                <flux:text>${{ number_format($dispatch->shipping_cost, 5) }}</flux:text>
                             </div>
                         @endif
                         <div class="flex justify-between w-full sm:w-64 pt-2 border-t border-gray-200 dark:border-gray-700">
                             <flux:text class="font-bold text-lg">Total:</flux:text>
-                            <flux:text class="font-bold text-lg">${{ number_format($dispatch->total, 2) }}</flux:text>
+                            <flux:text class="font-bold text-lg">${{ number_format($dispatch->total, 5) }}</flux:text>
                         </div>
                     </div>
                 </div>

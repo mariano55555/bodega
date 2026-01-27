@@ -161,7 +161,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 'warehouse_id' => (int) $this->fromWarehouseId,
             ])->first();
 
-            $this->availableStock = $inventory ? number_format($inventory->available_quantity, 2) : '0.00';
+            $this->availableStock = $inventory ? number_format($inventory->available_quantity, 5) : '0.00000';
         } else {
             $this->availableStock = null;
         }
@@ -397,10 +397,10 @@ new #[Layout('components.layouts.app')] class extends Component
                             <flux:label badge="Requerido">{{ __('Transfer Quantity') }}</flux:label>
                             <flux:input
                                 type="number"
-                                step="0.01"
-                                min="0.01"
+                                step="0.00001"
+                                min="0.00001"
                                 wire:model="quantity"
-                                placeholder="0.00"
+                                placeholder="0.00000"
                             />
                             <flux:error name="quantity" />
                         </flux:field>
@@ -446,7 +446,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                 </div>
                                 <div class="flex justify-between font-medium">
                                     <span class="text-zinc-600 dark:text-zinc-400">{{ __('Quantity') }}:</span>
-                                    <span>{{ number_format((float) $quantity, 2) }} {{ __('units') }}</span>
+                                    <span>{{ number_format((float) $quantity, 5) }} {{ __('units') }}</span>
                                 </div>
                             </div>
                         </div>

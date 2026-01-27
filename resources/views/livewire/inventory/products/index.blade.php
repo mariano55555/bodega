@@ -323,7 +323,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         {{ __('inventory.total_value') }}
                     </flux:text>
                     <flux:heading size="2xl" class="text-green-900 dark:text-green-100">
-                        ${{ number_format($this->summaryStats['total_value'], 2) }}
+                        ${{ number_format($this->summaryStats['total_value'], 5) }}
                     </flux:heading>
                 </div>
                 <flux:icon name="currency-dollar" class="h-8 w-8 text-green-500" />
@@ -457,7 +457,7 @@ new #[Layout('components.layouts.app')] class extends Component
                             <div class="text-center">
                                 <div class="space-y-1">
                                     <flux:text class="font-medium {{ $item->available_quantity <= ($item->product->minimum_stock ?? 0) ? 'text-red-600' : 'text-zinc-900 dark:text-zinc-100' }}">
-                                        {{ number_format($item->available_quantity, 2) }}
+                                        {{ number_format($item->available_quantity, 5) }}
                                     </flux:text>
                                     @if($item->product->unitOfMeasure)
                                     <flux:text class="text-xs text-zinc-500">
@@ -467,7 +467,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                 </div>
                                 @if($item->reserved_quantity > 0)
                                 <flux:text class="text-xs text-amber-600">
-                                    {{ number_format($item->reserved_quantity, 2) }} {{ __('inventory.reserved') }}
+                                    {{ number_format($item->reserved_quantity, 5) }} {{ __('inventory.reserved') }}
                                 </flux:text>
                                 @endif
                                 @if($item->available_quantity <= ($item->product->minimum_stock ?? 0))
@@ -500,10 +500,10 @@ new #[Layout('components.layouts.app')] class extends Component
                         <flux:table.cell>
                             <div class="text-right">
                                 <flux:text class="font-medium">
-                                    ${{ number_format($item->unit_cost, 2) }}
+                                    ${{ number_format($item->unit_cost, 5) }}
                                 </flux:text>
                                 <flux:text class="text-sm text-zinc-500 block">
-                                    {{ __('ui.total') }}: ${{ number_format($item->total_value, 2) }}
+                                    {{ __('ui.total') }}: ${{ number_format($item->total_value, 5) }}
                                 </flux:text>
                             </div>
                         </flux:table.cell>

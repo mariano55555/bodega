@@ -26,15 +26,15 @@ class StorePurchaseRequest extends FormRequest
             'project_name' => ['nullable', 'string', 'max:255'],
             'agreement_number' => ['nullable', 'string', 'max:255'],
             'fund_source_id' => ['nullable', 'integer', 'exists:fund_sources,id'],
-            'shipping_cost' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
+            'shipping_cost' => ['nullable', 'numeric', 'min:0', 'max:999999999.99999'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'admin_notes' => ['nullable', 'string', 'max:1000'],
 
             // Purchase details
             'details' => ['required', 'array', 'min:1'],
             'details.*.product_id' => ['required', 'integer', 'exists:products,id'],
-            'details.*.quantity' => ['required', 'numeric', 'min:0.0001', 'max:999999.9999'],
-            'details.*.unit_cost' => ['required', 'numeric', 'min:0', 'max:999999999.99'],
+            'details.*.quantity' => ['required', 'numeric', 'min:0.00001', 'max:999999.99999'],
+            'details.*.unit_cost' => ['required', 'numeric', 'min:0', 'max:999999999.99999'],
             'details.*.discount_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'details.*.tax_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'details.*.lot_number' => ['nullable', 'string', 'max:100'],

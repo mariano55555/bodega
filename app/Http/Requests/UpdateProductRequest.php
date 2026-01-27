@@ -38,15 +38,15 @@ class UpdateProductRequest extends FormRequest
             'category_id' => ['required', 'integer', 'exists:product_categories,id'],
             'unit_of_measure_id' => ['required', 'integer', 'exists:units_of_measure,id'],
             'company_id' => ['required', 'integer', 'exists:companies,id'],
-            'cost' => ['required', 'numeric', 'min:0', 'max:999999999.99'],
+            'cost' => ['required', 'numeric', 'min:0', 'max:999999999.99999'],
             // 'price' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'], // Comentado por petición del cliente: quitar precio de venta
             'barcode' => ['nullable', 'string', 'max:255'],
             'image_path' => ['nullable', 'string', 'max:500'],
             'track_inventory' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
             // 'valuation_method' => ['nullable', 'string', 'in:fifo,lifo,average'], // Comentado por petición del cliente: quitar método de valuación
-            'minimum_stock' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
-            'maximum_stock' => ['nullable', 'numeric', 'min:0', 'max:999999999.99', 'gte:minimum_stock'],
+            'minimum_stock' => ['nullable', 'numeric', 'min:0', 'max:999999999.99999'],
+            'maximum_stock' => ['nullable', 'numeric', 'min:0', 'max:999999999.99999', 'gte:minimum_stock'],
             'attributes' => ['nullable', 'array'],
         ];
     }

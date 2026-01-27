@@ -701,8 +701,8 @@ new #[Layout('components.layouts.app')] class extends Component
                                 <div class="flex flex-col gap-1">
                                     <input
                                         type="number"
-                                        step="0.0001"
-                                        min="0.0001"
+                                        step="0.00001"
+                                        min="0.00001"
                                         x-model.number="quantity"
                                         @input="emitTotal()"
                                         @change="updateQuantity()"
@@ -717,12 +717,12 @@ new #[Layout('components.layouts.app')] class extends Component
                                 <div class="flex flex-col gap-1">
                                     <input
                                         type="number"
-                                        step="0.01"
+                                        step="0.00001"
                                         min="0"
                                         x-model.number="unitCost"
                                         @input="emitTotal()"
                                         @change="updateUnitCost()"
-                                        placeholder="0.00"
+                                        placeholder="0.00000"
                                         class="block w-full text-right rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
                                     />
                                     <flux:error name="details.{{ $index }}.unit_cost" />
@@ -731,7 +731,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                             <!-- Total (Calculated with Alpine - instant) -->
                             <flux:table.cell class="text-right font-semibold">
-                                $<span x-text="total.toFixed(2)"></span>
+                                $<span x-text="total.toFixed(5)"></span>
                             </flux:table.cell>
 
                             <!-- Actions -->
@@ -834,9 +834,9 @@ new #[Layout('components.layouts.app')] class extends Component
 
                                 <!-- Summary when expanded -->
                                 <div class="flex justify-end gap-4 mt-3 px-4 text-xs text-zinc-500 dark:text-zinc-400">
-                                    <span>Subtotal: $<span x-text="subtotal.toFixed(2)"></span></span>
-                                    <span x-show="discountAmount > 0">Descuento: -$<span x-text="discountAmount.toFixed(2)"></span></span>
-                                    <span x-show="taxAmount > 0">IVA: +$<span x-text="taxAmount.toFixed(2)"></span></span>
+                                    <span>Subtotal: $<span x-text="subtotal.toFixed(5)"></span></span>
+                                    <span x-show="discountAmount > 0">Descuento: -$<span x-text="discountAmount.toFixed(5)"></span></span>
+                                    <span x-show="taxAmount > 0">IVA: +$<span x-text="taxAmount.toFixed(5)"></span></span>
                                 </div>
                             </flux:table.cell>
                         </flux:table.row>
@@ -863,7 +863,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 <div class="bg-zinc-100 dark:bg-zinc-800 px-6 py-3 rounded-lg">
                     <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">Total General</flux:text>
                     <flux:heading size="lg">
-                        $<span x-text="($store.purchaseGrandTotal || 0).toFixed(2)">0.00</span>
+                        $<span x-text="($store.purchaseGrandTotal || 0).toFixed(5)">0.00000</span>
                     </flux:heading>
                 </div>
             </div>

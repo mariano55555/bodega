@@ -170,8 +170,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
             $product = Product::with('unitOfMeasure')->find($productId);
             $this->quickItems[$index]['unit'] = $product?->unitOfMeasure?->abbreviation ?? '';
-            $this->quickItems[$index]['stock'] = $inventory ? number_format($inventory->available_quantity, 2) : '0.00';
-            $this->quickItems[$index]['cost'] = $product?->cost ? number_format($product->cost, 4) : '0.0000';
+            $this->quickItems[$index]['stock'] = $inventory ? number_format($inventory->available_quantity, 5) : '0.00000';
+            $this->quickItems[$index]['cost'] = $product?->cost ? number_format($product->cost, 5) : '0.00000';
         } else {
             $this->quickItems[$index]['stock'] = null;
             $this->quickItems[$index]['unit'] = '';
@@ -675,7 +675,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         </flux:table.cell>
 
                         <flux:table.cell>
-                            ${{ number_format($dispatch->total, 2) }}
+                            ${{ number_format($dispatch->total, 5) }}
                         </flux:table.cell>
 
                         <flux:table.cell>
@@ -874,8 +874,8 @@ new #[Layout('components.layouts.app')] class extends Component
                                 <div class="w-24">
                                     <flux:input
                                         type="number"
-                                        step="0.01"
-                                        min="0.01"
+                                        step="0.00001"
+                                        min="0.00001"
                                         wire:model="quickItems.{{ $index }}.quantity"
                                         placeholder="Cant."
                                     />
@@ -935,7 +935,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                 @endphp
                                 <div class="flex justify-between text-xs">
                                     <span class="text-zinc-500 truncate max-w-[200px]">{{ $prod?->name }}</span>
-                                    <span class="font-medium">{{ number_format((float) $item['quantity'], 2) }} {{ $item['unit'] }}</span>
+                                    <span class="font-medium">{{ number_format((float) $item['quantity'], 5) }} {{ $item['unit'] }}</span>
                                 </div>
                             @endif
                         @endforeach

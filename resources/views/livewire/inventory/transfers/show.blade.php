@@ -254,7 +254,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                     @if ($transfer->shipping_cost > 0)
                         <div class="space-y-1">
                             <flux:text class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Costo de Envío</flux:text>
-                            <flux:text class="text-base font-semibold text-green-600">${{ number_format($transfer->shipping_cost, 2) }}</flux:text>
+                            <flux:text class="text-base font-semibold text-green-600">${{ number_format($transfer->shipping_cost, 5) }}</flux:text>
                         </div>
                     @endif
 
@@ -298,7 +298,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                                         </flux:table.cell>
 
                                         <flux:table.cell class="text-right">
-                                            <span class="font-semibold">{{ number_format($detail->quantity, 2) }}</span>
+                                            <span class="font-semibold">{{ number_format($detail->quantity, 5) }}</span>
                                             <span class="text-zinc-500 dark:text-zinc-400 ml-1">{{ $detail->product->unitOfMeasure?->abbreviation ?? 'unid.' }}</span>
                                         </flux:table.cell>
 
@@ -643,12 +643,12 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <flux:field>
                                 <flux:label>Esperado</flux:label>
-                                <flux:input type="number" step="0.01" wire:model="discrepancies.{{ $index }}.expected" readonly class="bg-zinc-100 dark:bg-zinc-700" />
+                                <flux:input type="number" step="0.00001" wire:model="discrepancies.{{ $index }}.expected" readonly class="bg-zinc-100 dark:bg-zinc-700" />
                             </flux:field>
 
                             <flux:field>
                                 <flux:label>Recibido</flux:label>
-                                <flux:input type="number" step="0.01" wire:model="discrepancies.{{ $index }}.received" />
+                                <flux:input type="number" step="0.00001" wire:model="discrepancies.{{ $index }}.received" />
                             </flux:field>
 
                             <flux:field>
