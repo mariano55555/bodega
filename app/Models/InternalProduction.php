@@ -308,6 +308,19 @@ class InternalProduction extends Model
                     'active_at' => now(),
                     'created_by' => $userId,
                 ]);
+
+                // Update or create inventory record for stock tracking
+                $inventory = Inventory::firstOrNew([
+                    'product_id' => $detail->product_id,
+                    'warehouse_id' => $this->warehouse_id,
+                ]);
+
+                $inventory->quantity = ($inventory->quantity ?? 0) + $detail->quantity;
+                $inventory->available_quantity = ($inventory->available_quantity ?? 0) + $detail->quantity;
+                $inventory->unit_cost = $detail->unit_price;
+                $inventory->is_active = true;
+                $inventory->active_at = $inventory->active_at ?? now();
+                $inventory->save();
             }
 
             $this->status = 'completado';
