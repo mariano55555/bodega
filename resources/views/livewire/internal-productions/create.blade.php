@@ -123,7 +123,8 @@ new #[Layout('components.layouts.app')] class extends Component
         $rules = [
             'warehouse_id' => 'required|exists:warehouses,id',
             'area_id' => 'required|exists:areas,id',
-            'physical_document_number' => 'required|string|max:100',
+            'physical_document_number' => 'required|string|max:100|unique:internal_productions,physical_document_number',
+            'document_date' => 'required|date',
             'details' => 'required|array|min:1',
             'details.*.product_id' => 'required|exists:products,id',
             'details.*.quantity' => 'required|numeric|min:0.00001',
@@ -139,6 +140,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'warehouse_id' => 'bodega destino',
             'area_id' => 'unidad de origen',
             'physical_document_number' => 'número de documento físico',
+            'document_date' => 'fecha del documento',
             'company_id' => 'empresa',
             'details.*.product_id' => 'producto',
             'details.*.quantity' => 'cantidad',
@@ -311,7 +313,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>Fecha del Documento</flux:label>
+                    <flux:label badge="Requerido">Fecha del Documento</flux:label>
                     <flux:input type="date" wire:model="document_date" />
                     <flux:error name="document_date" />
                 </flux:field>

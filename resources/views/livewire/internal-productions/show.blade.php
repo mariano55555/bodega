@@ -8,6 +8,7 @@ new #[Layout('components.layouts.app')] class extends Component
 {
     public InternalProduction $internalProduction;
     public bool $createAutoDispatch = true;
+    public string $dispatchDocumentNumber = '';
 
     public function mount(InternalProduction $internalProduction): void
     {
@@ -45,18 +46,30 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function complete(): void
     {
+        // Validate dispatch document number if auto dispatch is enabled
+        if ($this->createAutoDispatch) {
+            $this->validate([
+                'dispatchDocumentNumber' => 'required|string|max:100|unique:dispatches,physical_document_number',
+            ], [], [
+                'dispatchDocumentNumber' => 'número de documento del despacho',
+            ]);
+        }
+
         if ($this->internalProduction->complete(auth()->id())) {
             $message = 'Producción completada exitosamente. Stock actualizado.';
 
             // Create automatic dispatch if checkbox is checked
             if ($this->createAutoDispatch) {
-                $dispatch = $this->internalProduction->createAutoDispatch(auth()->id());
+                $dispatch = $this->internalProduction->createAutoDispatch(auth()->id(), $this->dispatchDocumentNumber);
                 if ($dispatch) {
                     $message .= ' Despacho '.$dispatch->dispatch_number.' creado automáticamente.';
                 } else {
                     $message .= ' Error al crear el despacho automático.';
                 }
             }
+
+            // Close modal on success
+            $this->js("\$flux.modal('complete-modal').close()");
 
             session()->flash('success', $message);
             $this->internalProduction->refresh();
@@ -451,19 +464,32 @@ new #[Layout('components.layouts.app')] class extends Component
             <flux:heading size="lg">Confirmar Completar</flux:heading>
             <flux:text>¿Está seguro de completar esta producción? Los productos serán agregados al inventario de la bodega destino.</flux:text>
 
-            <div class="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div class="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800 space-y-4">
                 <flux:checkbox
-                    wire:model="createAutoDispatch"
+                    wire:model.live="createAutoDispatch"
                     label="Crear despacho automáticamente"
                     description="Se creará un despacho a Tienda Ena con los productos de esta producción."
                 />
+
+                @if($createAutoDispatch)
+                    <flux:field>
+                        <flux:label badge="Requerido">Número de Documento del Despacho</flux:label>
+                        <flux:input
+                            wire:model="dispatchDocumentNumber"
+                            placeholder="Ej: 0031430"
+                            maxlength="100"
+                        />
+                        <flux:description>Este número se usará como documento físico del despacho automático.</flux:description>
+                        <flux:error name="dispatchDocumentNumber" />
+                    </flux:field>
+                @endif
             </div>
 
             <div class="flex justify-end gap-3">
                 <flux:button variant="ghost" x-on:click="$flux.modal('complete-modal').close()">
                     Cancelar
                 </flux:button>
-                <flux:button variant="primary" wire:click="complete" x-on:click="$flux.modal('complete-modal').close()">
+                <flux:button variant="primary" wire:click="complete">
                     Completar
                 </flux:button>
             </div>

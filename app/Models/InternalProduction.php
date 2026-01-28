@@ -390,9 +390,11 @@ class InternalProduction extends Model
 
     /**
      * Create an automatic dispatch from this internal production.
-     * Uses predefined values: Tienda Ena (area_id: 154), Kevin Barrera (employee_id: 91)
+     * Uses predefined values: Tienda Ena (area_id: 89), Kevin Barrera (employee_id: 91)
+     *
+     * @param  string  $dispatchDocumentNumber  The physical document number for the dispatch
      */
-    public function createAutoDispatch(int $userId): ?Dispatch
+    public function createAutoDispatch(int $userId, string $dispatchDocumentNumber): ?Dispatch
     {
         // Predefined values for automatic dispatch
         $defaultAreaId = 89; // Tienda Ena
@@ -407,8 +409,8 @@ class InternalProduction extends Model
                 'warehouse_id' => $this->warehouse_id,
                 'employee_id' => $defaultEmployeeId,
                 'dispatch_type' => 'interno',
-                'physical_document_number' => $this->physical_document_number,
-                'document_date' => now(),
+                'physical_document_number' => $dispatchDocumentNumber,
+                'document_date' => $this->document_date ?? now(),
                 'status' => 'aprobado',
                 'approved_at' => now(),
                 'approved_by' => $userId,

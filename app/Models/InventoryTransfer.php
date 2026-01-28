@@ -26,6 +26,8 @@ class InventoryTransfer extends Model
         'transfer_number',
         'from_warehouse_id',
         'to_warehouse_id',
+        'document_date',
+        'physical_document_number',
         'status',
         'reason',
         'notes',
@@ -55,6 +57,7 @@ class InventoryTransfer extends Model
     protected function casts(): array
     {
         return [
+            'document_date' => 'date',
             'metadata' => 'array',
             'receiving_discrepancies' => 'array',
             'requested_at' => 'datetime',

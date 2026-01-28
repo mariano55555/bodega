@@ -32,6 +32,8 @@ new #[Layout('components.layouts.app')] class extends Component
     // public $delivery_address = ''; // Comentado por petición del cliente: quitar dirección de entrega
     public $physical_document_number = '';
 
+    public $document_date = '';
+
     public $notes = '';
 
     public $status = 'borrador';
@@ -53,6 +55,8 @@ new #[Layout('components.layouts.app')] class extends Component
         if (! auth()->user()->isSuperAdmin()) {
             $this->company_id = auth()->user()->company_id;
         }
+
+        $this->document_date = now()->format('Y-m-d');
 
         // Initialize with 10 empty rows
         $this->details = array_fill(0, 10, [
@@ -319,6 +323,8 @@ new #[Layout('components.layouts.app')] class extends Component
         $rules = [
             'warehouse_id' => 'required|exists:warehouses,id',
             'dispatch_type' => 'required|in:venta,interno,externo,donacion',
+            'physical_document_number' => 'nullable|unique:dispatches,physical_document_number',
+            'document_date' => 'required|date',
             'details' => 'required|array|min:1',
             'details.*.product_id' => 'required|exists:products,id',
             'details.*.quantity' => 'required|numeric|min:0.0001',
@@ -334,6 +340,8 @@ new #[Layout('components.layouts.app')] class extends Component
         $customAttributes = [
             'warehouse_id' => 'bodega',
             'dispatch_type' => 'tipo de despacho',
+            'physical_document_number' => 'número de documento físico',
+            'document_date' => 'fecha del documento',
             'company_id' => 'empresa',
             'details.*.product_id' => 'producto',
             'details.*.quantity' => 'cantidad',
@@ -375,6 +383,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 'employee_id' => $this->employee_id ?: null,
                 'dispatch_type' => $this->dispatch_type,
                 'physical_document_number' => $this->physical_document_number,
+                'document_date' => $this->document_date,
                 'recipient_name' => $this->recipient_name,
                 'recipient_email' => $this->recipient_email,
                 'recipient_phone' => $this->recipient_phone,
@@ -576,6 +585,12 @@ new #[Layout('components.layouts.app')] class extends Component
                     <flux:label badge="Requerido">Número de documento físico</flux:label>
                     <flux:input wire:model="physical_document_number" placeholder="Ingrese el número de documento físico" />
                     <flux:error name="physical_document_number" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label badge="Requerido">Fecha del Documento</flux:label>
+                    <flux:input type="date" wire:model="document_date" />
+                    <flux:error name="document_date" />
                 </flux:field>
 
                 <!-- Unidad Solicitante (Área) -->

@@ -24,6 +24,10 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public $notes = '';
 
+    public $document_date = '';
+
+    public $physical_document_number = '';
+
     public $shipping_cost = 0;
 
     public $products = [];
@@ -43,6 +47,8 @@ new #[Layout('components.layouts.app')] class extends Component
         if (! auth()->user()->isSuperAdmin()) {
             $this->company_id = auth()->user()->company_id;
         }
+
+        $this->document_date = now()->format('Y-m-d');
 
         // Initialize with 10 empty rows
         for ($i = 0; $i < 10; $i++) {
@@ -295,6 +301,8 @@ new #[Layout('components.layouts.app')] class extends Component
                 }),
                 'different:from_warehouse_id',
             ],
+            'document_date' => ['required', 'date'],
+            'physical_document_number' => ['required', 'string', 'max:100', 'unique:inventory_transfers,physical_document_number'],
             'reason' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'shipping_cost' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
@@ -329,6 +337,12 @@ new #[Layout('components.layouts.app')] class extends Component
             'to_warehouse_id.required' => 'La bodega de destino es obligatoria.',
             'to_warehouse_id.exists' => 'La bodega de destino seleccionada no existe o no está activa.',
             'to_warehouse_id.different' => 'La bodega de destino debe ser diferente a la bodega de origen.',
+            'document_date.required' => 'La fecha del documento es obligatoria.',
+            'document_date.date' => 'La fecha del documento debe ser una fecha válida.',
+            'physical_document_number.required' => 'El número de documento físico es obligatorio.',
+            'physical_document_number.string' => 'El número de documento físico debe ser texto.',
+            'physical_document_number.max' => 'El número de documento físico no puede exceder 100 caracteres.',
+            'physical_document_number.unique' => 'Este número de documento físico ya está registrado.',
             'reason.string' => 'El motivo debe ser texto.',
             'reason.max' => 'El motivo no puede exceder 500 caracteres.',
             'notes.string' => 'Las notas deben ser texto.',
@@ -371,6 +385,8 @@ new #[Layout('components.layouts.app')] class extends Component
                 'company_id' => $this->company_id,
                 'from_warehouse_id' => $validated['from_warehouse_id'],
                 'to_warehouse_id' => $validated['to_warehouse_id'],
+                'document_date' => $validated['document_date'],
+                'physical_document_number' => $validated['physical_document_number'],
                 'reason' => $validated['reason'] ?? null,
                 'notes' => $validated['notes'] ?? null,
                 'shipping_cost' => $validated['shipping_cost'] ?? 0,
@@ -482,6 +498,18 @@ new #[Layout('components.layouts.app')] class extends Component
                     <flux:label>Costo de Envío ($)</flux:label>
                     <flux:input type="number" step="0.00001" wire:model="shipping_cost" />
                     <flux:error name="shipping_cost" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label badge="Requerido">Número de Documento Físico</flux:label>
+                    <flux:input wire:model="physical_document_number" placeholder="Ingrese el número de documento físico" maxlength="100" />
+                    <flux:error name="physical_document_number" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label badge="Requerido">Fecha del Documento</flux:label>
+                    <flux:input type="date" wire:model="document_date" />
+                    <flux:error name="document_date" />
                 </flux:field>
             </div>
         </flux:card>

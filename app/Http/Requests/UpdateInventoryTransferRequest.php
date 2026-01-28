@@ -43,6 +43,13 @@ class UpdateInventoryTransferRequest extends FormRequest
                 }),
                 'different:from_warehouse_id',
             ],
+            'document_date' => ['required', 'date'],
+            'physical_document_number' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('inventory_transfers', 'physical_document_number')->ignore($this->transfer),
+            ],
             'reason' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'shipping_cost' => ['nullable', 'numeric', 'min:0', 'max:999999.99999'],
@@ -77,6 +84,16 @@ class UpdateInventoryTransferRequest extends FormRequest
             'to_warehouse_id.required' => 'La bodega de destino es obligatoria.',
             'to_warehouse_id.exists' => 'La bodega de destino seleccionada no existe o no está activa.',
             'to_warehouse_id.different' => 'La bodega de destino debe ser diferente a la bodega de origen.',
+
+            // Document Date
+            'document_date.required' => 'La fecha del documento es obligatoria.',
+            'document_date.date' => 'La fecha del documento debe ser una fecha válida.',
+
+            // Physical Document Number
+            'physical_document_number.required' => 'El número de documento físico es obligatorio.',
+            'physical_document_number.string' => 'El número de documento físico debe ser texto.',
+            'physical_document_number.max' => 'El número de documento físico no puede exceder 100 caracteres.',
+            'physical_document_number.unique' => 'Este número de documento físico ya está registrado en otro traslado.',
 
             // Reason & Notes
             'reason.string' => 'El motivo debe ser texto.',
@@ -116,6 +133,8 @@ class UpdateInventoryTransferRequest extends FormRequest
         return [
             'from_warehouse_id' => 'bodega de origen',
             'to_warehouse_id' => 'bodega de destino',
+            'document_date' => 'fecha del documento',
+            'physical_document_number' => 'número de documento físico',
             'reason' => 'motivo',
             'notes' => 'notas',
             'shipping_cost' => 'costo de envío',
