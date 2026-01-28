@@ -395,7 +395,7 @@ class InternalProduction extends Model
     public function createAutoDispatch(int $userId): ?Dispatch
     {
         // Predefined values for automatic dispatch
-        $defaultAreaId = 154; // Tienda Ena
+        $defaultAreaId = 89; // Tienda Ena
         $defaultEmployeeId = 91; // Kevin Ernesto Barrera Medina
 
         \DB::beginTransaction();

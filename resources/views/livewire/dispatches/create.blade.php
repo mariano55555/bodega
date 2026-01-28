@@ -371,7 +371,7 @@ new #[Layout('components.layouts.app')] class extends Component
             $dispatch = Dispatch::create([
                 'company_id' => $companyId,
                 'warehouse_id' => $this->warehouse_id,
-                'area_id' => $this->area_id,
+                'area_id' => $this->area_id ?: null,
                 'employee_id' => $this->employee_id ?: null,
                 'dispatch_type' => $this->dispatch_type,
                 'physical_document_number' => $this->physical_document_number,
