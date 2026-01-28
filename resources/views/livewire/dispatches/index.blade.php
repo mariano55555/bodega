@@ -482,6 +482,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 $q->where(function ($query) {
                     $query->where('dispatch_number', 'like', "%{$this->search}%")
                         ->orWhere('document_number', 'like', "%{$this->search}%")
+                        ->orWhere('physical_document_number', 'like', "%{$this->search}%")
                         ->orWhere('recipient_name', 'like', "%{$this->search}%")
                         ->orWhereHas('employee', fn ($q) => $q->where('name', 'like', "%{$this->search}%"));
                 });
@@ -597,6 +598,7 @@ new #[Layout('components.layouts.app')] class extends Component
         <flux:table>
             <flux:table.columns>
                 <flux:table.column>Número</flux:table.column>
+                <flux:table.column>Doc. Físico</flux:table.column>
                 <flux:table.column>Fecha</flux:table.column>
                 @if ($this->isSuperAdmin())
                     <flux:table.column>Empresa</flux:table.column>
@@ -623,6 +625,10 @@ new #[Layout('components.layouts.app')] class extends Component
                                     </div>
                                 @endif
                             </div>
+                        </flux:table.cell>
+
+                        <flux:table.cell>
+                            {{ $dispatch->physical_document_number ?? '-' }}
                         </flux:table.cell>
 
                         <flux:table.cell>
@@ -726,7 +732,7 @@ new #[Layout('components.layouts.app')] class extends Component
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell :colspan="$this->isSuperAdmin() ? 10 : 9" class="text-center py-12">
+                        <flux:table.cell :colspan="$this->isSuperAdmin() ? 11 : 10" class="text-center py-12">
                             <div class="text-gray-500 dark:text-gray-400">
                                 No se encontraron despachos
                             </div>
