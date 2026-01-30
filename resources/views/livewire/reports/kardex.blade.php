@@ -389,7 +389,7 @@ new class extends Component
                                             </a>
                                             <span class="text-xs text-zinc-500">Despacho</span>
                                         @elseif ($movement->transfer)
-                                            <a href="{{ route('transfers.show', $movement->transfer->slug) }}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium" wire:navigate>
+                                            <a href="{{ route('transfers.show', $movement->transfer) }}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium" wire:navigate>
                                                 {{ $movement->transfer->transfer_number ?? 'TRANS-'.$movement->transfer->id }}
                                             </a>
                                             <span class="text-xs text-zinc-500">Transferencia</span>

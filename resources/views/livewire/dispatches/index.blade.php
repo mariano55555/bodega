@@ -378,15 +378,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 default => 'sale',
             };
 
-            $movementReasonCode = match ($this->dispatch_type) {
-                'venta' => 'DISPATCH_SALE',
-                'interno' => 'DISPATCH_INTERNAL',
-                'externo' => 'DISPATCH_EXTERNAL',
-                'donacion' => 'DISPATCH_DONATION',
-                default => 'DISPATCH_INTERNAL',
-            };
-
-            $movementReason = MovementReason::where('code', $movementReasonCode)->first();
+            $movementReason = MovementReason::where('code', 'DISPATCH')->first();
             if (! $movementReason) {
                 $movementReason = MovementReason::where('movement_type', 'out')->first();
             }

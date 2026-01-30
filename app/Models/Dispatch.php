@@ -324,16 +324,8 @@ class Dispatch extends Model
             $this->tracking_number = $trackingNumber;
             $this->save();
 
-            // Get the dispatch movement reason based on dispatch type
-            $movementReasonCode = match ($this->dispatch_type) {
-                'venta' => 'DISPATCH_SALE',
-                'interno' => 'DISPATCH_INTERNAL',
-                'externo' => 'DISPATCH_EXTERNAL',
-                'donacion' => 'DISPATCH_DONATION',
-                default => 'DISPATCH_INTERNAL',
-            };
-
-            $movementReason = MovementReason::where('code', $movementReasonCode)->first();
+            // Get the dispatch movement reason
+            $movementReason = MovementReason::where('code', 'DISPATCH')->first();
 
             if (! $movementReason) {
                 // Fallback to a generic outbound reason
@@ -391,6 +383,17 @@ class Dispatch extends Model
                     'active_at' => now(),
                     'created_by' => $userId,
                 ]);
+
+                // Update inventory record
+                $inventory = Inventory::where('product_id', $detail->product_id)
+                    ->where('warehouse_id', $this->warehouse_id)
+                    ->first();
+
+                if ($inventory) {
+                    $inventory->quantity -= $detail->quantity_dispatched;
+                    $inventory->available_quantity -= $detail->quantity_dispatched;
+                    $inventory->save();
+                }
             }
 
             \DB::commit();

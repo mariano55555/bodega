@@ -196,8 +196,8 @@ class MovementService
                     }
                 }
 
-                // Update inventory levels asynchronously
-                UpdateInventoryLevels::dispatch($movement);
+                // Update inventory levels synchronously
+                UpdateInventoryLevels::dispatchSync($movement);
 
                 $inventoryChanges = $this->calculateInventoryChanges($movement);
             });

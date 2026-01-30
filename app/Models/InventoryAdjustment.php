@@ -365,6 +365,26 @@ class InventoryAdjustment extends Model
                 'created_by' => $userId,
             ]);
 
+            // Update inventory record
+            $inventory = Inventory::firstOrNew([
+                'product_id' => $this->product_id,
+                'warehouse_id' => $this->warehouse_id,
+            ]);
+
+            if ($isInbound) {
+                $inventory->quantity = ($inventory->quantity ?? 0) + $absoluteQuantity;
+                $inventory->available_quantity = ($inventory->available_quantity ?? 0) + $absoluteQuantity;
+            } else {
+                $inventory->quantity = ($inventory->quantity ?? 0) - $absoluteQuantity;
+                $inventory->available_quantity = ($inventory->available_quantity ?? 0) - $absoluteQuantity;
+            }
+
+            $inventory->company_id = $inventory->company_id ?? $this->company_id;
+            $inventory->unit_cost = $this->unit_cost ?? $inventory->unit_cost;
+            $inventory->is_active = true;
+            $inventory->active_at = $inventory->active_at ?? now();
+            $inventory->save();
+
             // Update adjustment with processing information
             $this->status = 'procesado';
             $this->processed_by = $userId;

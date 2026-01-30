@@ -261,6 +261,12 @@ class InventoryTransfer extends Model
                 $previousBalance = $currentStock ? $currentStock->balance_quantity : 0;
                 $newBalance = $previousBalance - $detail->quantity;
 
+                // Get unit cost from inventory
+                $inventory = Inventory::where('product_id', $detail->product_id)
+                    ->where('warehouse_id', $this->from_warehouse_id)
+                    ->first();
+                $unitCost = $inventory->unit_cost ?? 0;
+
                 // Create outbound movement (subtract from origin)
                 $movement = InventoryMovement::create([
                     'company_id' => $this->fromWarehouse->company_id,
@@ -274,8 +280,8 @@ class InventoryTransfer extends Model
                     'quantity_in' => 0,
                     'quantity_out' => $detail->quantity,
                     'balance_quantity' => $newBalance,
-                    'unit_cost' => 0,
-                    'total_cost' => 0,
+                    'unit_cost' => $unitCost,
+                    'total_cost' => $unitCost * $detail->quantity,
                     'notes' => $detail->notes ?? "Envío de traslado {$this->transfer_number}",
                     'is_active' => true,
                     'active_at' => now(),
