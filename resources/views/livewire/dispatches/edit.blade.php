@@ -165,7 +165,7 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->validate([
             'warehouse_id' => 'required|exists:warehouses,id',
             'dispatch_type' => 'required|in:venta,interno,externo,donacion',
-            'physical_document_number' => 'nullable|unique:dispatches,physical_document_number,'.$this->dispatch->id,
+            'physical_document_number' => 'required|string|max:100|unique:dispatches,physical_document_number,'.$this->dispatch->id,
             'document_date' => 'required|date',
             'details' => 'required|array|min:1',
             'details.*.product_id' => 'required|exists:products,id',

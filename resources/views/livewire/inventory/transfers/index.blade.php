@@ -22,6 +22,8 @@ new #[Layout('components.layouts.app')] class extends Component
     public string $quantity = '';
     public string $notes = '';
     public string $referenceNumber = '';
+    public string $physical_document_number = '';
+    public string $document_date = '';
     public bool $showTransferForm = false;
     public ?string $availableStock = null;
 
@@ -31,6 +33,7 @@ new #[Layout('components.layouts.app')] class extends Component
         if (!auth()->user()->isSuperAdmin()) {
             $this->company_id = auth()->user()->company_id;
         }
+        $this->document_date = now()->format('Y-m-d');
     }
 
     public function updatedPerPage(): void
@@ -57,6 +60,8 @@ new #[Layout('components.layouts.app')] class extends Component
             $this->quantity = '';
             $this->notes = '';
             $this->referenceNumber = '';
+            $this->physical_document_number = '';
+            $this->document_date = now()->format('Y-m-d');
             $this->availableStock = null;
 
             // Also reset company_id for super admins on close
@@ -140,6 +145,8 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->quantity = '';
         $this->notes = '';
         $this->referenceNumber = '';
+        $this->physical_document_number = '';
+        $this->document_date = now()->format('Y-m-d');
         $this->availableStock = null;
     }
 
@@ -174,13 +181,23 @@ new #[Layout('components.layouts.app')] class extends Component
             'fromWarehouseId' => 'required|exists:warehouses,id',
             'toWarehouseId' => 'required|exists:warehouses,id|different:fromWarehouseId',
             'quantity' => 'required|numeric|min:0.01',
+            'physical_document_number' => 'required|string|max:100|unique:inventory_transfers,physical_document_number',
+            'document_date' => 'required|date',
             'referenceNumber' => 'nullable|string|max:255',
             'notes' => 'nullable|string|max:500',
-        ], [], [
+        ], [
+            'physical_document_number.required' => 'El número de documento físico es obligatorio.',
+            'physical_document_number.max' => 'El número de documento físico no puede exceder 100 caracteres.',
+            'physical_document_number.unique' => 'Este número de documento físico ya está registrado.',
+            'document_date.required' => 'La fecha del documento es obligatoria.',
+            'document_date.date' => 'La fecha del documento debe ser una fecha válida.',
+        ], [
             'selectedProductId' => 'producto',
             'fromWarehouseId' => 'almacén de origen',
             'toWarehouseId' => 'almacén de destino',
             'quantity' => 'cantidad',
+            'physical_document_number' => 'número de documento físico',
+            'document_date' => 'fecha del documento',
             'referenceNumber' => 'número de referencia',
             'notes' => 'notas',
         ]);
@@ -208,6 +225,8 @@ new #[Layout('components.layouts.app')] class extends Component
             $transfer = InventoryTransfer::create([
                 'from_warehouse_id' => $fromWarehouse,
                 'to_warehouse_id' => $toWarehouse,
+                'physical_document_number' => $this->physical_document_number,
+                'document_date' => $this->document_date,
                 'status' => 'pending', // Requires approval workflow
                 'reason' => $this->notes ?: 'Traslado entre bodegas',
                 'notes' => $this->referenceNumber ? "Ref: {$this->referenceNumber}" : null,
@@ -413,6 +432,29 @@ new #[Layout('components.layouts.app')] class extends Component
                                 placeholder="{{ __('Transfer reference') }}"
                             />
                             <flux:error name="referenceNumber" />
+                        </flux:field>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Physical Document Number -->
+                        <flux:field>
+                            <flux:label badge="Requerido">No. Documento Físico</flux:label>
+                            <flux:input
+                                wire:model="physical_document_number"
+                                placeholder="Número de requisición o documento físico"
+                                maxlength="100"
+                            />
+                            <flux:error name="physical_document_number" />
+                        </flux:field>
+
+                        <!-- Document Date -->
+                        <flux:field>
+                            <flux:label badge="Requerido">Fecha del Documento</flux:label>
+                            <flux:input
+                                type="date"
+                                wire:model="document_date"
+                            />
+                            <flux:error name="document_date" />
                         </flux:field>
                     </div>
 

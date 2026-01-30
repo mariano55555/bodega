@@ -366,9 +366,10 @@ new class extends Component
                         <flux:table.column class="w-32">Fecha</flux:table.column>
                         <flux:table.column>Documento</flux:table.column>
                         <flux:table.column>Motivo</flux:table.column>
+                        <flux:table.column class="text-right">Saldo Inicial</flux:table.column>
                         <flux:table.column class="text-right">Entrada</flux:table.column>
                         <flux:table.column class="text-right">Salida</flux:table.column>
-                        <flux:table.column class="text-right">Saldo</flux:table.column>
+                        <flux:table.column class="text-right">Saldo Final</flux:table.column>
                         <flux:table.column class="text-right">Costo Unit.</flux:table.column>
                         <flux:table.column class="text-right">Valor Total</flux:table.column>
                     </flux:table.columns>
@@ -388,21 +389,33 @@ new class extends Component
                                                 {{ $movement->dispatch->dispatch_number }}
                                             </a>
                                             <span class="text-xs text-zinc-500">Despacho</span>
+                                            @if ($movement->dispatch->physical_document_number)
+                                                <span class="text-xs font-medium text-zinc-700 dark:text-zinc-300">{{ $movement->dispatch->physical_document_number }}</span>
+                                            @endif
                                         @elseif ($movement->transfer)
                                             <a href="{{ route('transfers.show', $movement->transfer) }}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium" wire:navigate>
                                                 {{ $movement->transfer->transfer_number ?? 'TRANS-'.$movement->transfer->id }}
                                             </a>
                                             <span class="text-xs text-zinc-500">Transferencia</span>
+                                            @if ($movement->transfer->physical_document_number)
+                                                <span class="text-xs font-medium text-zinc-700 dark:text-zinc-300">{{ $movement->transfer->physical_document_number }}</span>
+                                            @endif
                                         @elseif ($movement->purchase)
                                             <a href="{{ route('purchases.show', $movement->purchase->slug) }}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium" wire:navigate>
                                                 {{ $movement->purchase->purchase_number ?? 'PO-'.$movement->purchase->id }}
                                             </a>
                                             <span class="text-xs text-zinc-500">Compra</span>
+                                            @if ($movement->purchase->document_number)
+                                                <span class="text-xs font-medium text-zinc-700 dark:text-zinc-300">{{ $movement->purchase->document_number }}</span>
+                                            @endif
                                         @elseif ($movement->donation)
                                             <a href="{{ route('donations.show', $movement->donation->slug) }}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium" wire:navigate>
                                                 {{ $movement->donation->donation_number ?? 'DON-'.$movement->donation->id }}
                                             </a>
                                             <span class="text-xs text-zinc-500">Donación</span>
+                                            @if ($movement->donation->document_number)
+                                                <span class="text-xs font-medium text-zinc-700 dark:text-zinc-300">{{ $movement->donation->document_number }}</span>
+                                            @endif
                                         @endif
 
                                         {{-- Documento Externo (Factura, Guía, etc.) --}}
@@ -435,6 +448,16 @@ new class extends Component
                                     @endif
                                 </flux:table.cell>
 
+                                {{-- Saldo Inicial (balance before this movement) --}}
+                                <flux:table.cell class="text-right tabular-nums">
+                                    @php
+                                        $initialBalance = $movement->balance_quantity - $movement->quantity_in + $movement->quantity_out;
+                                    @endphp
+                                    <span class="{{ $initialBalance < 0 ? 'text-red-600 dark:text-red-400' : 'text-zinc-600 dark:text-zinc-400' }}">
+                                        {{ number_format($initialBalance, 2) }}
+                                    </span>
+                                </flux:table.cell>
+
                                 <flux:table.cell class="text-right font-medium tabular-nums">
                                     @if ($movement->quantity_in > 0)
                                         <span class="text-green-600 dark:text-green-400">
@@ -447,7 +470,7 @@ new class extends Component
 
                                 <flux:table.cell class="text-right font-medium tabular-nums">
                                     @if ($movement->quantity_out > 0)
-                                        <span class="text-red-600 dark:text-red-400">
+                                        <span class="text-blue-600 dark:text-blue-400">
                                             {{ number_format($movement->quantity_out, 2) }}
                                         </span>
                                     @else
@@ -524,7 +547,7 @@ new class extends Component
 
                         <div class="flex items-center justify-between">
                             <flux:text class="font-medium">Total Salidas:</flux:text>
-                            <flux:text class="font-semibold text-red-600 dark:text-red-400">
+                            <flux:text class="font-semibold text-blue-600 dark:text-blue-400">
                                 {{ number_format($totalOut, 2) }}
                             </flux:text>
                         </div>

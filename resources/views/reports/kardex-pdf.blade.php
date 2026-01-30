@@ -114,7 +114,7 @@
         }
 
         .quantity-out {
-            color: #dc2626;
+            color: #2563eb;
             font-weight: bold;
         }
 

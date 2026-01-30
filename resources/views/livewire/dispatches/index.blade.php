@@ -43,6 +43,10 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public string $notes = '';
 
+    public string $physical_document_number = '';
+
+    public string $document_date = '';
+
     // Multiple products support
     public array $quickItems = [];
 
@@ -51,6 +55,7 @@ new #[Layout('components.layouts.app')] class extends Component
         if (! $this->isSuperAdmin()) {
             $this->company_id = (string) auth()->user()->company_id;
         }
+        $this->document_date = now()->format('Y-m-d');
     }
 
     public function updatedSearch(): void
@@ -126,6 +131,8 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->area_id = '';
         $this->employee_id = '';
         $this->dispatch_type = 'interno';
+        $this->physical_document_number = '';
+        $this->document_date = now()->format('Y-m-d');
         $this->notes = '';
         $this->quickItems = [$this->getEmptyQuickItem()];
 
@@ -307,16 +314,24 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->validate([
             'warehouse_id' => 'required|exists:warehouses,id',
             'dispatch_type' => 'required|in:venta,interno,externo,donacion',
+            'physical_document_number' => 'required|string|max:100',
+            'document_date' => 'required|date',
             'quickItems' => 'required|array|min:1',
             'quickItems.*.product_id' => 'required|exists:products,id',
             'quickItems.*.quantity' => 'required|numeric|min:0.0001',
         ], [
+            'physical_document_number.required' => 'El número de documento físico es obligatorio.',
+            'physical_document_number.max' => 'El número de documento físico no puede exceder 100 caracteres.',
+            'document_date.required' => 'La fecha del documento es obligatoria.',
+            'document_date.date' => 'La fecha del documento debe ser una fecha válida.',
             'quickItems.*.product_id.required' => 'Seleccione un producto.',
             'quickItems.*.quantity.required' => 'Ingrese la cantidad.',
             'quickItems.*.quantity.min' => 'La cantidad debe ser mayor a 0.',
         ], [
             'warehouse_id' => 'bodega',
             'dispatch_type' => 'tipo de despacho',
+            'physical_document_number' => 'número de documento físico',
+            'document_date' => 'fecha del documento',
         ]);
 
         // Validate stock and get unit of measure for each item
@@ -363,6 +378,8 @@ new #[Layout('components.layouts.app')] class extends Component
                 'warehouse_id' => $this->warehouse_id,
                 'employee_id' => $this->employee_id ?: null,
                 'dispatch_type' => $this->dispatch_type,
+                'physical_document_number' => $this->physical_document_number,
+                'document_date' => $this->document_date,
                 'notes' => $this->notes,
                 'status' => 'despachado',
                 'dispatched_at' => now(),
@@ -902,6 +919,20 @@ new #[Layout('components.layouts.app')] class extends Component
                 @error('quickItems')
                     <flux:text class="text-red-600 dark:text-red-400 text-sm mt-2">{{ $message }}</flux:text>
                 @enderror
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <flux:field>
+                    <flux:label badge="Requerido">No. Documento Físico</flux:label>
+                    <flux:input wire:model="physical_document_number" placeholder="Número de requisición o documento físico" />
+                    <flux:error name="physical_document_number" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label badge="Requerido">Fecha del Documento</flux:label>
+                    <flux:input type="date" wire:model="document_date" />
+                    <flux:error name="document_date" />
+                </flux:field>
             </div>
 
             <flux:field>

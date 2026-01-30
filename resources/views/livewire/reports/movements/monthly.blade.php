@@ -287,12 +287,12 @@ new #[Layout('components.layouts.app')] class extends Component
                 <div class="flex items-center justify-between">
                     <div>
                         <flux:text class="mb-1 text-sm text-zinc-600 dark:text-zinc-400">Salidas</flux:text>
-                        <flux:heading size="2xl" class="text-red-600 dark:text-red-400">
+                        <flux:heading size="2xl" class="text-blue-600 dark:text-blue-400">
                             {{ number_format($this->movementsSummary['total_exits']) }}
                         </flux:heading>
                     </div>
-                    <div class="flex size-16 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/30">
-                        <flux:icon.arrow-up-tray class="size-8 text-red-600 dark:text-red-400" />
+                    <div class="flex size-16 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                        <flux:icon.arrow-up-tray class="size-8 text-blue-600 dark:text-blue-400" />
                     </div>
                 </div>
             </flux:card>
@@ -337,9 +337,9 @@ new #[Layout('components.layouts.app')] class extends Component
                             +{{ number_format($this->movementsSummary['quantity_in'], 2) }}
                         </flux:text>
                     </div>
-                    <div class="flex justify-between items-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                    <div class="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                         <flux:text class="font-medium">Total Cantidad Salida</flux:text>
-                        <flux:text class="text-lg font-bold text-red-600 dark:text-red-400">
+                        <flux:text class="text-lg font-bold text-blue-600 dark:text-blue-400">
                             -{{ number_format($this->movementsSummary['quantity_out'], 2) }}
                         </flux:text>
                     </div>
@@ -364,9 +364,9 @@ new #[Layout('components.layouts.app')] class extends Component
                             ${{ number_format($this->movementsSummary['total_value_in'], 2) }}
                         </flux:text>
                     </div>
-                    <div class="flex justify-between items-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                    <div class="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                         <flux:text class="font-medium">Valor Total Salidas</flux:text>
-                        <flux:text class="text-lg font-bold text-red-600 dark:text-red-400">
+                        <flux:text class="text-lg font-bold text-blue-600 dark:text-blue-400">
                             ${{ number_format($this->movementsSummary['total_value_out'], 2) }}
                         </flux:text>
                     </div>
@@ -400,7 +400,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                     <flux:table.cell class="text-right tabular-nums text-green-600 dark:text-green-400">
                                         +{{ number_format($day->qty_in ?? 0, 2) }}
                                     </flux:table.cell>
-                                    <flux:table.cell class="text-right tabular-nums text-red-600 dark:text-red-400">
+                                    <flux:table.cell class="text-right tabular-nums text-blue-600 dark:text-blue-400">
                                         -{{ number_format($day->qty_out ?? 0, 2) }}
                                     </flux:table.cell>
                                 </flux:table.row>

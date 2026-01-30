@@ -207,15 +207,15 @@ new #[Layout('components.layouts.app')] class extends Component
                 </div>
             </flux:card>
 
-            <flux:card class="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border-red-200 dark:border-red-800">
+            <flux:card class="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
                 <div class="flex items-center justify-between">
                     <div>
-                        <flux:text class="text-sm font-medium text-red-600 dark:text-red-400">Total Salidas</flux:text>
-                        <flux:heading size="2xl" class="text-red-900 dark:text-red-100">
+                        <flux:text class="text-sm font-medium text-blue-600 dark:text-blue-400">Total Salidas</flux:text>
+                        <flux:heading size="2xl" class="text-blue-900 dark:text-blue-100">
                             {{ number_format($this->kardexSummary['total_exits'], 2) }}
                         </flux:heading>
                     </div>
-                    <flux:icon name="arrow-up-tray" class="h-8 w-8 text-red-500" />
+                    <flux:icon name="arrow-up-tray" class="h-8 w-8 text-blue-500" />
                 </div>
             </flux:card>
 
@@ -284,7 +284,7 @@ new #[Layout('components.layouts.app')] class extends Component
                             </flux:table.cell>
                             <flux:table.cell class="text-right">
                                 @if(in_array($movement->movement_type, ['exit', 'transfer_out']) || ($movement->movement_type === 'adjustment' && $movement->quantity < 0))
-                                <flux:text class="font-medium text-red-600">{{ number_format(abs($movement->quantity), 2) }}</flux:text>
+                                <flux:text class="font-medium text-blue-600">{{ number_format(abs($movement->quantity), 2) }}</flux:text>
                                 @else
                                 <flux:text class="text-zinc-400">-</flux:text>
                                 @endif
