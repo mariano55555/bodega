@@ -95,7 +95,11 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->warehouse_id = '';
         $this->area_id = '';
         $this->employee_id = '';
-        $this->quickItems = [$this->getEmptyQuickItem()];
+        $this->quickItems = [
+            $this->getEmptyQuickItem(),
+            $this->getEmptyQuickItem(),
+            $this->getEmptyQuickItem(),
+        ];
     }
 
     public function updatedAreaId(): void
@@ -105,7 +109,11 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function updatedWarehouseId(): void
     {
-        $this->quickItems = [$this->getEmptyQuickItem()];
+        $this->quickItems = [
+            $this->getEmptyQuickItem(),
+            $this->getEmptyQuickItem(),
+            $this->getEmptyQuickItem(),
+        ];
         unset($this->products);
     }
 
@@ -134,7 +142,11 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->physical_document_number = '';
         $this->document_date = now()->format('Y-m-d');
         $this->notes = '';
-        $this->quickItems = [$this->getEmptyQuickItem()];
+        $this->quickItems = [
+            $this->getEmptyQuickItem(),
+            $this->getEmptyQuickItem(),
+            $this->getEmptyQuickItem(),
+        ];
 
         if ($this->isSuperAdmin()) {
             $this->company_id = '';
@@ -146,6 +158,7 @@ new #[Layout('components.layouts.app')] class extends Component
         return [
             'product_id' => '',
             'quantity' => '',
+            'unit_price' => '',
             'stock' => null,
             'unit' => '',
             'cost' => null,
@@ -179,10 +192,13 @@ new #[Layout('components.layouts.app')] class extends Component
             $this->quickItems[$index]['unit'] = $product?->unitOfMeasure?->abbreviation ?? '';
             $this->quickItems[$index]['stock'] = $inventory ? number_format($inventory->available_quantity, 5) : '0.00000';
             $this->quickItems[$index]['cost'] = $product?->cost ? number_format($product->cost, 5) : '0.00000';
+            // Set default unit_price from product cost
+            $this->quickItems[$index]['unit_price'] = $product?->cost ? number_format($product->cost, 2, '.', '') : '';
         } else {
             $this->quickItems[$index]['stock'] = null;
             $this->quickItems[$index]['unit'] = '';
             $this->quickItems[$index]['cost'] = null;
+            $this->quickItems[$index]['unit_price'] = '';
         }
     }
 
@@ -305,8 +321,12 @@ new #[Layout('components.layouts.app')] class extends Component
             $this->company_id = (string) auth()->user()->company_id;
         }
 
-        // Initialize with one empty item
-        $this->quickItems = [$this->getEmptyQuickItem()];
+        // Initialize with three empty items for quick product entry
+        $this->quickItems = [
+            $this->getEmptyQuickItem(),
+            $this->getEmptyQuickItem(),
+            $this->getEmptyQuickItem(),
+        ];
     }
 
     public function createQuickDispatch(): void
@@ -319,6 +339,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'quickItems' => 'required|array|min:1',
             'quickItems.*.product_id' => 'required|exists:products,id',
             'quickItems.*.quantity' => 'required|numeric|min:0.0001',
+            'quickItems.*.unit_price' => 'required|numeric|min:0',
         ], [
             'physical_document_number.required' => 'El número de documento físico es obligatorio.',
             'physical_document_number.max' => 'El número de documento físico no puede exceder 100 caracteres.',
@@ -327,6 +348,8 @@ new #[Layout('components.layouts.app')] class extends Component
             'quickItems.*.product_id.required' => 'Seleccione un producto.',
             'quickItems.*.quantity.required' => 'Ingrese la cantidad.',
             'quickItems.*.quantity.min' => 'La cantidad debe ser mayor a 0.',
+            'quickItems.*.unit_price.required' => 'Ingrese el precio.',
+            'quickItems.*.unit_price.min' => 'El precio no puede ser negativo.',
         ], [
             'warehouse_id' => 'bodega',
             'dispatch_type' => 'tipo de despacho',
@@ -339,6 +362,7 @@ new #[Layout('components.layouts.app')] class extends Component
         foreach ($this->quickItems as $index => $item) {
             $productId = $item['product_id'];
             $quantity = (float) $item['quantity'];
+            $unitPrice = (float) ($item['unit_price'] ?? 0);
 
             $product = Product::find($productId);
             if (! $product || ! $product->unit_of_measure_id) {
@@ -363,6 +387,7 @@ new #[Layout('components.layouts.app')] class extends Component
             $validatedItems[] = [
                 'product_id' => $productId,
                 'quantity' => $quantity,
+                'unit_price' => $unitPrice,
                 'unit_of_measure_id' => $product->unit_of_measure_id,
                 'inventory' => $inventory,
             ];
@@ -408,7 +433,7 @@ new #[Layout('components.layouts.app')] class extends Component
                     'product_id' => $item['product_id'],
                     'quantity' => $item['quantity'],
                     'unit_of_measure_id' => $item['unit_of_measure_id'],
-                    'unit_price' => 0,
+                    'unit_price' => $item['unit_price'],
                     'quantity_dispatched' => $item['quantity'],
                     'is_reserved' => true,
                     'reserved_by' => auth()->id(),
@@ -757,7 +782,7 @@ new #[Layout('components.layouts.app')] class extends Component
     </div>
 
     {{-- Quick Dispatch Modal --}}
-    <flux:modal name="quick-dispatch" class="max-w-2xl" variant="flyout" wire:model="showQuickDispatch">
+    <flux:modal name="quick-dispatch" class="max-w-xl md:max-w-2xl lg:max-w-3xl" variant="flyout" wire:model="showQuickDispatch">
         <flux:heading>
             <flux:heading size="lg">Despacho Rápido</flux:heading>
             <flux:text class="text-zinc-600 dark:text-zinc-400">
@@ -842,9 +867,9 @@ new #[Layout('components.layouts.app')] class extends Component
                 <div class="space-y-3">
                     @foreach($quickItems as $index => $item)
                         <div wire:key="quick-item-{{ $index }}" class="p-3 border rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
-                            <div class="flex items-start gap-3">
-                                {{-- Product Select and Info --}}
-                                <div class="flex-1 space-y-2">
+                            {{-- Row 1: Product Select + Remove Button --}}
+                            <div class="flex items-start gap-2 mb-2">
+                                <div class="flex-1">
                                     <flux:select
                                         variant="listbox"
                                         searchable
@@ -864,39 +889,6 @@ new #[Layout('components.layouts.app')] class extends Component
                                     @error("quickItems.{$index}.product_id")
                                         <flux:text class="text-red-600 dark:text-red-400 text-sm">{{ $message }}</flux:text>
                                     @enderror
-
-                                    {{-- Product info badges --}}
-                                    @if(!empty($item['stock']))
-                                        <div class="flex items-center gap-2 flex-wrap">
-                                            <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium {{ $item['stock'] === '0.00' ? 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300' : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' }}">
-                                                Stock: {{ $item['stock'] }} {{ $item['unit'] }}
-                                            </span>
-                                            @if(!empty($item['unit']))
-                                                <span class="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-700 px-2 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300">
-                                                    Unidad: {{ $item['unit'] }}
-                                                </span>
-                                            @endif
-                                            @if(!empty($item['cost']))
-                                                <span class="inline-flex items-center rounded-md bg-blue-100 dark:bg-blue-900 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-300">
-                                                    Precio: ${{ $item['cost'] }}
-                                                </span>
-                                            @endif
-                                        </div>
-                                    @endif
-                                </div>
-
-                                {{-- Quantity --}}
-                                <div class="w-24">
-                                    <flux:input
-                                        type="number"
-                                        step="0.00001"
-                                        min="0.00001"
-                                        wire:model="quickItems.{{ $index }}.quantity"
-                                        placeholder="Cant."
-                                    />
-                                    @error("quickItems.{$index}.quantity")
-                                        <flux:text class="text-red-600 dark:text-red-400 text-xs">{{ $message }}</flux:text>
-                                    @enderror
                                 </div>
 
                                 {{-- Remove Button --}}
@@ -907,11 +899,60 @@ new #[Layout('components.layouts.app')] class extends Component
                                         size="sm"
                                         icon="trash"
                                         wire:click="removeQuickItem({{ $index }})"
-                                        class="text-red-600 hover:text-red-700 dark:text-red-400"
+                                        class="text-red-600 hover:text-red-700 dark:text-red-400 mt-1"
                                     />
-                                @else
-                                    <div class="w-8"></div>
                                 @endif
+                            </div>
+
+                            {{-- Row 2: Product info badges --}}
+                            @if(!empty($item['stock']))
+                                <div class="flex items-center gap-2 flex-wrap mb-2">
+                                    <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium {{ $item['stock'] === '0.00' ? 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300' : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' }}">
+                                        Stock: {{ $item['stock'] }} {{ $item['unit'] }}
+                                    </span>
+                                    @if(!empty($item['unit']))
+                                        <span class="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-700 px-2 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                                            Unidad: {{ $item['unit'] }}
+                                        </span>
+                                    @endif
+                                    @if(!empty($item['cost']))
+                                        <span class="inline-flex items-center rounded-md bg-blue-100 dark:bg-blue-900 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-300">
+                                            Costo ref: ${{ $item['cost'] }}
+                                        </span>
+                                    @endif
+                                </div>
+                            @endif
+
+                            {{-- Row 3: Quantity and Price --}}
+                            <div class="grid grid-cols-2 gap-3">
+                                <flux:field>
+                                    <flux:label class="text-xs">Cantidad</flux:label>
+                                    <flux:input
+                                        type="number"
+                                        step="0.00001"
+                                        min="0.00001"
+                                        wire:model="quickItems.{{ $index }}.quantity"
+                                        placeholder="Cantidad"
+                                    />
+                                    @error("quickItems.{$index}.quantity")
+                                        <flux:text class="text-red-600 dark:text-red-400 text-xs">{{ $message }}</flux:text>
+                                    @enderror
+                                </flux:field>
+
+                                <flux:field>
+                                    <flux:label class="text-xs">Precio Unitario</flux:label>
+                                    <flux:input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        wire:model="quickItems.{{ $index }}.unit_price"
+                                        placeholder="Precio"
+                                        icon="currency-dollar"
+                                    />
+                                    @error("quickItems.{$index}.unit_price")
+                                        <flux:text class="text-red-600 dark:text-red-400 text-xs">{{ $message }}</flux:text>
+                                    @enderror
+                                </flux:field>
                             </div>
                         </div>
                     @endforeach
@@ -943,6 +984,7 @@ new #[Layout('components.layouts.app')] class extends Component
             {{-- Summary --}}
             @php
                 $hasProducts = collect($quickItems)->filter(fn($i) => !empty($i['product_id']) && !empty($i['quantity']))->count() > 0;
+                $totalAmount = collect($quickItems)->filter(fn($i) => !empty($i['product_id']) && !empty($i['quantity']))->sum(fn($i) => (float) ($i['quantity'] ?? 0) * (float) ($i['unit_price'] ?? 0));
             @endphp
             @if($hasProducts && $warehouse_id)
                 <div class="bg-zinc-50 dark:bg-zinc-800 p-4 rounded-lg border">
@@ -961,13 +1003,20 @@ new #[Layout('components.layouts.app')] class extends Component
                             @if(!empty($item['product_id']) && !empty($item['quantity']))
                                 @php
                                     $prod = $this->products->firstWhere('id', (int) $item['product_id']);
+                                    $subtotal = (float) ($item['quantity'] ?? 0) * (float) ($item['unit_price'] ?? 0);
                                 @endphp
-                                <div class="flex justify-between text-xs">
-                                    <span class="text-zinc-500 truncate max-w-[200px]">{{ $prod?->name }}</span>
-                                    <span class="font-medium">{{ number_format((float) $item['quantity'], 5) }} {{ $item['unit'] }}</span>
+                                <div class="flex justify-between text-xs gap-2">
+                                    <span class="text-zinc-500 truncate flex-1">{{ $prod?->name }}</span>
+                                    <span class="text-zinc-400 whitespace-nowrap">{{ number_format((float) $item['quantity'], 2) }} × ${{ number_format((float) ($item['unit_price'] ?? 0), 2) }}</span>
+                                    <span class="font-medium text-right w-20">${{ number_format($subtotal, 2) }}</span>
                                 </div>
                             @endif
                         @endforeach
+                        <flux:separator class="my-2" />
+                        <div class="flex justify-between font-semibold">
+                            <span class="text-zinc-700 dark:text-zinc-300">Total:</span>
+                            <span class="text-zinc-900 dark:text-white">${{ number_format($totalAmount, 2) }}</span>
+                        </div>
                     </div>
                 </div>
             @endif

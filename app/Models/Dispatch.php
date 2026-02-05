@@ -116,6 +116,11 @@ class Dispatch extends Model
                 $dispatch->deleted_by = auth()->id();
                 $dispatch->save();
             }
+
+            // Soft delete related inventory movements
+            $dispatch->inventoryMovements()->each(function ($movement) {
+                $movement->delete();
+            });
         });
     }
 

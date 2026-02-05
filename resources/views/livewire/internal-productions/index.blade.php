@@ -170,9 +170,14 @@ new #[Layout('components.layouts.app')] class extends Component
             <flux:text class="mt-1">Gestión de producciones internas</flux:text>
         </div>
 
-        <flux:button variant="primary" icon="plus" href="{{ route('internal-productions.create') }}" wire:navigate>
-            Nueva Producción
-        </flux:button>
+        <div class="flex items-center gap-2">
+            <flux:button variant="ghost" icon="cube" href="{{ route('inventory.products.create') }}" wire:navigate>
+                Nuevo Producto
+            </flux:button>
+            <flux:button variant="primary" icon="plus" href="{{ route('internal-productions.create') }}" wire:navigate>
+                Nueva Producción
+            </flux:button>
+        </div>
     </div>
 
     @if (session('success'))

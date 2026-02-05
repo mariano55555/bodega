@@ -182,6 +182,20 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <flux:text class="mt-1">{{ $dispatch->created_at->format('d/m/Y H:i') }}</flux:text>
                     </div>
 
+                    @if ($dispatch->physical_document_number)
+                        <div>
+                            <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Documento Físico</flux:text>
+                            <flux:text class="mt-1 font-mono">{{ $dispatch->physical_document_number }}</flux:text>
+                        </div>
+                    @endif
+
+                    @if ($dispatch->document_date)
+                        <div>
+                            <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Fecha Documento Físico</flux:text>
+                            <flux:text class="mt-1">{{ $dispatch->document_date->format('d/m/Y') }}</flux:text>
+                        </div>
+                    @endif
+
                     @if ($dispatch->area)
                         <div>
                             <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Unidad Solicitante</flux:text>

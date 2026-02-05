@@ -215,6 +215,26 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <flux:text class="text-base font-semibold">{{ $transfer->requested_at?->format('d/m/Y H:i') ?? $transfer->created_at->format('d/m/Y H:i') }}</flux:text>
                     </div>
 
+                    @if ($transfer->physical_document_number)
+                        <div class="space-y-1">
+                            <flux:text class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Nº Documento Físico</flux:text>
+                            <div class="flex items-center gap-2">
+                                <flux:icon name="document-text" class="w-5 h-5 text-amber-500" />
+                                <flux:text class="text-base font-semibold">{{ $transfer->physical_document_number }}</flux:text>
+                            </div>
+                        </div>
+                    @endif
+
+                    @if ($transfer->document_date)
+                        <div class="space-y-1">
+                            <flux:text class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Fecha de Documento</flux:text>
+                            <div class="flex items-center gap-2">
+                                <flux:icon name="calendar" class="w-5 h-5 text-amber-500" />
+                                <flux:text class="text-base font-semibold">{{ $transfer->document_date->format('d/m/Y') }}</flux:text>
+                            </div>
+                        </div>
+                    @endif
+
                     <div class="space-y-1">
                         <flux:text class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Bodega de Origen</flux:text>
                         <div class="flex items-center gap-2">

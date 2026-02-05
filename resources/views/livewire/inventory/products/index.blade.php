@@ -21,6 +21,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public string $category = '';
 
+    public string $subcategory = '';
+
     public string $stockLevel = '';
 
     public bool $showLowStock = false;
@@ -39,6 +41,8 @@ new #[Layout('components.layouts.app')] class extends Component
     {
         $this->warehouse = '';
         $this->category = '';
+        $this->subcategory = '';
+        unset($this->subcategories);
         $this->resetPage();
     }
 
@@ -82,9 +86,18 @@ new #[Layout('components.layouts.app')] class extends Component
         }
 
         // Category filter
-        if ($this->category) {
-            $query->whereHas('product.category', function ($q) {
-                $q->where('id', $this->category);
+        if ($this->subcategory) {
+            // Filter by specific subcategory
+            $query->whereHas('product', function ($q) {
+                $q->where('category_id', $this->subcategory);
+            });
+        } elseif ($this->category) {
+            // Filter by parent category or any of its children
+            $query->whereHas('product', function ($q) {
+                $q->where('category_id', $this->category)
+                    ->orWhereHas('category', function ($catQuery) {
+                        $catQuery->where('parent_id', $this->category);
+                    });
             });
         }
 
@@ -133,13 +146,26 @@ new #[Layout('components.layouts.app')] class extends Component
     #[Computed]
     public function categories()
     {
-        $query = ProductCategory::active();
+        $query = ProductCategory::active()->parents();
 
         if ($this->company) {
             $query->where('company_id', $this->company);
         }
 
-        return $query->get(['id', 'name']);
+        return $query->orderBy('name')->get(['id', 'name']);
+    }
+
+    #[Computed]
+    public function subcategories()
+    {
+        if (! $this->category) {
+            return collect([]);
+        }
+
+        return ProductCategory::active()
+            ->where('parent_id', $this->category)
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 
     #[Computed]
@@ -182,6 +208,13 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function updatedCategory(): void
     {
+        $this->subcategory = '';
+        unset($this->subcategories);
+        $this->resetPage();
+    }
+
+    public function updatedSubcategory(): void
+    {
         $this->resetPage();
     }
 
@@ -208,9 +241,11 @@ new #[Layout('components.layouts.app')] class extends Component
         }
         $this->warehouse = '';
         $this->category = '';
+        $this->subcategory = '';
         $this->stockLevel = '';
         $this->showLowStock = false;
         $this->showExpiring = false;
+        unset($this->subcategories);
         $this->resetPage();
     }
 
@@ -234,7 +269,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'company_id' => $this->company ?: null,
             'search' => $this->search,
             'warehouse_id' => $this->warehouse,
-            'category_id' => $this->category,
+            'category_id' => $this->subcategory ?: $this->category,
             'stock_level' => $this->stockLevel,
             'show_low_stock' => $this->showLowStock,
             'show_expiring' => $this->showExpiring,
@@ -350,9 +385,9 @@ new #[Layout('components.layouts.app')] class extends Component
             @endif
 
             <!-- First row - Search and main filters -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <!-- Search -->
-                <div class="sm:col-span-2 lg:col-span-1">
+                <div>
                     <flux:input wire:model.live.debounce.300ms="search"
                                :placeholder="__('inventory.search_products_placeholder')"
                                icon="magnifying-glass" />
@@ -367,11 +402,20 @@ new #[Layout('components.layouts.app')] class extends Component
                     </flux:select>
                 </div>
 
-                <!-- Category Filter -->
+                <!-- Category Filter (Parent Categories) -->
                 <div>
                     <flux:select variant="listbox" searchable wire:model.live="category" :placeholder="__('inventory.all_categories')">
                         @foreach($this->categories as $cat)
                         <flux:select.option value="{{ $cat->id }}">{{ $cat->name }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                </div>
+
+                <!-- Subcategory Filter -->
+                <div>
+                    <flux:select variant="listbox" searchable wire:model.live="subcategory" placeholder="Todas las subcategorías" :disabled="!$category">
+                        @foreach($this->subcategories as $subcat)
+                        <flux:select.option value="{{ $subcat->id }}">{{ $subcat->name }}</flux:select.option>
                         @endforeach
                     </flux:select>
                 </div>
@@ -394,7 +438,7 @@ new #[Layout('components.layouts.app')] class extends Component
             </div>
 
             <!-- Clear filters -->
-            @if($search || $company || $warehouse || $category || $stockLevel || $showLowStock || $showExpiring)
+            @if($search || $company || $warehouse || $category || $subcategory || $stockLevel || $showLowStock || $showExpiring)
             <div class="pt-4 border-t border-zinc-200 dark:border-zinc-700">
                 <flux:button variant="ghost" size="sm" wire:click="clearFilters">
                     {{ __('ui.clear_filters') }}

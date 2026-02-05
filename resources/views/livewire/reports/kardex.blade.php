@@ -366,12 +366,12 @@ new class extends Component
                         <flux:table.column class="w-32">Fecha</flux:table.column>
                         <flux:table.column>Documento</flux:table.column>
                         <flux:table.column>Motivo</flux:table.column>
-                        <flux:table.column class="text-right">Saldo Inicial</flux:table.column>
-                        <flux:table.column class="text-right">Entrada</flux:table.column>
-                        <flux:table.column class="text-right">Salida</flux:table.column>
-                        <flux:table.column class="text-right">Saldo Final</flux:table.column>
-                        <flux:table.column class="text-right">Costo Unit.</flux:table.column>
-                        <flux:table.column class="text-right">Valor Total</flux:table.column>
+                        <flux:table.column align="right">Saldo Inicial</flux:table.column>
+                        <flux:table.column align="right">Entrada</flux:table.column>
+                        <flux:table.column align="right">Salida</flux:table.column>
+                        <flux:table.column align="right">Saldo Final</flux:table.column>
+                        <flux:table.column align="right">Costo Unit.</flux:table.column>
+                        <flux:table.column align="right">Valor Total</flux:table.column>
                     </flux:table.columns>
 
                     <flux:table.rows>
@@ -510,58 +510,62 @@ new class extends Component
 
             {{-- Summary --}}
             <div class="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-700">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="flex items-center justify-between">
-                        <flux:text class="font-medium">Total de Movimientos:</flux:text>
-                        <flux:text class="font-semibold">{{ $this->movements->count() }}</flux:text>
-                    </div>
+                @if ($this->movements->isNotEmpty())
+                    @php
+                        $firstMovement = $this->movements->first();
+                        $lastMovement = $this->movements->last();
+                        $initialBalance = $firstMovement->balance_quantity - $firstMovement->quantity_in + $firstMovement->quantity_out;
+                        $finalValue = $lastMovement->balance_quantity * ($lastMovement->unit_cost ?? 0);
+                        $totalOut = $this->movements->sum('quantity_out');
+                    @endphp
 
-                    @if ($this->movements->isNotEmpty())
-                        @php
-                            $lastMovement = $this->movements->last();
-                            $finalValue = $lastMovement->balance_quantity * ($lastMovement->unit_cost ?? 0);
-                            $totalIn = $this->movements->sum('quantity_in');
-                            $totalOut = $this->movements->sum('quantity_out');
-                        @endphp
-
-                        <div class="flex items-center justify-between">
-                            <flux:text class="font-medium">Saldo Final (Cantidad):</flux:text>
-                            <flux:text class="text-lg font-bold {{ $lastMovement->balance_quantity < 0 ? 'text-red-600 dark:text-red-400' : 'text-zinc-900 dark:text-zinc-100' }}">
-                                {{ number_format($lastMovement->balance_quantity, 2) }}
-                            </flux:text>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {{-- Row 1 --}}
+                        <div class="flex items-center gap-2">
+                            <flux:text class="font-medium">Existencia Inicial:</flux:text>
+                            <flux:text class="font-semibold">{{ number_format($initialBalance, 2) }}</flux:text>
                         </div>
 
-                        <div class="flex items-center justify-between">
-                            <flux:text class="font-medium">Valor en Inventario:</flux:text>
-                            <flux:text class="text-lg font-bold text-green-600 dark:text-green-400">
-                                ${{ number_format($finalValue, 2) }}
-                            </flux:text>
-                        </div>
-
-                        <div class="flex items-center justify-between">
-                            <flux:text class="font-medium">Total Entradas:</flux:text>
-                            <flux:text class="font-semibold text-green-600 dark:text-green-400">
-                                {{ number_format($totalIn, 2) }}
-                            </flux:text>
-                        </div>
-
-                        <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
                             <flux:text class="font-medium">Total Salidas:</flux:text>
                             <flux:text class="font-semibold text-blue-600 dark:text-blue-400">
                                 {{ number_format($totalOut, 2) }}
                             </flux:text>
                         </div>
 
-                        @if ($lastMovement->unit_cost)
-                            <div class="flex items-center justify-between">
-                                <flux:text class="font-medium">Costo Unitario Actual:</flux:text>
-                                <flux:text class="font-semibold">
-                                    ${{ number_format($lastMovement->unit_cost, 2) }}
-                                </flux:text>
-                            </div>
-                        @endif
-                    @endif
-                </div>
+                        <div class="flex items-center gap-2">
+                            <flux:text class="font-medium">Existencia Actual:</flux:text>
+                            <flux:text class="font-semibold {{ $lastMovement->balance_quantity < 0 ? 'text-red-600 dark:text-red-400' : '' }}">
+                                {{ number_format($lastMovement->balance_quantity, 2) }}
+                            </flux:text>
+                        </div>
+
+                        {{-- Row 2 --}}
+                        <div class="flex items-center gap-2">
+                            <flux:text class="font-medium">Total Movimientos:</flux:text>
+                            <flux:text class="font-semibold">{{ $this->movements->count() }}</flux:text>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <flux:text class="font-medium">Costo Unitario Actual:</flux:text>
+                            <flux:text class="font-semibold">
+                                ${{ number_format($lastMovement->unit_cost ?? 0, 2) }}
+                            </flux:text>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <flux:text class="font-medium">Valor en Inventario:</flux:text>
+                            <flux:text class="font-semibold text-green-600 dark:text-green-400">
+                                ${{ number_format($finalValue, 2) }}
+                            </flux:text>
+                        </div>
+                    </div>
+                @else
+                    <div class="flex items-center gap-2">
+                        <flux:text class="font-medium">Total de Movimientos:</flux:text>
+                        <flux:text class="font-semibold">0</flux:text>
+                    </div>
+                @endif
             </div>
         @endif
     </flux:card>
