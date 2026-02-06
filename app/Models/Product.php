@@ -54,10 +54,10 @@ class Product extends Model
     protected function casts(): array
     {
         return [
-            'cost' => 'decimal:2',
+            'cost' => 'decimal:5',
             // 'price' => 'decimal:2', // Comentado por petición del cliente: quitar precio de venta
-            'minimum_stock' => 'decimal:2',
-            'maximum_stock' => 'decimal:2',
+            'minimum_stock' => 'decimal:5',
+            'maximum_stock' => 'decimal:5',
             'attributes' => 'array',
             'track_inventory' => 'boolean',
             'is_active' => 'boolean',

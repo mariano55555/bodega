@@ -55,8 +55,8 @@ class InventoryAlert extends Model
     protected function casts(): array
     {
         return [
-            'threshold_value' => 'decimal:4',
-            'current_value' => 'decimal:4',
+            'threshold_value' => 'decimal:5',
+            'current_value' => 'decimal:5',
             'metadata' => 'array',
             'notification_log' => 'array',
             'is_active' => 'boolean',

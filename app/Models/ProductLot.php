@@ -51,9 +51,9 @@ class ProductLot extends Model
         return [
             'manufactured_date' => 'date',
             'expiration_date' => 'date',
-            'quantity_produced' => 'decimal:4',
-            'quantity_remaining' => 'decimal:4',
-            'unit_cost' => 'decimal:4',
+            'quantity_produced' => 'decimal:5',
+            'quantity_remaining' => 'decimal:5',
+            'unit_cost' => 'decimal:5',
             'quality_attributes' => 'array',
             'metadata' => 'array',
             'is_active' => 'boolean',

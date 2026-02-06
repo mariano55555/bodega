@@ -82,8 +82,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function updatedAreaId(): void
     {
-        // Reset employee when area changes
-        $this->employee_id = '';
+        // Area change no longer affects employees since we show all employees
     }
 
     public function addDetail(): void
@@ -124,15 +123,29 @@ new #[Layout('components.layouts.app')] class extends Component
     #[\Livewire\Attributes\Computed]
     public function employees()
     {
-        if (! $this->dispatch->company_id || ! $this->area_id) {
+        if (! $this->dispatch->company_id) {
             return collect([]);
         }
 
         return Employee::where('company_id', $this->dispatch->company_id)
-            ->where('area_id', $this->area_id)
             ->where('is_active', true)
+            ->select('id', 'name', 'position', 'phone', 'mobile', 'email')
             ->orderBy('name')
             ->get();
+    }
+
+    public function updatedEmployeeId(): void
+    {
+        if (! $this->employee_id) {
+            return;
+        }
+
+        $employee = $this->employees->firstWhere('id', $this->employee_id);
+        if ($employee) {
+            $this->recipient_name = $employee->name ?? '';
+            $this->recipient_phone = $employee->phone ?: ($employee->mobile ?? '');
+            $this->recipient_email = $employee->email ?? '';
+        }
     }
 
     #[\Livewire\Attributes\Computed]
@@ -331,20 +344,14 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <!-- Persona Solicitante -->
                 <flux:field>
-                    <flux:label badge="Requerido">Persona Solicitante</flux:label>
-                    <flux:select wire:model="employee_id" :disabled="!$area_id">
-                        <option value="">Seleccione persona</option>
+                    <flux:label>Persona Solicitante</flux:label>
+                    <flux:select wire:model.live="employee_id">
+                        <option value="">Seleccione persona...</option>
                         @foreach ($this->employees as $employee)
                             <option value="{{ $employee->id }}">{{ $employee->name }}{{ $employee->position ? ' (' . $employee->position . ')' : '' }}</option>
                         @endforeach
                     </flux:select>
-                    <flux:description>
-                        @if(!$area_id)
-                            Primero seleccione una unidad solicitante
-                        @else
-                            Persona del área seleccionada
-                        @endif
-                    </flux:description>
+                    <flux:description>Al seleccionar, se autocompletarán los datos del receptor</flux:description>
                     <flux:error name="employee_id" />
                 </flux:field>
 

@@ -50,12 +50,12 @@ class Inventory extends Model
     protected function casts(): array
     {
         return [
-            'quantity' => 'decimal:4',
-            'reserved_quantity' => 'decimal:4',
-            'available_quantity' => 'decimal:4',
-            'unit_cost' => 'decimal:4',
-            'total_value' => 'decimal:4',
-            'last_count_quantity' => 'decimal:4',
+            'quantity' => 'decimal:5',
+            'reserved_quantity' => 'decimal:5',
+            'available_quantity' => 'decimal:5',
+            'unit_cost' => 'decimal:5',
+            'total_value' => 'decimal:5',
+            'last_count_quantity' => 'decimal:5',
             'is_active' => 'boolean',
             'active_at' => 'datetime',
             'expiration_date' => 'date',

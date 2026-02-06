@@ -34,7 +34,7 @@ class InventoryTransferDetail extends Model
     protected function casts(): array
     {
         return [
-            'quantity' => 'decimal:4',
+            'quantity' => 'decimal:5',
         ];
     }
 

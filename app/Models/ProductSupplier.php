@@ -47,8 +47,8 @@ class ProductSupplier extends Model
     protected function casts(): array
     {
         return [
-            'supplier_cost' => 'decimal:4',
-            'last_purchase_price' => 'decimal:4',
+            'supplier_cost' => 'decimal:5',
+            'last_purchase_price' => 'decimal:5',
             'supplier_unit_measure_code' => 'integer',
             'last_purchase_at' => 'datetime',
             'is_preferred' => 'boolean',

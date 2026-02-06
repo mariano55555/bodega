@@ -27,9 +27,9 @@ class DonationDetail extends Model
     protected function casts(): array
     {
         return [
-            'quantity' => 'decimal:4',
-            'estimated_unit_value' => 'decimal:2',
-            'estimated_total_value' => 'decimal:2',
+            'quantity' => 'decimal:5',
+            'estimated_unit_value' => 'decimal:5',
+            'estimated_total_value' => 'decimal:5',
             'expiration_date' => 'date',
         ];
     }

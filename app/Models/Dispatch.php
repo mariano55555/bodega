@@ -68,11 +68,11 @@ class Dispatch extends Model
     {
         return [
             'document_date' => 'date',
-            'subtotal' => 'decimal:2',
-            'tax_amount' => 'decimal:2',
-            'discount_amount' => 'decimal:2',
-            'shipping_cost' => 'decimal:2',
-            'total' => 'decimal:2',
+            'subtotal' => 'decimal:5',
+            'tax_amount' => 'decimal:5',
+            'discount_amount' => 'decimal:5',
+            'shipping_cost' => 'decimal:5',
+            'total' => 'decimal:5',
             'approved_at' => 'datetime',
             'dispatched_at' => 'datetime',
             'delivered_at' => 'datetime',

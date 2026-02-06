@@ -61,8 +61,8 @@ class Donation extends Model
         return [
             'document_date' => 'date',
             'reception_date' => 'date',
-            'estimated_value' => 'decimal:2',
-            'tax_deduction_value' => 'decimal:2',
+            'estimated_value' => 'decimal:5',
+            'tax_deduction_value' => 'decimal:5',
             'approved_at' => 'datetime',
             'received_at' => 'datetime',
             'tax_receipt_date' => 'date',

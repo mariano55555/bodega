@@ -84,14 +84,14 @@ class InventoryMovement extends Model
     protected function casts(): array
     {
         return [
-            'quantity' => 'decimal:4',
-            'quantity_in' => 'decimal:4',
-            'quantity_out' => 'decimal:4',
-            'balance_quantity' => 'decimal:4',
-            'previous_quantity' => 'decimal:4',
-            'new_quantity' => 'decimal:4',
-            'unit_cost' => 'decimal:4',
-            'total_cost' => 'decimal:2',
+            'quantity' => 'decimal:5',
+            'quantity_in' => 'decimal:5',
+            'quantity_out' => 'decimal:5',
+            'balance_quantity' => 'decimal:5',
+            'previous_quantity' => 'decimal:5',
+            'new_quantity' => 'decimal:5',
+            'unit_cost' => 'decimal:5',
+            'total_cost' => 'decimal:5',
             'movement_date' => 'date',
             'expiration_date' => 'date',
             'metadata' => 'array',

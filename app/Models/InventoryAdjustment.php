@@ -60,9 +60,9 @@ class InventoryAdjustment extends Model
     protected function casts(): array
     {
         return [
-            'quantity' => 'decimal:4',
-            'unit_cost' => 'decimal:4',
-            'total_value' => 'decimal:2',
+            'quantity' => 'decimal:5',
+            'unit_cost' => 'decimal:5',
+            'total_value' => 'decimal:5',
             'expiry_date' => 'date',
             'submitted_at' => 'datetime',
             'approved_at' => 'datetime',

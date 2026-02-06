@@ -62,7 +62,7 @@ class StorageLocation extends Model
         return [
             'level' => 'integer',
             'sort_order' => 'integer',
-            'capacity' => 'decimal:4',
+            'capacity' => 'decimal:5',
             'length' => 'decimal:2',
             'width' => 'decimal:2',
             'height' => 'decimal:2',

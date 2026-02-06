@@ -83,8 +83,12 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function updatedAreaId(): void
     {
-        $this->employee_id = '';
-        unset($this->employees);
+        // Area change no longer affects employees
+    }
+
+    public function updatedWarehouseId(): void
+    {
+        // Warehouse change - could add logic here if needed
     }
 
     public function isSuperAdmin(): bool
@@ -222,12 +226,11 @@ new #[Layout('components.layouts.app')] class extends Component
     #[Computed]
     public function employees()
     {
-        if (! $this->company_id || ! $this->area_id) {
+        if (! $this->company_id) {
             return collect([]);
         }
 
         return Employee::where('company_id', $this->company_id)
-            ->where('area_id', $this->area_id)
             ->where('is_active', true)
             ->select('id', 'name', 'position')
             ->orderBy('name')
@@ -328,13 +331,11 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label>Persona que Entrega</flux:label>
-                    <flux:select wire:model="employee_id" :disabled="!$area_id">
-                        <option value="">Seleccione persona</option>
+                    <flux:select wire:model="employee_id" variant="listbox" searchable placeholder="Buscar persona...">
                         @foreach ($this->employees as $employee)
-                            <option value="{{ $employee->id }}">{{ $employee->name }}{{ $employee->position ? ' - ' . $employee->position : '' }}</option>
+                            <flux:select.option value="{{ $employee->id }}">{{ $employee->name }}{{ $employee->position ? ' - ' . $employee->position : '' }}</flux:select.option>
                         @endforeach
                     </flux:select>
-                    <flux:description>Primero seleccione la unidad de origen</flux:description>
                     <flux:error name="employee_id" />
                 </flux:field>
 

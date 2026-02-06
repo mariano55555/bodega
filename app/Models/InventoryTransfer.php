@@ -66,7 +66,7 @@ class InventoryTransfer extends Model
             'received_at' => 'datetime',
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
-            'shipping_cost' => 'decimal:2',
+            'shipping_cost' => 'decimal:5',
             'is_active' => 'boolean',
             'active_at' => 'datetime',
         ];

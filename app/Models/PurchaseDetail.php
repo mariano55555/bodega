@@ -30,14 +30,14 @@ class PurchaseDetail extends Model
     protected function casts(): array
     {
         return [
-            'quantity' => 'decimal:4',
-            'unit_cost' => 'decimal:2',
+            'quantity' => 'decimal:5',
+            'unit_cost' => 'decimal:5',
             'discount_percentage' => 'decimal:2',
-            'discount_amount' => 'decimal:2',
+            'discount_amount' => 'decimal:5',
             'tax_percentage' => 'decimal:2',
-            'tax_amount' => 'decimal:2',
-            'subtotal' => 'decimal:2',
-            'total' => 'decimal:2',
+            'tax_amount' => 'decimal:5',
+            'subtotal' => 'decimal:5',
+            'total' => 'decimal:5',
             'expiration_date' => 'date',
         ];
     }
