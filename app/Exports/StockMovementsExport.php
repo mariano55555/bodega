@@ -17,7 +17,7 @@ use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, WithColumnWidths, WithDrawings, WithEvents, WithStyles, WithTitle
+class StockMovementsExport implements FromCollection, ShouldAutoSize, WithColumnWidths, WithDrawings, WithEvents, WithStyles, WithTitle
 {
     protected Collection $groupedData;
 
@@ -29,28 +29,23 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
         protected int $companyId,
         protected int $warehouseId,
         protected ?string $startDate = null,
-        protected ?string $endDate = null,
-        ?string $warehouseName = null
+        protected ?string $endDate = null
     ) {
         $this->startDate = $startDate ?? now()->startOfMonth()->format('Y-m-d');
         $this->endDate = $endDate ?? now()->endOfMonth()->format('Y-m-d');
 
-        if ($warehouseName) {
-            $this->warehouseName = $warehouseName;
-        } else {
-            $warehouse = Warehouse::find($this->warehouseId);
-            $this->warehouseName = $warehouse?->name ?? 'N/A';
-        }
+        $warehouse = Warehouse::find($this->warehouseId);
+        $this->warehouseName = $warehouse?->name ?? 'N/A';
     }
 
     public function collection(): Collection
     {
+        // Get products with movements in the period
         $query = DB::table('inventory_movements as im')
             ->select([
                 'products.id as product_id',
                 'products.name as product_name',
                 'products.sku',
-                'products.cost as product_cost',
                 'unit_of_measures.abbreviation as unit_abbreviation',
                 'unit_of_measures.name as unit_name',
                 'product_categories.id as category_id',
@@ -75,7 +70,6 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
                 'products.id',
                 'products.name',
                 'products.sku',
-                'products.cost',
                 'unit_of_measures.abbreviation',
                 'unit_of_measures.name',
                 'product_categories.id',
@@ -87,7 +81,9 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
             ])
             ->get();
 
+        // For each product, calculate initial stock, entries, exits
         $results = $query->map(function ($product) {
+            // Get initial stock (balance just before start_date)
             $initialMovement = InventoryMovement::where('company_id', $this->companyId)
                 ->where('product_id', $product->product_id)
                 ->where('warehouse_id', $this->warehouseId)
@@ -99,6 +95,7 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
 
             $initialStock = $initialMovement?->balance_quantity ?? 0;
 
+            // Get entries during period
             $entries = InventoryMovement::where('company_id', $this->companyId)
                 ->where('product_id', $product->product_id)
                 ->where('warehouse_id', $this->warehouseId)
@@ -106,6 +103,7 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
                 ->whereNotNull('balance_quantity')
                 ->sum('quantity_in');
 
+            // Get exits during period
             $exits = InventoryMovement::where('company_id', $this->companyId)
                 ->where('product_id', $product->product_id)
                 ->where('warehouse_id', $this->warehouseId)
@@ -113,21 +111,24 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
                 ->whereNotNull('balance_quantity')
                 ->sum('quantity_out');
 
-            $currentStock = (float) $initialStock + (float) $entries - (float) $exits;
-            $unitCost = (float) ($product->product_cost ?? 0);
-            $totalCost = $currentStock * $unitCost;
+            // Final stock
+            $finalStock = (float) $initialStock + (float) $entries - (float) $exits;
 
             return (object) [
+                'product_id' => $product->product_id,
                 'product_name' => $product->product_name,
+                'sku' => $product->sku,
                 'unit' => $product->unit_abbreviation ?? $product->unit_name ?? '-',
+                'category_id' => $product->category_id,
+                'category_name' => $product->category_name,
+                'category_code' => $product->category_code,
+                'parent_id' => $product->parent_id,
                 'parent_name' => $product->parent_name,
                 'parent_code' => $product->parent_code,
                 'initial_stock' => (float) $initialStock,
                 'entries' => (float) $entries,
                 'exits' => (float) $exits,
-                'current_stock' => $currentStock,
-                'unit_cost' => $unitCost,
-                'total_cost' => $totalCost,
+                'final_stock' => $finalStock,
             ];
         });
 
@@ -142,8 +143,7 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
                     'initial_stock' => $items->sum('initial_stock'),
                     'entries' => $items->sum('entries'),
                     'exits' => $items->sum('exits'),
-                    'current_stock' => $items->sum('current_stock'),
-                    'total_cost' => $items->sum('total_cost'),
+                    'final_stock' => $items->sum('final_stock'),
                 ],
             ];
         });
@@ -152,8 +152,7 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
             'initial_stock' => $results->sum('initial_stock'),
             'entries' => $results->sum('entries'),
             'exits' => $results->sum('exits'),
-            'current_stock' => $results->sum('current_stock'),
-            'total_cost' => $results->sum('total_cost'),
+            'final_stock' => $results->sum('final_stock'),
         ];
 
         return collect();
@@ -162,14 +161,12 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
     public function columnWidths(): array
     {
         return [
-            'A' => 35,
-            'B' => 12,
+            'A' => 40,
+            'B' => 10,
             'C' => 15,
-            'D' => 13,
-            'E' => 13,
+            'D' => 15,
+            'E' => 15,
             'F' => 15,
-            'G' => 15,
-            'H' => 15,
         ];
     }
 
@@ -187,7 +184,7 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
 
     public function title(): string
     {
-        return 'Inventario Consolidado';
+        return 'Existencias y Movimientos';
     }
 
     public function styles(Worksheet $sheet): array
@@ -209,54 +206,62 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
                 // Header
                 $sheet->setCellValue('A2', 'ESCUELA NACIONAL DE AGRICULTURA "ROBERTO QUIÑÓNEZ"');
                 $sheet->setCellValue('A3', 'GERENCIA ADMINISTRATIVA');
-                $sheet->setCellValue('A4', 'REPORTE INVENTARIO CONSOLIDADO');
-                $sheet->setCellValue('A5', $this->warehouseName);
-                $sheet->setCellValue('A6', 'PERIODO: DEL '.\Carbon\Carbon::parse($this->startDate)->format('d/m/Y').' AL '.\Carbon\Carbon::parse($this->endDate)->format('d/m/Y'));
+                $sheet->setCellValue('A4', 'EXISTENCIAS Y MOVIMIENTOS DE INVENTARIO');
+                $sheet->setCellValue('A5', 'PERIODO: DEL '.\Carbon\Carbon::parse($this->startDate)->format('d/m/Y').' AL '.\Carbon\Carbon::parse($this->endDate)->format('d/m/Y'));
+                $sheet->setCellValue('A6', 'BODEGA: '.$this->warehouseName);
                 $sheet->setCellValue('A8', 'Generado: '.now()->format('d/m/Y H:i'));
 
                 // Merge header cells
-                $sheet->mergeCells('A2:H2');
-                $sheet->mergeCells('A3:H3');
-                $sheet->mergeCells('A4:H4');
-                $sheet->mergeCells('A5:H5');
-                $sheet->mergeCells('A6:H6');
-                $sheet->mergeCells('A8:H8');
+                $sheet->mergeCells('A2:F2');
+                $sheet->mergeCells('A3:F3');
+                $sheet->mergeCells('A4:F4');
+                $sheet->mergeCells('A5:F5');
+                $sheet->mergeCells('A6:F6');
+                $sheet->mergeCells('A8:F8');
 
                 // Apply header styles
                 $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(14)->getColor()->setRGB('1e3a5f');
-                $sheet->getStyle('A2:H6')->getAlignment()->setHorizontal('center');
+                $sheet->getStyle('A2:F6')->getAlignment()->setHorizontal('center');
                 $sheet->getStyle('A4')->getFont()->setBold(true)->setSize(12);
-                $sheet->getStyle('A5')->getFont()->setBold(true)->getColor()->setRGB('92400e');
+                $sheet->getStyle('A6')->getFont()->setBold(true)->getColor()->setRGB('92400e');
 
+                // Data starting from row 10
                 $currentRow = 10;
 
                 foreach ($this->groupedData as $group) {
                     // Category header
-                    $sheet->setCellValue("A{$currentRow}", "Línea Presupuestaria: {$group->parent_name} — Específico {$group->parent_code}");
-                    $sheet->mergeCells("A{$currentRow}:H{$currentRow}");
+                    $sheet->setCellValue("A{$currentRow}", "Categoría: {$group->parent_name} - {$group->parent_code}");
+                    $sheet->mergeCells("A{$currentRow}:F{$currentRow}");
                     $sheet->getStyle("A{$currentRow}")->applyFromArray([
-                        'font' => ['bold' => true, 'size' => 10, 'color' => ['rgb' => 'FFFFFF']],
+                        'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => '92400e']],
                         'fill' => [
                             'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => '1e3a5f'],
+                            'startColor' => ['rgb' => 'fff7ed'],
+                        ],
+                        'borders' => [
+                            'left' => [
+                                'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK,
+                                'color' => ['rgb' => 'd97706'],
+                            ],
                         ],
                     ]);
                     $currentRow++;
 
                     // Column headers
-                    $headers = ['Descripción del Producto', 'Unidad de Medida', 'Existencia Inicial', 'Entradas', 'Salidas', 'Existencia Actual', 'Precio Unitario', 'Costo Total'];
-                    $columns = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-                    foreach ($headers as $i => $header) {
-                        $sheet->setCellValue("{$columns[$i]}{$currentRow}", $header);
-                    }
-                    $sheet->getStyle("A{$currentRow}:H{$currentRow}")->applyFromArray([
-                        'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+                    $sheet->setCellValue("A{$currentRow}", 'Descripción');
+                    $sheet->setCellValue("B{$currentRow}", 'Unidad');
+                    $sheet->setCellValue("C{$currentRow}", 'Exist. Inicial');
+                    $sheet->setCellValue("D{$currentRow}", 'Entradas');
+                    $sheet->setCellValue("E{$currentRow}", 'Salidas');
+                    $sheet->setCellValue("F{$currentRow}", 'Exist. Final');
+                    $sheet->getStyle("A{$currentRow}:F{$currentRow}")->applyFromArray([
+                        'font' => ['bold' => true],
                         'fill' => [
                             'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => '2d4a6f'],
+                            'startColor' => ['rgb' => 'e8e8e8'],
                         ],
                         'borders' => [
-                            'allBorders' => [
+                            'bottom' => [
                                 'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
                             ],
                         ],
@@ -270,45 +275,39 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
                         $sheet->setCellValue("C{$currentRow}", $item->initial_stock);
                         $sheet->setCellValue("D{$currentRow}", $item->entries);
                         $sheet->setCellValue("E{$currentRow}", $item->exits);
-                        $sheet->setCellValue("F{$currentRow}", $item->current_stock);
-                        $sheet->setCellValue("G{$currentRow}", $item->unit_cost);
-                        $sheet->setCellValue("H{$currentRow}", $item->total_cost);
+                        $sheet->setCellValue("F{$currentRow}", $item->final_stock);
 
-                        $sheet->getStyle("C{$currentRow}:H{$currentRow}")
+                        $sheet->getStyle("C{$currentRow}:F{$currentRow}")
                             ->getNumberFormat()
                             ->setFormatCode('#,##0.00');
-                        $sheet->getStyle("C{$currentRow}:H{$currentRow}")->getAlignment()->setHorizontal('right');
-                        $sheet->getStyle("G{$currentRow}:H{$currentRow}")
-                            ->getNumberFormat()
-                            ->setFormatCode('$#,##0.00');
+                        $sheet->getStyle("C{$currentRow}:F{$currentRow}")->getAlignment()->setHorizontal('right');
 
+                        // Color for entries (green) and exits (red)
                         $sheet->getStyle("D{$currentRow}")->getFont()->getColor()->setRGB('16a34a');
                         $sheet->getStyle("E{$currentRow}")->getFont()->getColor()->setRGB('dc2626');
                         $sheet->getStyle("F{$currentRow}")->getFont()->setBold(true);
-                        $sheet->getStyle("H{$currentRow}")->getFont()->setBold(true);
 
                         $currentRow++;
                     }
 
                     // Subtotal row
                     $sheet->setCellValue("A{$currentRow}", '');
-                    $sheet->setCellValue("B{$currentRow}", "Total Línea {$group->parent_code}");
+                    $sheet->setCellValue("B{$currentRow}", "Subtotal {$group->parent_name}");
                     $sheet->setCellValue("C{$currentRow}", $group->subtotals->initial_stock);
                     $sheet->setCellValue("D{$currentRow}", $group->subtotals->entries);
                     $sheet->setCellValue("E{$currentRow}", $group->subtotals->exits);
-                    $sheet->setCellValue("F{$currentRow}", $group->subtotals->current_stock);
-                    $sheet->setCellValue("G{$currentRow}", '');
-                    $sheet->setCellValue("H{$currentRow}", $group->subtotals->total_cost);
+                    $sheet->setCellValue("F{$currentRow}", $group->subtotals->final_stock);
 
-                    $sheet->getStyle("A{$currentRow}:H{$currentRow}")->applyFromArray([
+                    $sheet->getStyle("A{$currentRow}:F{$currentRow}")->applyFromArray([
                         'font' => ['bold' => true],
                         'fill' => [
                             'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => 'e8e8e8'],
+                            'startColor' => ['rgb' => 'fff7ed'],
                         ],
                         'borders' => [
                             'top' => [
                                 'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_DOUBLE,
+                                'color' => ['rgb' => 'fed7aa'],
                             ],
                         ],
                     ]);
@@ -316,10 +315,7 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
                     $sheet->getStyle("C{$currentRow}:F{$currentRow}")
                         ->getNumberFormat()
                         ->setFormatCode('#,##0.00');
-                    $sheet->getStyle("H{$currentRow}")
-                        ->getNumberFormat()
-                        ->setFormatCode('$#,##0.00');
-                    $sheet->getStyle("C{$currentRow}:H{$currentRow}")->getAlignment()->setHorizontal('right');
+                    $sheet->getStyle("C{$currentRow}:F{$currentRow}")->getAlignment()->setHorizontal('right');
                     $currentRow += 2;
                 }
 
@@ -328,10 +324,9 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
                 $sheet->setCellValue("C{$currentRow}", $this->grandTotals['initial_stock']);
                 $sheet->setCellValue("D{$currentRow}", $this->grandTotals['entries']);
                 $sheet->setCellValue("E{$currentRow}", $this->grandTotals['exits']);
-                $sheet->setCellValue("F{$currentRow}", $this->grandTotals['current_stock']);
-                $sheet->setCellValue("H{$currentRow}", $this->grandTotals['total_cost']);
+                $sheet->setCellValue("F{$currentRow}", $this->grandTotals['final_stock']);
 
-                $sheet->getStyle("A{$currentRow}:H{$currentRow}")->applyFromArray([
+                $sheet->getStyle("A{$currentRow}:F{$currentRow}")->applyFromArray([
                     'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']],
                     'fill' => [
                         'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
@@ -342,25 +337,22 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
                 $sheet->getStyle("C{$currentRow}:F{$currentRow}")
                     ->getNumberFormat()
                     ->setFormatCode('#,##0.00');
-                $sheet->getStyle("H{$currentRow}")
-                    ->getNumberFormat()
-                    ->setFormatCode('$#,##0.00');
-                $sheet->getStyle("C{$currentRow}:H{$currentRow}")->getAlignment()->setHorizontal('right');
+                $sheet->getStyle("C{$currentRow}:F{$currentRow}")->getAlignment()->setHorizontal('right');
 
                 // Signatures
                 $signatureRow = $currentRow + 5;
                 $sheet->setCellValue("A{$signatureRow}", '________________________');
-                $sheet->setCellValue("D{$signatureRow}", '________________________');
-                $sheet->setCellValue("G{$signatureRow}", '________________________');
+                $sheet->setCellValue("C{$signatureRow}", '________________________');
+                $sheet->setCellValue("E{$signatureRow}", '________________________');
 
                 $labelRow = $signatureRow + 1;
                 $sheet->setCellValue("A{$labelRow}", 'Elaborado');
-                $sheet->setCellValue("D{$labelRow}", 'Revisado');
-                $sheet->setCellValue("G{$labelRow}", 'Autorizado');
+                $sheet->setCellValue("C{$labelRow}", 'Revisado');
+                $sheet->setCellValue("E{$labelRow}", 'Autorizado');
 
-                $sheet->getStyle("A{$labelRow}:H{$labelRow}")->getFont()->setBold(true);
-                $sheet->getStyle("A{$signatureRow}:H{$signatureRow}")->getAlignment()->setHorizontal('center');
-                $sheet->getStyle("A{$labelRow}:H{$labelRow}")->getAlignment()->setHorizontal('center');
+                $sheet->getStyle("A{$labelRow}:F{$labelRow}")->getFont()->setBold(true);
+                $sheet->getStyle("A{$signatureRow}:F{$signatureRow}")->getAlignment()->setHorizontal('center');
+                $sheet->getStyle("A{$labelRow}:F{$labelRow}")->getAlignment()->setHorizontal('center');
             },
         ];
     }

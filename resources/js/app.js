@@ -132,7 +132,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         get total() {
-            return this.taxableAmount + this.taxAmount;
+            return this.subtotal;
         },
 
         emitTotal() {

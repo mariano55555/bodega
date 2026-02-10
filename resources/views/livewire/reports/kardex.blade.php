@@ -365,7 +365,7 @@ new class extends Component
                     <flux:table.columns>
                         <flux:table.column class="w-32">Fecha</flux:table.column>
                         <flux:table.column>Documento</flux:table.column>
-                        <flux:table.column>Motivo</flux:table.column>
+                        <flux:table.column>Transacción</flux:table.column>
                         <flux:table.column align="right">Saldo Inicial</flux:table.column>
                         <flux:table.column align="right">Entrada</flux:table.column>
                         <flux:table.column align="right">Salida</flux:table.column>
@@ -516,14 +516,17 @@ new class extends Component
                         $lastMovement = $this->movements->last();
                         $initialBalance = $firstMovement->balance_quantity - $firstMovement->quantity_in + $firstMovement->quantity_out;
                         $finalValue = $lastMovement->balance_quantity * ($lastMovement->unit_cost ?? 0);
+                        $totalIn = $this->movements->sum('quantity_in');
                         $totalOut = $this->movements->sum('quantity_out');
                     @endphp
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {{-- Row 1 --}}
                         <div class="flex items-center gap-2">
-                            <flux:text class="font-medium">Existencia Inicial:</flux:text>
-                            <flux:text class="font-semibold">{{ number_format($initialBalance, 2) }}</flux:text>
+                            <flux:text class="font-medium">Total Entradas:</flux:text>
+                            <flux:text class="font-semibold text-green-600 dark:text-green-400">
+                                {{ number_format($totalIn, 2) }}
+                            </flux:text>
                         </div>
 
                         <div class="flex items-center gap-2">
@@ -534,9 +537,9 @@ new class extends Component
                         </div>
 
                         <div class="flex items-center gap-2">
-                            <flux:text class="font-medium">Existencia Actual:</flux:text>
-                            <flux:text class="font-semibold {{ $lastMovement->balance_quantity < 0 ? 'text-red-600 dark:text-red-400' : '' }}">
-                                {{ number_format($lastMovement->balance_quantity, 2) }}
+                            <flux:text class="font-medium">Valor en Inventario:</flux:text>
+                            <flux:text class="font-semibold text-amber-600 dark:text-amber-400">
+                                ${{ number_format($finalValue, 2) }}
                             </flux:text>
                         </div>
 
@@ -547,16 +550,16 @@ new class extends Component
                         </div>
 
                         <div class="flex items-center gap-2">
-                            <flux:text class="font-medium">Costo Unitario Actual:</flux:text>
-                            <flux:text class="font-semibold">
-                                ${{ number_format($lastMovement->unit_cost ?? 0, 2) }}
+                            <flux:text class="font-medium">Existencia Actual:</flux:text>
+                            <flux:text class="font-semibold {{ $lastMovement->balance_quantity < 0 ? 'text-red-600 dark:text-red-400' : '' }}">
+                                {{ number_format($lastMovement->balance_quantity, 2) }}
                             </flux:text>
                         </div>
 
                         <div class="flex items-center gap-2">
-                            <flux:text class="font-medium">Valor en Inventario:</flux:text>
-                            <flux:text class="font-semibold text-green-600 dark:text-green-400">
-                                ${{ number_format($finalValue, 2) }}
+                            <flux:text class="font-medium">Costo Unitario Actual:</flux:text>
+                            <flux:text class="font-semibold">
+                                ${{ number_format($lastMovement->unit_cost ?? 0, 2) }}
                             </flux:text>
                         </div>
                     </div>

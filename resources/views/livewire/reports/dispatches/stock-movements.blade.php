@@ -2,14 +2,14 @@
 
 use App\Models\Company;
 use App\Models\InventoryMovement;
-use App\Models\Product;
 use App\Models\Warehouse;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
 
-new class extends Component
+new #[Layout('components.layouts.app')] class extends Component
 {
     #[Url(as: 'empresa')]
     public $company_id = '';
@@ -31,11 +31,6 @@ new class extends Component
         if (! auth()->user()->isSuperAdmin()) {
             $this->company_id = (string) auth()->user()->company_id;
         }
-    }
-
-    public function updatedCompanyId(): void
-    {
-        $this->warehouse_id = '';
     }
 
     #[Computed]
@@ -78,16 +73,12 @@ new class extends Component
             return collect();
         }
 
-        $companyId = $this->effectiveCompanyId;
-        $warehouseId = $this->warehouse_id;
-
-        // Get products with movements
+        // Get products with movements in the period
         $query = DB::table('inventory_movements as im')
             ->select([
                 'products.id as product_id',
                 'products.name as product_name',
                 'products.sku',
-                'products.cost as product_cost',
                 'unit_of_measures.abbreviation as unit_abbreviation',
                 'unit_of_measures.name as unit_name',
                 'product_categories.id as category_id',
@@ -101,8 +92,8 @@ new class extends Component
             ->leftJoin('unit_of_measures', 'products.unit_of_measure_id', '=', 'unit_of_measures.id')
             ->leftJoin('product_categories', 'products.category_id', '=', 'product_categories.id')
             ->leftJoin('product_categories as parent_categories', 'product_categories.parent_id', '=', 'parent_categories.id')
-            ->where('im.company_id', $companyId)
-            ->where('im.warehouse_id', $warehouseId)
+            ->where('im.company_id', $this->effectiveCompanyId)
+            ->where('im.warehouse_id', $this->warehouse_id)
             ->whereNotNull('im.balance_quantity')
             ->where(function ($q) {
                 $q->whereBetween('im.movement_date', [$this->start_date, $this->end_date])
@@ -112,7 +103,6 @@ new class extends Component
                 'products.id',
                 'products.name',
                 'products.sku',
-                'products.cost',
                 'unit_of_measures.abbreviation',
                 'unit_of_measures.name',
                 'product_categories.id',
@@ -124,11 +114,12 @@ new class extends Component
             ])
             ->get();
 
-        return $query->map(function ($product) use ($companyId, $warehouseId) {
+        // For each product, calculate initial stock, entries, exits
+        $results = $query->map(function ($product) {
             // Get initial stock (balance just before start_date)
-            $initialMovement = InventoryMovement::where('company_id', $companyId)
+            $initialMovement = InventoryMovement::where('company_id', $this->effectiveCompanyId)
                 ->where('product_id', $product->product_id)
-                ->where('warehouse_id', $warehouseId)
+                ->where('warehouse_id', $this->warehouse_id)
                 ->where('movement_date', '<', $this->start_date)
                 ->whereNotNull('balance_quantity')
                 ->orderByDesc('movement_date')
@@ -138,24 +129,23 @@ new class extends Component
             $initialStock = $initialMovement?->balance_quantity ?? 0;
 
             // Get entries during period
-            $entries = InventoryMovement::where('company_id', $companyId)
+            $entries = InventoryMovement::where('company_id', $this->effectiveCompanyId)
                 ->where('product_id', $product->product_id)
-                ->where('warehouse_id', $warehouseId)
+                ->where('warehouse_id', $this->warehouse_id)
                 ->whereBetween('movement_date', [$this->start_date, $this->end_date])
                 ->whereNotNull('balance_quantity')
                 ->sum('quantity_in');
 
             // Get exits during period
-            $exits = InventoryMovement::where('company_id', $companyId)
+            $exits = InventoryMovement::where('company_id', $this->effectiveCompanyId)
                 ->where('product_id', $product->product_id)
-                ->where('warehouse_id', $warehouseId)
+                ->where('warehouse_id', $this->warehouse_id)
                 ->whereBetween('movement_date', [$this->start_date, $this->end_date])
                 ->whereNotNull('balance_quantity')
                 ->sum('quantity_out');
 
-            $currentStock = (float) $initialStock + (float) $entries - (float) $exits;
-            $unitCost = (float) ($product->product_cost ?? 0);
-            $totalCost = $currentStock * $unitCost;
+            // Final stock
+            $finalStock = (float) $initialStock + (float) $entries - (float) $exits;
 
             return (object) [
                 'product_id' => $product->product_id,
@@ -171,11 +161,11 @@ new class extends Component
                 'initial_stock' => (float) $initialStock,
                 'entries' => (float) $entries,
                 'exits' => (float) $exits,
-                'current_stock' => $currentStock,
-                'unit_cost' => $unitCost,
-                'total_cost' => $totalCost,
+                'final_stock' => $finalStock,
             ];
         });
+
+        return $results;
     }
 
     #[Computed]
@@ -192,8 +182,7 @@ new class extends Component
                     'initial_stock' => $items->sum('initial_stock'),
                     'entries' => $items->sum('entries'),
                     'exits' => $items->sum('exits'),
-                    'current_stock' => $items->sum('current_stock'),
-                    'total_cost' => $items->sum('total_cost'),
+                    'final_stock' => $items->sum('final_stock'),
                 ],
             ];
         });
@@ -210,8 +199,7 @@ new class extends Component
             'initial_stock' => $data->sum('initial_stock'),
             'entries' => $data->sum('entries'),
             'exits' => $data->sum('exits'),
-            'current_stock' => $data->sum('current_stock'),
-            'total_cost' => $data->sum('total_cost'),
+            'final_stock' => $data->sum('final_stock'),
         ];
     }
 
@@ -224,17 +212,19 @@ new class extends Component
             'fin' => $this->end_date,
         ];
 
-        return $this->redirect(route('reports.inventory.consolidated.pdf', $params));
+        return $this->redirect(route('reports.dispatches.stock-movements.pdf', $params));
     }
 
-    public function exportExcel(): void
+    public function exportExcel()
     {
-        $this->redirect(route('reports.inventory.consolidated.export', [
+        $params = [
             'empresa' => $this->effectiveCompanyId,
             'bodega' => $this->warehouse_id,
             'inicio' => $this->start_date,
             'fin' => $this->end_date,
-        ]));
+        ];
+
+        return $this->redirect(route('reports.dispatches.stock-movements.excel', $params));
     }
 }; ?>
 
@@ -242,12 +232,12 @@ new class extends Component
     {{-- Header --}}
     <div class="flex items-center justify-between">
         <div>
-            <flux:heading size="xl">Reporte Inventario Consolidado</flux:heading>
-            <flux:text class="mt-1">Existencias, movimientos y valorización por línea presupuestaria</flux:text>
+            <flux:heading size="xl">Existencias y Movimientos de Inventario</flux:heading>
+            <flux:text class="mt-1">Resumen de existencias iniciales, entradas, salidas y existencias finales por producto</flux:text>
         </div>
 
         <div class="flex items-center gap-2">
-            <flux:button variant="ghost" icon="arrow-left" href="{{ route('reports.inventory.index') }}" wire:navigate>
+            <flux:button variant="ghost" icon="arrow-left" href="{{ route('reports.dispatches.hub') }}" wire:navigate>
                 Volver
             </flux:button>
         </div>
@@ -257,7 +247,7 @@ new class extends Component
     <flux:card>
         <flux:heading size="lg" class="mb-4">Filtros</flux:heading>
 
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-5">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
             @if ($this->isSuperAdmin)
                 <flux:field class="md:col-span-5">
                     <flux:label>Empresa</flux:label>
@@ -273,7 +263,7 @@ new class extends Component
             <flux:field>
                 <flux:label>Bodega</flux:label>
                 <flux:select wire:model.live="warehouse_id">
-                    <flux:select.option value="">-- Seleccione --</flux:select.option>
+                    <flux:select.option value="">-- Todas --</flux:select.option>
                     @foreach ($this->warehouses as $warehouse)
                         <flux:select.option value="{{ $warehouse->id }}">{{ $warehouse->name }}</flux:select.option>
                     @endforeach
@@ -290,7 +280,7 @@ new class extends Component
                 <flux:input type="date" wire:model.live="end_date" />
             </flux:field>
 
-            <div class="flex items-end gap-2 md:col-span-2">
+            <div class="md:col-span-2 flex items-end gap-2">
                 <flux:button wire:click="exportPdf" variant="filled" icon="document-arrow-down" size="sm" class="bg-red-600 hover:bg-red-700">
                     PDF
                 </flux:button>
@@ -307,7 +297,7 @@ new class extends Component
                 <flux:icon.building-office class="mx-auto size-12 text-zinc-400 dark:text-zinc-600" />
                 <flux:heading size="lg" class="mt-4">Seleccione una Empresa</flux:heading>
                 <flux:text class="mt-2">
-                    Seleccione una empresa para ver el reporte de inventario consolidado
+                    Seleccione una empresa para ver el reporte de existencias y movimientos
                 </flux:text>
             </div>
         </flux:card>
@@ -317,16 +307,21 @@ new class extends Component
                 <flux:icon.building-storefront class="mx-auto size-12 text-zinc-400 dark:text-zinc-600" />
                 <flux:heading size="lg" class="mt-4">Seleccione una Bodega</flux:heading>
                 <flux:text class="mt-2">
-                    Seleccione una bodega para ver el reporte de inventario consolidado
+                    Seleccione una bodega para ver el reporte de existencias y movimientos
                 </flux:text>
             </div>
         </flux:card>
     @else
         {{-- Summary Cards --}}
-        <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
             <flux:card class="text-center">
                 <flux:text class="text-sm text-gray-500 dark:text-gray-400">Productos</flux:text>
                 <flux:heading size="xl">{{ number_format($this->totals['total_products']) }}</flux:heading>
+            </flux:card>
+
+            <flux:card class="text-center">
+                <flux:text class="text-sm text-gray-500 dark:text-gray-400">Categorías</flux:text>
+                <flux:heading size="xl">{{ number_format($this->totals['total_categories']) }}</flux:heading>
             </flux:card>
 
             <flux:card class="text-center bg-blue-50 dark:bg-blue-900/20">
@@ -349,35 +344,25 @@ new class extends Component
                     {{ number_format($this->totals['exits'], 2) }}
                 </flux:heading>
             </flux:card>
-        </div>
 
-        <div class="grid grid-cols-2 gap-4 md:grid-cols-2">
             <flux:card class="text-center bg-amber-50 dark:bg-amber-900/20">
-                <flux:text class="text-sm text-gray-500 dark:text-gray-400">Existencia Actual</flux:text>
+                <flux:text class="text-sm text-gray-500 dark:text-gray-400">Existencia Final</flux:text>
                 <flux:heading size="xl" class="text-amber-600 dark:text-amber-400">
-                    {{ number_format($this->totals['current_stock'], 2) }}
-                </flux:heading>
-            </flux:card>
-
-            <flux:card class="text-center bg-indigo-50 dark:bg-indigo-900/20">
-                <flux:text class="text-sm text-gray-500 dark:text-gray-400">Costo Total</flux:text>
-                <flux:heading size="xl" class="text-indigo-600 dark:text-indigo-400">
-                    ${{ number_format($this->totals['total_cost'], 2) }}
+                    {{ number_format($this->totals['final_stock'], 2) }}
                 </flux:heading>
             </flux:card>
         </div>
 
-        {{-- Grouped Data by Línea Presupuestaria --}}
+        {{-- Grouped Data by Category --}}
         @forelse ($this->groupedByCategory as $parentName => $group)
             <flux:card>
-                <div class="mb-4 flex items-center justify-between">
+                <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center gap-3">
-                        <div class="rounded-lg bg-amber-100 p-2 dark:bg-amber-900">
-                            <flux:icon name="folder" class="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                        <div class="p-2 bg-amber-100 dark:bg-amber-900 rounded-lg">
+                            <flux:icon name="folder" class="w-5 h-5 text-amber-600 dark:text-amber-400" />
                         </div>
                         <div>
-                            <flux:heading size="lg">Línea Presupuestaria: {{ $group->parent_name }}</flux:heading>
-                            <flux:text class="text-sm text-gray-500">Específico {{ $group->parent_code }}</flux:text>
+                            <flux:heading size="lg">Categoría: {{ $group->parent_name }} - {{ $group->parent_code }}</flux:heading>
                         </div>
                     </div>
                 </div>
@@ -385,14 +370,12 @@ new class extends Component
                 <div class="overflow-x-auto">
                     <flux:table>
                         <flux:table.columns>
-                            <flux:table.column>Descripción del Producto</flux:table.column>
-                            <flux:table.column>Unidad de Medida</flux:table.column>
+                            <flux:table.column>Descripción</flux:table.column>
+                            <flux:table.column>Unidad</flux:table.column>
                             <flux:table.column class="text-right">Existencia Inicial</flux:table.column>
                             <flux:table.column class="text-right">Entradas</flux:table.column>
                             <flux:table.column class="text-right">Salidas</flux:table.column>
-                            <flux:table.column class="text-right">Existencia Actual</flux:table.column>
-                            <flux:table.column class="text-right">Precio Unitario</flux:table.column>
-                            <flux:table.column class="text-right">Costo Total</flux:table.column>
+                            <flux:table.column class="text-right">Existencia Final</flux:table.column>
                         </flux:table.columns>
 
                         <flux:table.rows>
@@ -400,34 +383,27 @@ new class extends Component
                                 <flux:table.row :key="$item->product_id">
                                     <flux:table.cell>
                                         <div class="font-medium">{{ $item->product_name }}</div>
+                                        <div class="text-xs text-gray-500">{{ $item->sku }}</div>
                                     </flux:table.cell>
 
                                     <flux:table.cell>
                                         <flux:badge>{{ $item->unit }}</flux:badge>
                                     </flux:table.cell>
 
-                                    <flux:table.cell class="text-right tabular-nums">
+                                    <flux:table.cell class="text-right">
                                         {{ number_format($item->initial_stock, 2) }}
                                     </flux:table.cell>
 
-                                    <flux:table.cell class="text-right tabular-nums text-green-600 dark:text-green-400">
+                                    <flux:table.cell class="text-right text-green-600 dark:text-green-400">
                                         {{ number_format($item->entries, 2) }}
                                     </flux:table.cell>
 
-                                    <flux:table.cell class="text-right tabular-nums text-red-600 dark:text-red-400">
+                                    <flux:table.cell class="text-right text-red-600 dark:text-red-400">
                                         {{ number_format($item->exits, 2) }}
                                     </flux:table.cell>
 
-                                    <flux:table.cell class="text-right font-medium tabular-nums">
-                                        {{ number_format($item->current_stock, 2) }}
-                                    </flux:table.cell>
-
-                                    <flux:table.cell class="text-right tabular-nums">
-                                        ${{ number_format($item->unit_cost, 2) }}
-                                    </flux:table.cell>
-
-                                    <flux:table.cell class="text-right font-semibold tabular-nums">
-                                        ${{ number_format($item->total_cost, 2) }}
+                                    <flux:table.cell class="text-right font-medium">
+                                        {{ number_format($item->final_stock, 2) }}
                                     </flux:table.cell>
                                 </flux:table.row>
                             @endforeach
@@ -435,31 +411,24 @@ new class extends Component
                     </flux:table>
                 </div>
 
-                {{-- Subtotal --}}
-                <div class="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">
-                    <div class="flex items-center justify-between">
-                        <flux:heading size="md">Total Línea {{ $group->parent_code }}</flux:heading>
-                        <div class="grid grid-cols-5 gap-6 text-right">
-                            <div>
-                                <flux:text class="text-sm text-gray-500">Inicial</flux:text>
-                                <flux:heading size="md">{{ number_format($group->subtotals->initial_stock, 2) }}</flux:heading>
-                            </div>
-                            <div>
-                                <flux:text class="text-sm text-gray-500">Entradas</flux:text>
-                                <flux:heading size="md" class="text-green-600 dark:text-green-400">{{ number_format($group->subtotals->entries, 2) }}</flux:heading>
-                            </div>
-                            <div>
-                                <flux:text class="text-sm text-gray-500">Salidas</flux:text>
-                                <flux:heading size="md" class="text-red-600 dark:text-red-400">{{ number_format($group->subtotals->exits, 2) }}</flux:heading>
-                            </div>
-                            <div>
-                                <flux:text class="text-sm text-gray-500">Actual</flux:text>
-                                <flux:heading size="md" class="text-amber-600 dark:text-amber-400">{{ number_format($group->subtotals->current_stock, 2) }}</flux:heading>
-                            </div>
-                            <div>
-                                <flux:text class="text-sm text-gray-500">Costo Total</flux:text>
-                                <flux:heading size="md" class="text-indigo-600 dark:text-indigo-400">${{ number_format($group->subtotals->total_cost, 2) }}</flux:heading>
-                            </div>
+                {{-- Subtotal for this category --}}
+                <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div class="grid grid-cols-4 gap-4 text-right">
+                        <div>
+                            <flux:text class="text-sm text-gray-500">Subtotal Inicial</flux:text>
+                            <flux:heading size="md">{{ number_format($group->subtotals->initial_stock, 2) }}</flux:heading>
+                        </div>
+                        <div>
+                            <flux:text class="text-sm text-gray-500">Subtotal Entradas</flux:text>
+                            <flux:heading size="md" class="text-green-600 dark:text-green-400">{{ number_format($group->subtotals->entries, 2) }}</flux:heading>
+                        </div>
+                        <div>
+                            <flux:text class="text-sm text-gray-500">Subtotal Salidas</flux:text>
+                            <flux:heading size="md" class="text-red-600 dark:text-red-400">{{ number_format($group->subtotals->exits, 2) }}</flux:heading>
+                        </div>
+                        <div>
+                            <flux:text class="text-sm text-gray-500">Subtotal Final</flux:text>
+                            <flux:heading size="md" class="text-amber-600 dark:text-amber-400">{{ number_format($group->subtotals->final_stock, 2) }}</flux:heading>
                         </div>
                     </div>
                 </div>
@@ -478,15 +447,15 @@ new class extends Component
 
         {{-- Grand Total --}}
         @if ($this->groupedByCategory->count() > 0)
-            <flux:card class="border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 dark:border-amber-800 dark:from-amber-900/30 dark:to-orange-900/30">
+            <flux:card class="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/30 dark:to-orange-900/30 border-amber-200 dark:border-amber-800">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <div class="rounded-xl bg-amber-100 p-3 dark:bg-amber-900">
-                            <flux:icon name="calculator" class="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                        <div class="p-3 bg-amber-100 dark:bg-amber-900 rounded-xl">
+                            <flux:icon name="calculator" class="w-6 h-6 text-amber-600 dark:text-amber-400" />
                         </div>
                         <flux:heading size="lg">Totales del Período</flux:heading>
                     </div>
-                    <div class="grid grid-cols-5 gap-8 text-right">
+                    <div class="grid grid-cols-4 gap-8 text-right">
                         <div>
                             <flux:text class="text-sm">Inicial</flux:text>
                             <flux:heading size="lg">{{ number_format($this->totals['initial_stock'], 2) }}</flux:heading>
@@ -500,12 +469,8 @@ new class extends Component
                             <flux:heading size="lg" class="text-red-600 dark:text-red-400">{{ number_format($this->totals['exits'], 2) }}</flux:heading>
                         </div>
                         <div>
-                            <flux:text class="text-sm">Actual</flux:text>
-                            <flux:heading size="lg" class="text-amber-600 dark:text-amber-400">{{ number_format($this->totals['current_stock'], 2) }}</flux:heading>
-                        </div>
-                        <div>
-                            <flux:text class="text-sm">Costo Total</flux:text>
-                            <flux:heading size="lg" class="text-indigo-600 dark:text-indigo-400">${{ number_format($this->totals['total_cost'], 2) }}</flux:heading>
+                            <flux:text class="text-sm">Final</flux:text>
+                            <flux:heading size="lg" class="text-amber-600 dark:text-amber-400">{{ number_format($this->totals['final_stock'], 2) }}</flux:heading>
                         </div>
                     </div>
                 </div>

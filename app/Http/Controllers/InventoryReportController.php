@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\Warehouse;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 
 class InventoryReportController extends Controller
@@ -37,29 +38,31 @@ class InventoryReportController extends Controller
      */
     public function exportConsolidated(Request $request)
     {
-        $validated = $request->validate([
-            'warehouse_id' => 'nullable|exists:warehouses,id',
-            'category_id' => 'nullable|exists:product_categories,id',
-            'type' => 'nullable|in:individual,fractional,global',
-            'empresa' => 'nullable|exists:companies,id',
-        ]);
+        $companyId = $this->getEffectiveCompanyId($request);
 
-        // Use empresa parameter for super admin, otherwise use user's company_id
-        $companyId = auth()->user()->isSuperAdmin()
-            ? ($validated['empresa'] ?? null)
-            : auth()->user()->company_id;
+        if (! $companyId) {
+            return back()->with('error', 'Debe seleccionar una empresa');
+        }
 
-        $filename = sprintf(
-            'inventario_consolidado_%s.xlsx',
-            now()->format('Y-m-d_His')
-        );
+        $warehouseId = $request->get('bodega');
+        if (! $warehouseId) {
+            return back()->with('error', 'Debe seleccionar una bodega');
+        }
+
+        $startDate = $request->get('inicio', now()->startOfMonth()->format('Y-m-d'));
+        $endDate = $request->get('fin', now()->endOfMonth()->format('Y-m-d'));
+
+        $warehouse = Warehouse::find($warehouseId);
+
+        $filename = 'inventario-consolidado-'.now()->format('Y-m-d').'.xlsx';
 
         return Excel::download(
             new InventoryConsolidatedExport(
-                $validated['warehouse_id'] ?? null,
-                $validated['category_id'] ?? null,
-                $validated['type'] ?? null,
-                $companyId
+                (int) $companyId,
+                (int) $warehouseId,
+                $startDate,
+                $endDate,
+                $warehouse?->name ?? 'N/A'
             ),
             $filename
         );
@@ -70,64 +73,166 @@ class InventoryReportController extends Controller
      */
     public function exportConsolidatedPdf(Request $request)
     {
-        $validated = $request->validate([
-            'warehouse_id' => 'nullable|exists:warehouses,id',
-            'category_id' => 'nullable|exists:product_categories,id',
-            'type' => 'nullable|in:individual,fractional,global',
-            'empresa' => 'nullable|exists:companies,id',
-        ]);
-
-        // Use empresa parameter for super admin, otherwise use user's company_id
-        $companyId = auth()->user()->isSuperAdmin()
-            ? ($validated['empresa'] ?? null)
-            : auth()->user()->company_id;
+        $companyId = $this->getEffectiveCompanyId($request);
 
         if (! $companyId) {
             return back()->with('error', 'Debe seleccionar una empresa');
         }
 
-        $query = Inventory::query()
-            ->whereHas('warehouse', function ($q) use ($companyId) {
-                $q->where('company_id', $companyId);
-            })
-            ->where('quantity', '>', 0)
-            ->with(['product', 'warehouse', 'storageLocation']);
-
-        if (isset($validated['warehouse_id'])) {
-            $query->where('warehouse_id', $validated['warehouse_id']);
+        $warehouseId = $request->get('bodega');
+        if (! $warehouseId) {
+            return back()->with('error', 'Debe seleccionar una bodega');
         }
 
-        if (isset($validated['type']) && $validated['type'] !== 'global') {
-            $query->whereHas('warehouse', function ($q) use ($validated) {
-                if ($validated['type'] === 'fractional') {
-                    $q->where('warehouse_type', 'fractional');
-                } elseif ($validated['type'] === 'individual') {
-                    $q->where('warehouse_type', 'general');
-                }
-            });
-        }
+        $startDate = $request->get('inicio', now()->startOfMonth()->format('Y-m-d'));
+        $endDate = $request->get('fin', now()->endOfMonth()->format('Y-m-d'));
 
-        if (isset($validated['category_id'])) {
-            $query->whereHas('product', function ($q) use ($validated) {
-                $q->where('category_id', $validated['category_id']);
-            });
-        }
-
-        $inventories = $query->orderBy('warehouse_id')
-            ->orderBy('product_id')
-            ->get();
+        $warehouse = Warehouse::find($warehouseId);
+        $data = $this->getConsolidatedData((int) $companyId, (int) $warehouseId, $startDate, $endDate);
 
         $pdf = Pdf::loadView('reports.inventory-consolidated-pdf', [
-            'inventories' => $inventories,
-            'filters' => $validated,
+            'groupedByCategory' => $data['groupedByCategory'],
+            'totals' => $data['totals'],
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'warehouseName' => $warehouse?->name ?? 'N/A',
         ]);
 
-        $filename = sprintf(
-            'inventario_consolidado_%s.pdf',
-            now()->format('Y-m-d_His')
-        );
+        $pdf->setPaper('letter', 'landscape');
+
+        $filename = 'inventario-consolidado-'.now()->format('Y-m-d').'.pdf';
 
         return $pdf->download($filename);
+    }
+
+    /**
+     * Get consolidated inventory data grouped by budget line.
+     */
+    public function getConsolidatedData(int $companyId, int $warehouseId, string $startDate, string $endDate): array
+    {
+        $query = DB::table('inventory_movements as im')
+            ->select([
+                'products.id as product_id',
+                'products.name as product_name',
+                'products.sku',
+                'products.cost as product_cost',
+                'unit_of_measures.abbreviation as unit_abbreviation',
+                'unit_of_measures.name as unit_name',
+                'product_categories.id as category_id',
+                'product_categories.name as category_name',
+                'product_categories.legacy_code as category_code',
+                'parent_categories.id as parent_id',
+                'parent_categories.name as parent_name',
+                'parent_categories.legacy_code as parent_code',
+            ])
+            ->join('products', 'im.product_id', '=', 'products.id')
+            ->leftJoin('unit_of_measures', 'products.unit_of_measure_id', '=', 'unit_of_measures.id')
+            ->leftJoin('product_categories', 'products.category_id', '=', 'product_categories.id')
+            ->leftJoin('product_categories as parent_categories', 'product_categories.parent_id', '=', 'parent_categories.id')
+            ->where('im.company_id', $companyId)
+            ->where('im.warehouse_id', $warehouseId)
+            ->whereNotNull('im.balance_quantity')
+            ->where(function ($q) use ($startDate, $endDate) {
+                $q->whereBetween('im.movement_date', [$startDate, $endDate])
+                    ->orWhere('im.movement_date', '<', $startDate);
+            })
+            ->groupBy([
+                'products.id',
+                'products.name',
+                'products.sku',
+                'products.cost',
+                'unit_of_measures.abbreviation',
+                'unit_of_measures.name',
+                'product_categories.id',
+                'product_categories.name',
+                'product_categories.legacy_code',
+                'parent_categories.id',
+                'parent_categories.name',
+                'parent_categories.legacy_code',
+            ])
+            ->get();
+
+        $results = $query->map(function ($product) use ($companyId, $warehouseId, $startDate, $endDate) {
+            $initialMovement = InventoryMovement::where('company_id', $companyId)
+                ->where('product_id', $product->product_id)
+                ->where('warehouse_id', $warehouseId)
+                ->where('movement_date', '<', $startDate)
+                ->whereNotNull('balance_quantity')
+                ->orderByDesc('movement_date')
+                ->orderByDesc('id')
+                ->first();
+
+            $initialStock = $initialMovement?->balance_quantity ?? 0;
+
+            $entries = InventoryMovement::where('company_id', $companyId)
+                ->where('product_id', $product->product_id)
+                ->where('warehouse_id', $warehouseId)
+                ->whereBetween('movement_date', [$startDate, $endDate])
+                ->whereNotNull('balance_quantity')
+                ->sum('quantity_in');
+
+            $exits = InventoryMovement::where('company_id', $companyId)
+                ->where('product_id', $product->product_id)
+                ->where('warehouse_id', $warehouseId)
+                ->whereBetween('movement_date', [$startDate, $endDate])
+                ->whereNotNull('balance_quantity')
+                ->sum('quantity_out');
+
+            $currentStock = (float) $initialStock + (float) $entries - (float) $exits;
+            $unitCost = (float) ($product->product_cost ?? 0);
+            $totalCost = $currentStock * $unitCost;
+
+            return (object) [
+                'product_id' => $product->product_id,
+                'product_name' => $product->product_name,
+                'sku' => $product->sku,
+                'unit' => $product->unit_abbreviation ?? $product->unit_name ?? '-',
+                'category_id' => $product->category_id,
+                'category_name' => $product->category_name,
+                'category_code' => $product->category_code,
+                'parent_id' => $product->parent_id,
+                'parent_name' => $product->parent_name,
+                'parent_code' => $product->parent_code,
+                'initial_stock' => (float) $initialStock,
+                'entries' => (float) $entries,
+                'exits' => (float) $exits,
+                'current_stock' => $currentStock,
+                'unit_cost' => $unitCost,
+                'total_cost' => $totalCost,
+            ];
+        });
+
+        $groupedByCategory = $results->groupBy('parent_name')->map(function ($items, $parentName) {
+            $firstItem = $items->first();
+
+            return (object) [
+                'parent_name' => $parentName ?: 'Sin Categoría',
+                'parent_code' => $firstItem->parent_code ?? '',
+                'items' => $items,
+                'subtotals' => (object) [
+                    'initial_stock' => $items->sum('initial_stock'),
+                    'entries' => $items->sum('entries'),
+                    'exits' => $items->sum('exits'),
+                    'current_stock' => $items->sum('current_stock'),
+                    'total_cost' => $items->sum('total_cost'),
+                ],
+            ];
+        });
+
+        $totals = [
+            'total_products' => $results->count(),
+            'total_categories' => $results->pluck('parent_id')->unique()->count(),
+            'initial_stock' => $results->sum('initial_stock'),
+            'entries' => $results->sum('entries'),
+            'exits' => $results->sum('exits'),
+            'current_stock' => $results->sum('current_stock'),
+            'total_cost' => $results->sum('total_cost'),
+        ];
+
+        return [
+            'groupedByCategory' => $groupedByCategory,
+            'totals' => $totals,
+        ];
     }
 
     /**
@@ -290,6 +395,18 @@ class InventoryReportController extends Controller
             ),
             $filename
         );
+    }
+
+    /**
+     * Get the effective company ID based on user role.
+     */
+    protected function getEffectiveCompanyId(Request $request): ?int
+    {
+        if (auth()->user()->isSuperAdmin()) {
+            return $request->get('empresa') ? (int) $request->get('empresa') : null;
+        }
+
+        return auth()->user()->company_id;
     }
 
     /**

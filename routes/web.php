@@ -221,6 +221,34 @@ Route::middleware(['auth'])->group(function () {
         Volt::route('donations-consolidated', 'reports.donations-consolidated')->name('donations-consolidated');
         Volt::route('pre-closure-differences', 'reports.pre-closure-differences')->name('pre-closure-differences');
 
+        // Purchase Reports Hub
+        Route::prefix('purchases')->name('purchases.')->group(function () {
+            Volt::route('/', 'reports.purchases.hub')->name('hub');
+            Volt::route('detailed', 'reports.purchases.detailed')->name('detailed');
+            Route::get('detailed/pdf', [\App\Http\Controllers\PurchaseReportController::class, 'exportDetailedPdf'])->name('detailed.pdf');
+            Route::get('detailed/excel', [\App\Http\Controllers\PurchaseReportController::class, 'exportDetailedExcel'])->name('detailed.excel');
+            Volt::route('summary-by-line', 'reports.purchases.summary-by-line')->name('summary-by-line');
+            Route::get('summary-by-line/pdf', [\App\Http\Controllers\PurchaseReportController::class, 'exportSummaryByLinePdf'])->name('summary-by-line.pdf');
+            Route::get('summary-by-line/excel', [\App\Http\Controllers\PurchaseReportController::class, 'exportSummaryByLineExcel'])->name('summary-by-line.excel');
+        });
+
+        // Dispatch Reports Hub (Salidas)
+        Route::prefix('dispatches')->name('dispatches.')->group(function () {
+            Volt::route('/', 'reports.dispatches.hub')->name('hub');
+            Volt::route('monthly', 'reports.dispatches.monthly')->name('monthly');
+            Route::get('monthly/pdf', [\App\Http\Controllers\DispatchReportController::class, 'exportMonthlyPdf'])->name('monthly.pdf');
+            Route::get('monthly/excel', [\App\Http\Controllers\DispatchReportController::class, 'exportMonthlyExcel'])->name('monthly.excel');
+            Volt::route('summary-by-line', 'reports.dispatches.summary-by-line')->name('summary-by-line');
+            Route::get('summary-by-line/pdf', [\App\Http\Controllers\DispatchReportController::class, 'exportSummaryByLinePdf'])->name('summary-by-line.pdf');
+            Route::get('summary-by-line/excel', [\App\Http\Controllers\DispatchReportController::class, 'exportSummaryByLineExcel'])->name('summary-by-line.excel');
+            Volt::route('summary-by-line-quantity', 'reports.dispatches.summary-by-line-quantity')->name('summary-by-line-quantity');
+            Route::get('summary-by-line-quantity/pdf', [\App\Http\Controllers\DispatchReportController::class, 'exportSummaryByLineQuantityPdf'])->name('summary-by-line-quantity.pdf');
+            Route::get('summary-by-line-quantity/excel', [\App\Http\Controllers\DispatchReportController::class, 'exportSummaryByLineQuantityExcel'])->name('summary-by-line-quantity.excel');
+            Volt::route('stock-movements', 'reports.dispatches.stock-movements')->name('stock-movements');
+            Route::get('stock-movements/pdf', [\App\Http\Controllers\DispatchReportController::class, 'exportStockMovementsPdf'])->name('stock-movements.pdf');
+            Route::get('stock-movements/excel', [\App\Http\Controllers\DispatchReportController::class, 'exportStockMovementsExcel'])->name('stock-movements.excel');
+        });
+
         // Custom Reports
         Volt::route('custom', 'reports.custom')->name('custom');
 

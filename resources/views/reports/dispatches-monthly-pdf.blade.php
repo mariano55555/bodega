@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reporte Inventario Consolidado</title>
+    <title>Reporte Mensual de Salidas de Bodega</title>
     <style>
         @page {
             margin: 15mm 10mm 20mm 10mm;
@@ -19,7 +19,7 @@
             font-family: 'DejaVu Sans', sans-serif;
             font-size: 8px;
             color: #333;
-            line-height: 1.4;
+            line-height: 1.3;
         }
 
         .header {
@@ -39,21 +39,21 @@
         }
 
         .logo-cell {
-            width: 25%;
+            width: 20%;
         }
 
         .logo {
-            max-width: 180px;
-            max-height: 60px;
+            max-width: 150px;
+            max-height: 50px;
         }
 
         .title-cell {
-            width: 50%;
+            width: 60%;
             text-align: center;
         }
 
         .info-cell {
-            width: 25%;
+            width: 20%;
             text-align: right;
             font-size: 8px;
         }
@@ -62,27 +62,20 @@
             font-size: 11px;
             font-weight: bold;
             color: #1e3a5f;
-            margin-bottom: 3px;
+            margin-bottom: 2px;
         }
 
         .department-name {
             font-size: 9px;
             color: #555;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
         }
 
         .report-title {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: bold;
             color: #1e3a5f;
-            margin-bottom: 3px;
-        }
-
-        .warehouse-info {
-            font-size: 10px;
-            font-weight: bold;
-            color: #92400e;
-            margin-top: 3px;
+            margin-bottom: 2px;
         }
 
         .period {
@@ -96,17 +89,13 @@
         }
 
         .section-header {
-            background-color: #1e3a5f;
-            color: white;
+            background-color: #f5f5f5;
             padding: 6px 10px;
-            font-size: 9px;
+            font-size: 10px;
             font-weight: bold;
+            color: #1e3a5f;
+            border-left: 4px solid #d97706;
             margin-bottom: 0;
-        }
-
-        .section-header-code {
-            float: right;
-            font-weight: bold;
         }
 
         table.data-table {
@@ -116,60 +105,71 @@
         }
 
         table.data-table thead {
-            background-color: #2d4a6f;
+            background-color: #1e3a5f;
+            color: white;
         }
 
         table.data-table th {
-            padding: 5px 6px;
+            padding: 5px 3px;
             text-align: left;
             font-size: 7px;
             font-weight: bold;
-            border: 1px solid #1e3a5f;
-            color: white;
+            border-bottom: 1px solid #ccc;
         }
 
         table.data-table th.right {
             text-align: right;
         }
 
-        table.data-table th.center {
-            text-align: center;
-        }
-
         table.data-table td {
-            padding: 4px 6px;
-            border: 1px solid #ddd;
-            font-size: 7.5px;
+            padding: 4px 3px;
+            border-bottom: 1px solid #eee;
+            font-size: 7px;
+            vertical-align: top;
         }
 
         table.data-table td.right {
             text-align: right;
         }
 
-        table.data-table td.center {
-            text-align: center;
-        }
-
         table.data-table tbody tr:nth-child(even) {
-            background-color: #f8f9fa;
+            background-color: #fafafa;
         }
 
-        .subtotal-row {
-            background-color: #e8e8e8 !important;
+        .subtotal-section {
+            margin-top: 5px;
+            padding: 8px 10px;
+            background-color: #fff7ed;
+            border-top: 1px solid #fed7aa;
         }
 
-        .subtotal-row td {
-            padding: 6px;
-            border-top: 2px solid #999;
-            font-weight: bold;
+        .subtotal-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .subtotal-table td {
+            padding: 2px 0;
             font-size: 8px;
+        }
+
+        .subtotal-table .label {
+            text-align: right;
+            padding-right: 15px;
+            width: 80%;
+        }
+
+        .subtotal-table .value {
+            text-align: right;
+            font-weight: bold;
+            width: 20%;
         }
 
         .grand-total {
             background-color: #1e3a5f;
             color: white;
-            padding: 10px 15px;
-            margin-top: 20px;
+            padding: 10px;
+            margin-top: 15px;
         }
 
         .grand-total-table {
@@ -179,23 +179,22 @@
 
         .grand-total-table td {
             padding: 3px 0;
-            font-size: 9px;
+            font-size: 10px;
         }
 
         .grand-total-table .label {
-            text-align: left;
-            font-weight: bold;
+            text-align: right;
+            padding-right: 20px;
         }
 
         .grand-total-table .value {
             text-align: right;
             width: 100px;
-            font-size: 10px;
             font-weight: bold;
         }
 
         .signatures {
-            margin-top: 50px;
+            margin-top: 40px;
             page-break-inside: avoid;
         }
 
@@ -207,14 +206,14 @@
         .signatures-table td {
             width: 33.33%;
             text-align: center;
-            padding: 0 30px;
+            padding: 0 20px;
             vertical-align: bottom;
         }
 
         .signature-line {
             border-top: 1px solid #333;
-            padding-top: 8px;
-            margin-top: 50px;
+            padding-top: 5px;
+            margin-top: 40px;
             font-size: 9px;
             font-weight: bold;
         }
@@ -233,7 +232,7 @@
 
         .no-data {
             text-align: center;
-            padding: 40px;
+            padding: 30px;
             color: #999;
             font-style: italic;
             font-size: 10px;
@@ -250,85 +249,88 @@
                 <td class="title-cell">
                     <div class="institution-name">ESCUELA NACIONAL DE AGRICULTURA "ROBERTO QUIÑÓNEZ"</div>
                     <div class="department-name">GERENCIA ADMINISTRATIVA</div>
-                    <div class="report-title">REPORTE INVENTARIO CONSOLIDADO</div>
-                    <div class="warehouse-info">{{ $warehouseName }}</div>
+                    <div class="report-title">REPORTE MENSUAL DE SALIDAS DE BODEGA</div>
                     <div class="period">PERIODO: DEL {{ \Carbon\Carbon::parse($startDate)->format('d/m/Y') }} AL {{ \Carbon\Carbon::parse($endDate)->format('d/m/Y') }}</div>
                 </td>
                 <td class="info-cell">
+                    <div>Página #</div>
                     <div>Fecha de reporte:</div>
                     <div>{{ now()->format('d/m/Y') }}</div>
-                    <div style="margin-top: 5px;">Hora: {{ now()->format('H:i') }}</div>
                 </td>
             </tr>
         </table>
     </div>
 
-    @if ($groupedByCategory->isEmpty())
+    @if ($groupedByWarehouse->isEmpty())
         <div class="no-data">
-            No se encontraron movimientos en el período seleccionado
+            No se encontraron salidas en el período seleccionado
         </div>
     @else
-        @foreach ($groupedByCategory as $parentName => $group)
+        @foreach ($groupedByWarehouse as $warehouseName => $group)
             <div class="section">
                 <div class="section-header">
-                    Línea Presupuestaria: {{ $group->parent_name }}
-                    <span class="section-header-code">Específico {{ $group->parent_code }}</span>
+                    {{ $group->warehouse_name }}
                 </div>
 
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th style="width: 25%;">Descripción del Producto</th>
-                            <th class="center" style="width: 8%;">Unidad de Medida</th>
-                            <th class="right" style="width: 10%;">Existencia Inicial</th>
-                            <th class="right" style="width: 9%;">Entradas</th>
-                            <th class="right" style="width: 9%;">Salidas</th>
-                            <th class="right" style="width: 10%;">Existencia Actual</th>
-                            <th class="right" style="width: 10%;">Precio Unitario</th>
-                            <th class="right" style="width: 12%;">Costo Total</th>
+                            <th style="width: 8%;">Fecha Despacho</th>
+                            <th style="width: 10%;">N° Despacho</th>
+                            <th style="width: 8%;">Bodega</th>
+                            <th style="width: 12%;">Área Solicitante</th>
+                            <th style="width: 12%;">Línea Presupuestaria</th>
+                            <th style="width: 8%;">Específico</th>
+                            <th style="width: 18%;">Descripción del Producto</th>
+                            <th style="width: 6%;">Unidad</th>
+                            <th class="right" style="width: 8%;">Cantidad</th>
+                            <th class="right" style="width: 10%;">Valor</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach ($group->items as $item)
                             <tr>
+                                <td>{{ \Carbon\Carbon::parse($item->document_date)->format('d/m/Y') }}</td>
+                                <td>{{ $item->dispatch_number }}</td>
+                                <td>{{ $item->warehouse_name }}</td>
+                                <td>{{ $item->area_name ?? '-' }}</td>
+                                <td>{{ $item->parent_category_name ?? $item->category_name ?? '-' }}</td>
+                                <td>{{ $item->category_code ?? '-' }}</td>
                                 <td>{{ $item->product_name }}</td>
-                                <td class="center">{{ $item->unit }}</td>
-                                <td class="right">{{ number_format($item->initial_stock, 2) }}</td>
-                                <td class="right">{{ number_format($item->entries, 2) }}</td>
-                                <td class="right">{{ number_format($item->exits, 2) }}</td>
-                                <td class="right" style="font-weight: bold;">{{ number_format($item->current_stock, 2) }}</td>
-                                <td class="right">${{ number_format($item->unit_cost, 2) }}</td>
-                                <td class="right" style="font-weight: bold;">${{ number_format($item->total_cost, 2) }}</td>
+                                <td>{{ $item->unit_abbreviation ?? $item->unit_name ?? '-' }}</td>
+                                <td class="right">{{ number_format($item->quantity, 2) }}</td>
+                                <td class="right">$ {{ number_format($item->total, 2) }}</td>
                             </tr>
                         @endforeach
                     </tbody>
                 </table>
 
-                <table class="data-table">
-                    <tbody>
-                        <tr class="subtotal-row">
-                            <td style="width: 33%; text-align: right;">Total Línea {{ $group->parent_code }}</td>
-                            <td class="right" style="width: 10%;">{{ number_format($group->subtotals->initial_stock, 2) }}</td>
-                            <td class="right" style="width: 9%;">{{ number_format($group->subtotals->entries, 2) }}</td>
-                            <td class="right" style="width: 9%;">{{ number_format($group->subtotals->exits, 2) }}</td>
-                            <td class="right" style="width: 10%;">{{ number_format($group->subtotals->current_stock, 2) }}</td>
-                            <td style="width: 10%;"></td>
-                            <td class="right" style="width: 12%;">${{ number_format($group->subtotals->total_cost, 2) }}</td>
+                <div class="subtotal-section">
+                    <table class="subtotal-table">
+                        <tr>
+                            <td class="label">Cantidad Mensual</td>
+                            <td class="value">{{ number_format($group->total_quantity, 2) }}</td>
                         </tr>
-                    </tbody>
-                </table>
+                        <tr>
+                            <td class="label">Valor Mensual</td>
+                            <td class="value">$ {{ number_format($group->total_value, 2) }}</td>
+                        </tr>
+                    </table>
+                </div>
             </div>
         @endforeach
 
         <div class="grand-total">
             <table class="grand-total-table">
                 <tr>
-                    <td class="label">TOTALES DEL PERÍODO</td>
-                    <td class="value">Inicial: {{ number_format($totals['initial_stock'], 2) }}</td>
-                    <td class="value">Entradas: {{ number_format($totals['entries'], 2) }}</td>
-                    <td class="value">Salidas: {{ number_format($totals['exits'], 2) }}</td>
-                    <td class="value">Actual: {{ number_format($totals['current_stock'], 2) }}</td>
-                    <td class="value">Costo: ${{ number_format($totals['total_cost'], 2) }}</td>
+                    <td class="label">Total Mensual</td>
+                    <td class="value">CANTIDAD</td>
+                    <td class="value">VALOR</td>
+                </tr>
+                <tr>
+                    <td class="label"></td>
+                    <td class="value">{{ number_format($totals['total_quantity'], 2) }}</td>
+                    <td class="value">${{ number_format($totals['total_value'], 2) }}</td>
                 </tr>
             </table>
         </div>

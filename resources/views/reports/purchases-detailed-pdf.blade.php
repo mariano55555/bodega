@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reporte Inventario Consolidado</title>
+    <title>Reporte Mensual de Compras Detalladas</title>
     <style>
         @page {
             margin: 15mm 10mm 20mm 10mm;
@@ -17,9 +17,9 @@
 
         body {
             font-family: 'DejaVu Sans', sans-serif;
-            font-size: 8px;
+            font-size: 9px;
             color: #333;
-            line-height: 1.4;
+            line-height: 1.3;
         }
 
         .header {
@@ -62,32 +62,30 @@
             font-size: 11px;
             font-weight: bold;
             color: #1e3a5f;
-            margin-bottom: 3px;
+            margin-bottom: 2px;
         }
 
         .department-name {
             font-size: 9px;
             color: #555;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
         }
 
         .report-title {
             font-size: 12px;
             font-weight: bold;
             color: #1e3a5f;
-            margin-bottom: 3px;
-        }
-
-        .warehouse-info {
-            font-size: 10px;
-            font-weight: bold;
-            color: #92400e;
-            margin-top: 3px;
+            margin-bottom: 2px;
         }
 
         .period {
             font-size: 9px;
             color: #333;
+        }
+
+        .page-info {
+            font-size: 8px;
+            color: #666;
         }
 
         .section {
@@ -99,14 +97,17 @@
             background-color: #1e3a5f;
             color: white;
             padding: 6px 10px;
-            font-size: 9px;
+            font-size: 10px;
             font-weight: bold;
             margin-bottom: 0;
         }
 
-        .section-header-code {
-            float: right;
-            font-weight: bold;
+        .section-subheader {
+            background-color: #f0f0f0;
+            padding: 4px 10px;
+            font-size: 8px;
+            color: #555;
+            border-bottom: 1px solid #ddd;
         }
 
         table.data-table {
@@ -116,60 +117,55 @@
         }
 
         table.data-table thead {
-            background-color: #2d4a6f;
+            background-color: #e8e8e8;
         }
 
         table.data-table th {
-            padding: 5px 6px;
+            padding: 5px 4px;
             text-align: left;
-            font-size: 7px;
+            font-size: 8px;
             font-weight: bold;
-            border: 1px solid #1e3a5f;
-            color: white;
+            border-bottom: 1px solid #ccc;
+            color: #333;
         }
 
         table.data-table th.right {
             text-align: right;
         }
 
-        table.data-table th.center {
-            text-align: center;
-        }
-
         table.data-table td {
-            padding: 4px 6px;
-            border: 1px solid #ddd;
-            font-size: 7.5px;
+            padding: 4px;
+            border-bottom: 1px solid #eee;
+            font-size: 8px;
+            vertical-align: top;
         }
 
         table.data-table td.right {
             text-align: right;
         }
 
-        table.data-table td.center {
-            text-align: center;
-        }
-
         table.data-table tbody tr:nth-child(even) {
-            background-color: #f8f9fa;
+            background-color: #fafafa;
         }
 
         .subtotal-row {
-            background-color: #e8e8e8 !important;
+            background-color: #f5f5f5;
+            font-weight: bold;
         }
 
         .subtotal-row td {
-            padding: 6px;
-            border-top: 2px solid #999;
-            font-weight: bold;
-            font-size: 8px;
+            padding: 6px 4px;
+            border-top: 1px solid #ccc;
         }
 
         .grand-total {
             background-color: #1e3a5f;
             color: white;
-            padding: 10px 15px;
-            margin-top: 20px;
+            padding: 10px;
+            text-align: right;
+            font-size: 11px;
+            font-weight: bold;
+            margin-top: 15px;
         }
 
         .grand-total-table {
@@ -179,23 +175,20 @@
 
         .grand-total-table td {
             padding: 3px 0;
-            font-size: 9px;
         }
 
         .grand-total-table .label {
-            text-align: left;
-            font-weight: bold;
+            text-align: right;
+            padding-right: 20px;
         }
 
         .grand-total-table .value {
             text-align: right;
-            width: 100px;
-            font-size: 10px;
-            font-weight: bold;
+            width: 120px;
         }
 
         .signatures {
-            margin-top: 50px;
+            margin-top: 40px;
             page-break-inside: avoid;
         }
 
@@ -207,14 +200,14 @@
         .signatures-table td {
             width: 33.33%;
             text-align: center;
-            padding: 0 30px;
+            padding: 0 20px;
             vertical-align: bottom;
         }
 
         .signature-line {
             border-top: 1px solid #333;
-            padding-top: 8px;
-            margin-top: 50px;
+            padding-top: 5px;
+            margin-top: 40px;
             font-size: 9px;
             font-weight: bold;
         }
@@ -233,7 +226,7 @@
 
         .no-data {
             text-align: center;
-            padding: 40px;
+            padding: 30px;
             color: #999;
             font-style: italic;
             font-size: 10px;
@@ -250,71 +243,70 @@
                 <td class="title-cell">
                     <div class="institution-name">ESCUELA NACIONAL DE AGRICULTURA "ROBERTO QUIÑÓNEZ"</div>
                     <div class="department-name">GERENCIA ADMINISTRATIVA</div>
-                    <div class="report-title">REPORTE INVENTARIO CONSOLIDADO</div>
-                    <div class="warehouse-info">{{ $warehouseName }}</div>
+                    <div class="report-title">REPORTE MENSUAL DE COMPRAS DETALLADAS</div>
                     <div class="period">PERIODO: DEL {{ \Carbon\Carbon::parse($startDate)->format('d/m/Y') }} AL {{ \Carbon\Carbon::parse($endDate)->format('d/m/Y') }}</div>
                 </td>
                 <td class="info-cell">
-                    <div>Fecha de reporte:</div>
-                    <div>{{ now()->format('d/m/Y') }}</div>
-                    <div style="margin-top: 5px;">Hora: {{ now()->format('H:i') }}</div>
+                    <div class="page-info">Página #</div>
+                    <div class="page-info">Fecha de reporte:</div>
+                    <div class="page-info">{{ now()->format('d/m/Y') }}</div>
                 </td>
             </tr>
         </table>
     </div>
 
-    @if ($groupedByCategory->isEmpty())
+    @if ($groupedData->isEmpty())
         <div class="no-data">
-            No se encontraron movimientos en el período seleccionado
+            No se encontraron compras en el período seleccionado
         </div>
     @else
-        @foreach ($groupedByCategory as $parentName => $group)
+        @foreach ($groupedData as $categoryName => $group)
             <div class="section">
                 <div class="section-header">
-                    Línea Presupuestaria: {{ $group->parent_name }}
-                    <span class="section-header-code">Específico {{ $group->parent_code }}</span>
+                    {{ $group->category_name }} - {{ $group->category_code }}
+                </div>
+                <div class="section-subheader">
+                    Categoría: {{ $group->parent_name }} ({{ $group->parent_code }})
                 </div>
 
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th style="width: 25%;">Descripción del Producto</th>
-                            <th class="center" style="width: 8%;">Unidad de Medida</th>
-                            <th class="right" style="width: 10%;">Existencia Inicial</th>
-                            <th class="right" style="width: 9%;">Entradas</th>
-                            <th class="right" style="width: 9%;">Salidas</th>
-                            <th class="right" style="width: 10%;">Existencia Actual</th>
-                            <th class="right" style="width: 10%;">Precio Unitario</th>
-                            <th class="right" style="width: 12%;">Costo Total</th>
+                            <th style="width: 10%;">Fecha de compra</th>
+                            <th style="width: 18%;">Proveedor</th>
+                            <th style="width: 10%;">No. Factura</th>
+                            <th style="width: 22%;">Descripción</th>
+                            <th style="width: 8%;">Unidad</th>
+                            <th class="right" style="width: 8%;">Cantidad</th>
+                            <th class="right" style="width: 10%;">P. Unitario</th>
+                            <th class="right" style="width: 10%;">Valor Neto</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach ($group->items as $item)
                             <tr>
+                                <td>{{ \Carbon\Carbon::parse($item->document_date)->format('d/m/Y') }}</td>
+                                <td>{{ $item->supplier_name }}</td>
+                                <td>{{ $item->document_number ?? '-' }}</td>
                                 <td>{{ $item->product_name }}</td>
-                                <td class="center">{{ $item->unit }}</td>
-                                <td class="right">{{ number_format($item->initial_stock, 2) }}</td>
-                                <td class="right">{{ number_format($item->entries, 2) }}</td>
-                                <td class="right">{{ number_format($item->exits, 2) }}</td>
-                                <td class="right" style="font-weight: bold;">{{ number_format($item->current_stock, 2) }}</td>
-                                <td class="right">${{ number_format($item->unit_cost, 2) }}</td>
-                                <td class="right" style="font-weight: bold;">${{ number_format($item->total_cost, 2) }}</td>
+                                <td>{{ $item->unit_abbreviation ?? $item->unit_name ?? '-' }}</td>
+                                <td class="right">{{ number_format($item->quantity, 2) }}</td>
+                                <td class="right">$ {{ number_format($item->unit_cost, 2) }}</td>
+                                <td class="right">$ {{ number_format($item->total, 2) }}</td>
                             </tr>
                         @endforeach
-                    </tbody>
-                </table>
-
-                <table class="data-table">
-                    <tbody>
                         <tr class="subtotal-row">
-                            <td style="width: 33%; text-align: right;">Total Línea {{ $group->parent_code }}</td>
-                            <td class="right" style="width: 10%;">{{ number_format($group->subtotals->initial_stock, 2) }}</td>
-                            <td class="right" style="width: 9%;">{{ number_format($group->subtotals->entries, 2) }}</td>
-                            <td class="right" style="width: 9%;">{{ number_format($group->subtotals->exits, 2) }}</td>
-                            <td class="right" style="width: 10%;">{{ number_format($group->subtotals->current_stock, 2) }}</td>
-                            <td style="width: 10%;"></td>
-                            <td class="right" style="width: 12%;">${{ number_format($group->subtotals->total_cost, 2) }}</td>
+                            <td colspan="7" style="text-align: right;">Subtotal por Línea</td>
+                            <td class="right">$ {{ number_format($group->subtotal, 2) }}</td>
                         </tr>
+                        @foreach ($group->by_supplier as $supplierName => $supplierTotal)
+                            <tr class="subtotal-row" style="background-color: #fafafa;">
+                                <td colspan="7" style="text-align: right; font-weight: normal; font-size: 7px;">
+                                    Subtotal {{ $supplierName }}
+                                </td>
+                                <td class="right" style="font-weight: normal; font-size: 7px;">$ {{ number_format($supplierTotal, 2) }}</td>
+                            </tr>
+                        @endforeach
                     </tbody>
                 </table>
             </div>
@@ -323,12 +315,8 @@
         <div class="grand-total">
             <table class="grand-total-table">
                 <tr>
-                    <td class="label">TOTALES DEL PERÍODO</td>
-                    <td class="value">Inicial: {{ number_format($totals['initial_stock'], 2) }}</td>
-                    <td class="value">Entradas: {{ number_format($totals['entries'], 2) }}</td>
-                    <td class="value">Salidas: {{ number_format($totals['exits'], 2) }}</td>
-                    <td class="value">Actual: {{ number_format($totals['current_stock'], 2) }}</td>
-                    <td class="value">Costo: ${{ number_format($totals['total_cost'], 2) }}</td>
+                    <td class="label">Total de compras</td>
+                    <td class="value">${{ number_format($totals['total_amount'], 2) }}</td>
                 </tr>
             </table>
         </div>

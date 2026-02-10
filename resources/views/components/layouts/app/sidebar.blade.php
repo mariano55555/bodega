@@ -68,8 +68,10 @@
 
                 <!-- 📊 Reportería -->
                 <flux:navlist.group :heading="__('Reportería')" class="grid">
-                    <flux:navlist.item icon="document-text" :href="route('reports.inventory.consolidated')" :current="request()->routeIs('reports.inventory.consolidated')" wire:navigate>{{ __('Inventario Consolidado') }}</flux:navlist.item>
+                    <flux:navlist.item icon="shopping-cart" :href="route('reports.purchases.hub')" :current="request()->routeIs('reports.purchases.*')" wire:navigate>{{ __('Reportes de Compras') }}</flux:navlist.item>
+                    <flux:navlist.item icon="truck" :href="route('reports.dispatches.hub')" :current="request()->routeIs('reports.dispatches.*')" wire:navigate>{{ __('Reportes de Salidas') }}</flux:navlist.item>
                     <flux:navlist.item icon="document-chart-bar" :href="route('reports.kardex')" :current="request()->routeIs('reports.kardex')" wire:navigate>{{ __('Reportes de Kardex') }}</flux:navlist.item>
+                    <flux:navlist.item icon="document-text" :href="route('reports.inventory.consolidated')" :current="request()->routeIs('reports.inventory.consolidated')" wire:navigate>{{ __('Inventario Consolidado') }}</flux:navlist.item>
                     <flux:navlist.item icon="chart-bar" :href="route('reports.movements.monthly')" :current="request()->routeIs('reports.movements.*')" wire:navigate>{{ __('Reportes de Movimientos') }}</flux:navlist.item>
                     <flux:navlist.item icon="currency-dollar" :href="route('reports.administrative')" :current="request()->routeIs('reports.administrative')" wire:navigate>{{ __('Reportes Administrativos') }}</flux:navlist.item>
                     <flux:navlist.item icon="cog" :href="route('reports.custom')" :current="request()->routeIs('reports.custom')" wire:navigate>{{ __('Reportes Personalizados') }}</flux:navlist.item>

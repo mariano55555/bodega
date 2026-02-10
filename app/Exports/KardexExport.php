@@ -66,7 +66,7 @@ class KardexExport implements FromCollection, ShouldAutoSize, WithHeadings, With
             ['Período: '.($this->dateFrom ? \Carbon\Carbon::parse($this->dateFrom)->format('d/m/Y') : 'Inicio').' - '.($this->dateTo ? \Carbon\Carbon::parse($this->dateTo)->format('d/m/Y') : 'Fin')],
             ['Generado: '.now()->format('d/m/Y H:i')],
             [],
-            ['Fecha', 'Documento', 'Referencia', 'Motivo', 'Entrada', 'Salida', 'Saldo'],
+            ['Fecha', 'Documento', 'Referencia', 'Transacción', 'Entrada', 'Salida', 'Saldo'],
         ];
     }
 

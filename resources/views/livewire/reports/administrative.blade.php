@@ -32,6 +32,12 @@ new #[Layout('components.layouts.app')] class extends Component
                         <flux:button variant="ghost" size="sm" :href="route('reports.inventory.value')" wire:navigate class="w-full justify-start">
                             {{ __('Valorización de Inventario') }}
                         </flux:button>
+                        <flux:button variant="ghost" size="sm" :href="route('reports.purchases.hub')" wire:navigate class="w-full justify-start">
+                            {{ __('Reportes de Compras') }}
+                        </flux:button>
+                        <flux:button variant="ghost" size="sm" :href="route('reports.dispatches.hub')" wire:navigate class="w-full justify-start">
+                            {{ __('Reportes de Salidas') }}
+                        </flux:button>
                         <flux:button variant="ghost" size="sm" :href="route('reports.purchases-by-supplier')" wire:navigate class="w-full justify-start">
                             {{ __('Compras por Proveedor') }}
                         </flux:button>

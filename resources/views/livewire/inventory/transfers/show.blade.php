@@ -303,7 +303,9 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <flux:table>
                             <flux:table.columns>
                                 <flux:table.column>Producto</flux:table.column>
-                                <flux:table.column class="text-right">Cantidad</flux:table.column>
+                                <flux:table.column>Cantidad</flux:table.column>
+                                <flux:table.column>Costo Unit.</flux:table.column>
+                                <flux:table.column>Subtotal</flux:table.column>
                                 <flux:table.column>Notas</flux:table.column>
                             </flux:table.columns>
 
@@ -317,9 +319,17 @@ new #[Layout('components.layouts.app')] class extends Component {
                                             </div>
                                         </flux:table.cell>
 
-                                        <flux:table.cell class="text-right">
+                                        <flux:table.cell class="tabular-nums">
                                             <span class="font-semibold">{{ number_format($detail->quantity, 5) }}</span>
                                             <span class="text-zinc-500 dark:text-zinc-400 ml-1">{{ $detail->product->unitOfMeasure?->abbreviation ?? 'unid.' }}</span>
+                                        </flux:table.cell>
+
+                                        <flux:table.cell class="tabular-nums">
+                                            <span class="font-semibold">{{ number_format($detail->product->cost ?? 0, 5) }}</span>
+                                        </flux:table.cell>
+
+                                        <flux:table.cell class="tabular-nums">
+                                            <span class="font-semibold">{{ number_format(($detail->quantity * ($detail->product->cost ?? 0)), 5) }}</span>
                                         </flux:table.cell>
 
                                         <flux:table.cell>
@@ -332,6 +342,18 @@ new #[Layout('components.layouts.app')] class extends Component {
                                     </flux:table.row>
                                 @endforeach
                             </flux:table.rows>
+
+                            @if ($transfer->details->count() > 1)
+                                <flux:table.rows>
+                                    <flux:table.row>
+                                        <flux:table.cell colspan="3" class="text-right font-semibold">Total</flux:table.cell>
+                                        <flux:table.cell class="tabular-nums">
+                                            <span class="font-bold">{{ number_format($transfer->details->sum(fn ($d) => $d->quantity * ($d->product->cost ?? 0)), 5) }}</span>
+                                        </flux:table.cell>
+                                        <flux:table.cell></flux:table.cell>
+                                    </flux:table.row>
+                                </flux:table.rows>
+                            @endif
                         </flux:table>
                     </div>
                 @else

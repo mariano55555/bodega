@@ -225,7 +225,7 @@
                 <tr>
                     <th style="width: 12%;">Fecha</th>
                     <th style="width: 20%;">Documento</th>
-                    <th style="width: 28%;">Motivo</th>
+                    <th style="width: 28%;">Transacción</th>
                     <th class="right" style="width: 13%;">Entrada</th>
                     <th class="right" style="width: 13%;">Salida</th>
                     <th class="right" style="width: 14%;">Saldo</th>
@@ -280,11 +280,11 @@
             </tbody>
         </table>
 
+        @php
+            $lastMovement = $movements->last();
+            $finalValue = $lastMovement->balance_quantity * ($lastMovement->unit_cost ?? 0);
+        @endphp
         <div class="summary">
-            <div class="summary-row">
-                <span class="summary-label">Total de Movimientos:</span>
-                <span class="summary-value">{{ $movements->count() }}</span>
-            </div>
             <div class="summary-row">
                 <span class="summary-label">Total Entradas:</span>
                 <span class="summary-value quantity-in">{{ number_format($movements->sum('quantity_in'), 2) }}</span>
@@ -293,11 +293,23 @@
                 <span class="summary-label">Total Salidas:</span>
                 <span class="summary-value quantity-out">{{ number_format($movements->sum('quantity_out'), 2) }}</span>
             </div>
+            <div class="summary-row">
+                <span class="summary-label">Valor en Inventario:</span>
+                <span class="summary-value" style="color: #d97706;">${{ number_format($finalValue, 2) }}</span>
+            </div>
             <div class="summary-row" style="border-top: 2px solid #333; padding-top: 8px; margin-top: 8px;">
-                <span class="summary-label">Saldo Final:</span>
-                <span class="summary-value balance {{ $movements->last()->balance_quantity < 0 ? 'balance-negative' : '' }}">
-                    {{ number_format($movements->last()->balance_quantity, 2) }}
+                <span class="summary-label">Total Movimientos:</span>
+                <span class="summary-value">{{ $movements->count() }}</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Existencia Actual:</span>
+                <span class="summary-value balance {{ $lastMovement->balance_quantity < 0 ? 'balance-negative' : '' }}">
+                    {{ number_format($lastMovement->balance_quantity, 2) }}
                 </span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Costo Unitario Actual:</span>
+                <span class="summary-value">${{ number_format($lastMovement->unit_cost ?? 0, 2) }}</span>
             </div>
         </div>
     @endif
