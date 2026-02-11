@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -104,6 +105,10 @@ class Product extends Model
             }
         });
 
+        static::created(function ($product) {
+            static::clearSelectCache($product->company_id);
+        });
+
         static::updating(function ($product) {
             if ($product->isDirty('name') && empty($product->slug)) {
                 $product->slug = Str::slug($product->name);
@@ -116,11 +121,19 @@ class Product extends Model
             }
         });
 
+        static::updated(function ($product) {
+            static::clearSelectCache($product->company_id);
+        });
+
         static::deleting(function ($product) {
             if (auth()->check()) {
                 $product->deleted_by = auth()->id();
                 $product->save();
             }
+        });
+
+        static::deleted(function ($product) {
+            static::clearSelectCache($product->company_id);
         });
     }
 
@@ -266,6 +279,41 @@ class Product extends Model
     public function isAboveMaximumStock(): bool
     {
         return $this->maximum_stock && $this->total_stock > $this->maximum_stock;
+    }
+
+    /**
+     * Get cached products for select/combobox (with unit info).
+     *
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    public static function cachedForSelect(int $companyId): \Illuminate\Support\Collection
+    {
+        return Cache::remember(
+            "company_{$companyId}_products_select",
+            now()->addHours(24),
+            fn () => static::where('products.company_id', $companyId)
+                ->where('products.is_active', true)
+                ->leftJoin('units_of_measure', 'units_of_measure.id', '=', 'products.unit_of_measure_id')
+                ->select(
+                    'products.id',
+                    'products.name',
+                    'products.sku',
+                    'products.cost',
+                    'products.unit_of_measure_id',
+                    'units_of_measure.abbreviation as unit_abbreviation',
+                    'units_of_measure.name as unit_name'
+                )
+                ->orderBy('products.name')
+                ->get()
+        );
+    }
+
+    /**
+     * Clear the cached products for a company.
+     */
+    public static function clearSelectCache(int $companyId): void
+    {
+        Cache::forget("company_{$companyId}_products_select");
     }
 
     /**

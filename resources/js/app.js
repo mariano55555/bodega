@@ -103,11 +103,71 @@ document.addEventListener('alpine:init', () => {
         expirationDate: config.expirationDate,
         notes: config.notes,
 
+        // Autocomplete properties
+        searchText: '',
+        showDropdown: false,
+        highlightIndex: -1,
+
         init() {
+            // Set initial search text from selected product
+            if (this.productId) {
+                const data = Alpine.store('purchaseProducts') || {};
+                const p = data[this.productId];
+                if (p) {
+                    this.searchText = p.name + (p.sku ? ' - ' + p.sku : '');
+                }
+            }
             // Emit initial total on mount
             this.$nextTick(() => {
                 this.emitTotal();
             });
+        },
+
+        get filteredProducts() {
+            if (!this.searchText || this.searchText.length < 1) return [];
+            const s = this.searchText.toLowerCase();
+            const store = Alpine.store('purchaseProducts') || {};
+            return Object.entries(store)
+                .filter(([id, p]) =>
+                    p.name.toLowerCase().includes(s) ||
+                    (p.sku && p.sku.toLowerCase().includes(s))
+                )
+                .slice(0, 15)
+                .map(([id, p]) => ({
+                    id,
+                    label: p.name + (p.sku ? ' - ' + p.sku : '')
+                }));
+        },
+
+        onArrowDown() {
+            if (!this.showDropdown) this.showDropdown = true;
+            if (this.highlightIndex < this.filteredProducts.length - 1) this.highlightIndex++;
+        },
+
+        onArrowUp() {
+            if (this.highlightIndex > 0) this.highlightIndex--;
+        },
+
+        onEnter() {
+            if (this.highlightIndex >= 0 && this.filteredProducts[this.highlightIndex]) {
+                this.pickProduct(this.filteredProducts[this.highlightIndex].id);
+            }
+        },
+
+        pickProduct(id) {
+            const store = Alpine.store('purchaseProducts') || {};
+            const p = store[id];
+            this.searchText = p ? p.name + (p.sku ? ' - ' + p.sku : '') : '';
+            this.showDropdown = false;
+            this.highlightIndex = -1;
+            this.selectProduct(id);
+        },
+
+        clearSearch() {
+            this.searchText = '';
+            this.showDropdown = false;
+            this.highlightIndex = -1;
+            this.selectProduct('');
         },
 
         get productInfo() {

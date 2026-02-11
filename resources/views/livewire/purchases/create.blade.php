@@ -59,8 +59,6 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public $details = [];
 
-    public string $productSearch = '';
-
     public function mount(): void
     {
         $this->document_date = now()->format('Y-m-d');
@@ -276,55 +274,7 @@ new #[Layout('components.layouts.app')] class extends Component
             return collect([]);
         }
 
-        return Product::where('products.company_id', $companyId)
-            ->where('products.is_active', true)
-            ->leftJoin('units_of_measure', 'units_of_measure.id', '=', 'products.unit_of_measure_id')
-            ->select(
-                'products.id',
-                'products.name',
-                'products.sku',
-                'products.cost',
-                'products.unit_of_measure_id',
-                'units_of_measure.abbreviation as unit_abbreviation',
-                'units_of_measure.name as unit_name'
-            )
-            ->orderBy('products.name')
-            ->get();
-    }
-
-    public function searchProducts(string $search): void
-    {
-        $this->productSearch = $search;
-    }
-
-    #[Computed]
-    public function filteredProducts()
-    {
-        $companyId = $this->isSuperAdmin() ? $this->company_id : auth()->user()->company_id;
-
-        if (! $companyId || $this->productSearch === '') {
-            return collect([]);
-        }
-
-        return Product::where('products.company_id', $companyId)
-            ->where('products.is_active', true)
-            ->leftJoin('units_of_measure', 'units_of_measure.id', '=', 'products.unit_of_measure_id')
-            ->select(
-                'products.id',
-                'products.name',
-                'products.sku',
-                'products.cost',
-                'products.unit_of_measure_id',
-                'units_of_measure.abbreviation as unit_abbreviation',
-                'units_of_measure.name as unit_name'
-            )
-            ->where(function ($q) {
-                $q->where('products.name', 'like', "%{$this->productSearch}%")
-                    ->orWhere('products.sku', 'like', "%{$this->productSearch}%");
-            })
-            ->orderBy('products.name')
-            ->limit(20)
-            ->get();
+        return Product::cachedForSelect($companyId);
     }
 
     #[Computed]
@@ -701,36 +651,52 @@ new #[Layout('components.layouts.app')] class extends Component
                             lotNumber: `{{ addslashes($detail['lot_number'] ?? '') }}`,
                             expirationDate: '{{ $detail['expiration_date'] ?? '' }}',
                             notes: `{{ addslashes($detail['notes'] ?? '') }}`
-                        })" wire:key="detail-group-{{ $index }}">
+                        })" wire:key="detail-group-{{ $index }}" :style="showDropdown ? 'position:relative;z-index:50' : ''">
                         <flux:table.row x-bind:class="productId ? '' : 'opacity-60'">
                             <flux:table.cell class="text-center text-sm text-zinc-600 dark:text-zinc-400">
                                 {{ $index + 1 }}
                             </flux:table.cell>
 
-                            <!-- Product Select with Unit Badge -->
+                            <!-- Product Autocomplete with Unit Badge -->
                             <flux:table.cell>
                                 <div class="flex flex-col gap-1">
-                                    <div class="relative" x-data="{ searching: false, skipSearch: false }">
-                                        <flux:select
-                                            variant="combobox"
-                                            :filter="false"
-                                            x-model="productId"
-                                            x-on:change="searching = false; skipSearch = true; selectProduct($event.target.value)"
-                                            :disabled="$this->isSuperAdmin() && !$company_id"
-                                            placeholder="{{ $this->isSuperAdmin() && !$company_id ? 'Seleccione empresa primero' : 'Buscar producto...' }}"
+                                    <div class="relative" @click.outside="showDropdown = false" :class="showDropdown ? 'z-[999]' : ''">
+                                        <div class="relative">
+                                            <input
+                                                type="text"
+                                                x-model="searchText"
+                                                @focus="showDropdown = true; highlightIndex = -1"
+                                                @input="showDropdown = true; highlightIndex = -1"
+                                                @keydown.escape="showDropdown = false"
+                                                @keydown.tab="showDropdown = false"
+                                                @keydown.arrow-down.prevent="onArrowDown()"
+                                                @keydown.arrow-up.prevent="onArrowUp()"
+                                                @keydown.enter.prevent="onEnter()"
+                                                placeholder="{{ $this->isSuperAdmin() && !$company_id ? 'Seleccione empresa primero' : 'Escriba para buscar producto...' }}"
+                                                {{ $this->isSuperAdmin() && !$company_id ? 'disabled' : '' }}
+                                                class="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 pr-8 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500 dark:focus:ring-blue-700"
+                                            />
+                                            <button x-show="productId" @click="clearSearch()" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-red-500 dark:hover:text-red-400">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                            </button>
+                                        </div>
+                                        <div
+                                            x-show="showDropdown && filteredProducts.length > 0"
+                                            x-transition.opacity.duration.100ms
+                                            class="absolute isolate z-[999] mt-1 w-full max-h-56 overflow-y-auto overscroll-contain rounded-lg border border-zinc-300 bg-white py-1 shadow-xl ring-1 ring-black/5 dark:border-zinc-600 dark:bg-zinc-800 dark:ring-white/10"
+                                            @mousedown.stop
                                         >
-                                            <x-slot:input>
-                                                <flux:select.input x-on:input.debounce.300ms="if (skipSearch) { skipSearch = false; return; } searching = true; $wire.searchProducts($event.target.value).finally(() => searching = false)" placeholder="Escriba para buscar producto..." />
-                                            </x-slot:input>
-                                            @foreach($this->filteredProducts as $product)
-                                                <flux:select.option value="{{ $product->id }}" wire:key="fp-{{ $product->id }}">
-                                                    {{ $product->name }}{{ $product->sku ? ' - ' . $product->sku : '' }}
-                                                </flux:select.option>
-                                            @endforeach
-                                        </flux:select>
-                                        <!-- Spinner inside combobox (right side) -->
-                                        <div x-show="searching" x-transition.opacity class="absolute right-9 top-2.5 pointer-events-none z-10">
-                                            <flux:icon name="arrow-path" class="w-4 h-4 animate-spin text-blue-500" />
+                                            <template x-for="(opt, idx) in filteredProducts" :key="opt.id">
+                                                <div
+                                                    @mousedown.prevent="pickProduct(opt.id)"
+                                                    x-text="opt.label"
+                                                    :class="idx === highlightIndex ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300' : 'bg-white text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'"
+                                                    class="cursor-pointer px-3 py-2 text-sm hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900/60 dark:hover:text-blue-300"
+                                                ></div>
+                                            </template>
+                                        </div>
+                                        <div x-show="showDropdown && searchText.length > 0 && filteredProducts.length === 0" class="absolute z-[999] mt-1 w-full rounded-lg border border-zinc-300 bg-white py-2 px-3 shadow-xl ring-1 ring-black/5 dark:border-zinc-600 dark:bg-zinc-800">
+                                            <span class="text-sm text-zinc-400 italic">No se encontraron productos</span>
                                         </div>
                                     </div>
 
