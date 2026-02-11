@@ -59,6 +59,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public $details = [];
 
+    public string $productSearch = '';
+
     public function mount(): void
     {
         $this->document_date = now()->format('Y-m-d');
@@ -86,6 +88,8 @@ new #[Layout('components.layouts.app')] class extends Component
         // Reset selections when company changes
         $this->warehouse_id = '';
         $this->supplier_id = '';
+        // Clear cached products so they reload for the new company
+        unset($this->products);
     }
 
     public function isSuperAdmin(): bool
@@ -263,26 +267,63 @@ new #[Layout('components.layouts.app')] class extends Component
             ->get();
     }
 
-    #[Computed]
+    #[Computed(persist: true)]
     public function products()
     {
-        if ($this->isSuperAdmin()) {
-            if (! $this->company_id) {
-                return collect([]);
-            }
+        $companyId = $this->isSuperAdmin() ? $this->company_id : auth()->user()->company_id;
 
-            return Product::with('unitOfMeasure')
-                ->where('company_id', $this->company_id)
-                ->where('is_active', true)
-                ->orderBy('name')
-                ->get();
+        if (! $companyId) {
+            return collect([]);
         }
 
-        // Non-super-admin users see only their company's products
-        return Product::with('unitOfMeasure')
-            ->where('company_id', auth()->user()->company_id)
-            ->where('is_active', true)
-            ->orderBy('name')
+        return Product::where('products.company_id', $companyId)
+            ->where('products.is_active', true)
+            ->leftJoin('units_of_measure', 'units_of_measure.id', '=', 'products.unit_of_measure_id')
+            ->select(
+                'products.id',
+                'products.name',
+                'products.sku',
+                'products.cost',
+                'products.unit_of_measure_id',
+                'units_of_measure.abbreviation as unit_abbreviation',
+                'units_of_measure.name as unit_name'
+            )
+            ->orderBy('products.name')
+            ->get();
+    }
+
+    public function searchProducts(string $search): void
+    {
+        $this->productSearch = $search;
+    }
+
+    #[Computed]
+    public function filteredProducts()
+    {
+        $companyId = $this->isSuperAdmin() ? $this->company_id : auth()->user()->company_id;
+
+        if (! $companyId || $this->productSearch === '') {
+            return collect([]);
+        }
+
+        return Product::where('products.company_id', $companyId)
+            ->where('products.is_active', true)
+            ->leftJoin('units_of_measure', 'units_of_measure.id', '=', 'products.unit_of_measure_id')
+            ->select(
+                'products.id',
+                'products.name',
+                'products.sku',
+                'products.cost',
+                'products.unit_of_measure_id',
+                'units_of_measure.abbreviation as unit_abbreviation',
+                'units_of_measure.name as unit_name'
+            )
+            ->where(function ($q) {
+                $q->where('products.name', 'like', "%{$this->productSearch}%")
+                    ->orWhere('products.sku', 'like', "%{$this->productSearch}%");
+            })
+            ->orderBy('products.name')
+            ->limit(20)
             ->get();
     }
 
@@ -401,8 +442,8 @@ new #[Layout('components.layouts.app')] class extends Component
         $product = $this->products->firstWhere('id', $productId);
 
         return [
-            'abbreviation' => $product?->unitOfMeasure?->abbreviation ?? '',
-            'name' => $product?->unitOfMeasure?->name ?? '',
+            'abbreviation' => $product?->unit_abbreviation ?? '',
+            'name' => $product?->unit_name ?? '',
         ];
     }
 
@@ -417,8 +458,8 @@ new #[Layout('components.layouts.app')] class extends Component
             'name' => $p->name,
             'sku' => $p->sku,
             'cost' => (float) ($p->cost ?? 0),
-            'unit' => $p->unitOfMeasure?->abbreviation ?? '',
-            'unit_name' => $p->unitOfMeasure?->name ?? '',
+            'unit' => $p->unit_abbreviation ?? '',
+            'unit_name' => $p->unit_name ?? '',
         ])->toArray();
     }
 }; ?>
@@ -599,7 +640,7 @@ new #[Layout('components.layouts.app')] class extends Component
             @endif
         </flux:card>
 
-        <flux:card wire:key="products-card-{{ $company_id }}-{{ count($details) }}">
+        <flux:card wire:key="products-card-{{ $company_id }}">
             <div class="flex items-center justify-between mb-4">
                 <flux:heading size="lg" badge="Requerido">Productos</flux:heading>
                 <div class="flex gap-2">
@@ -669,20 +710,29 @@ new #[Layout('components.layouts.app')] class extends Component
                             <!-- Product Select with Unit Badge -->
                             <flux:table.cell>
                                 <div class="flex flex-col gap-1">
-                                    <flux:select
-                                        variant="listbox"
-                                        searchable
-                                        x-model="productId"
-                                        x-on:change="selectProduct($event.target.value)"
-                                        :disabled="$this->isSuperAdmin() && !$company_id"
-                                        placeholder="{{ $this->isSuperAdmin() && !$company_id ? 'Seleccione empresa primero' : 'Buscar producto...' }}"
-                                    >
-                                        @foreach($this->products as $product)
-                                            <flux:select.option value="{{ $product->id }}">
-                                                {{ $product->name }}{{ $product->sku ? ' - ' . $product->sku : '' }}
-                                            </flux:select.option>
-                                        @endforeach
-                                    </flux:select>
+                                    <div class="relative" x-data="{ searching: false, skipSearch: false }">
+                                        <flux:select
+                                            variant="combobox"
+                                            :filter="false"
+                                            x-model="productId"
+                                            x-on:change="searching = false; skipSearch = true; selectProduct($event.target.value)"
+                                            :disabled="$this->isSuperAdmin() && !$company_id"
+                                            placeholder="{{ $this->isSuperAdmin() && !$company_id ? 'Seleccione empresa primero' : 'Buscar producto...' }}"
+                                        >
+                                            <x-slot:input>
+                                                <flux:select.input x-on:input.debounce.300ms="if (skipSearch) { skipSearch = false; return; } searching = true; $wire.searchProducts($event.target.value).finally(() => searching = false)" placeholder="Escriba para buscar producto..." />
+                                            </x-slot:input>
+                                            @foreach($this->filteredProducts as $product)
+                                                <flux:select.option value="{{ $product->id }}" wire:key="fp-{{ $product->id }}">
+                                                    {{ $product->name }}{{ $product->sku ? ' - ' . $product->sku : '' }}
+                                                </flux:select.option>
+                                            @endforeach
+                                        </flux:select>
+                                        <!-- Spinner inside combobox (right side) -->
+                                        <div x-show="searching" x-transition.opacity class="absolute right-9 top-2.5 pointer-events-none z-10">
+                                            <flux:icon name="arrow-path" class="w-4 h-4 animate-spin text-blue-500" />
+                                        </div>
+                                    </div>
 
                                     <!-- Unit Badge (Alpine.js - instant) -->
                                     <template x-if="productInfo && productInfo.unit">

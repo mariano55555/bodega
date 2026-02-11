@@ -729,7 +729,7 @@ new #[Layout('components.layouts.app')] class extends Component
             </flux:accordion>
         </flux:card>
 
-        <flux:card wire:key="products-card-{{ $warehouse_id }}-{{ count($details) }}">
+        <flux:card wire:key="products-card-{{ $warehouse_id }}">
             <div class="flex items-center justify-between mb-4">
                 <flux:heading size="lg" badge="Requerido">Productos del Despacho</flux:heading>
                 <div class="flex gap-2">

@@ -46,6 +46,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public $details = [];
 
+    public string $productSearch = '';
+
     public function mount(Purchase $purchase): void
     {
         // Only allow editing drafts
@@ -224,17 +226,68 @@ new #[Layout('components.layouts.app')] class extends Component
             return ['abbreviation' => '', 'name' => ''];
         }
 
-        $companyId = $this->purchase->company_id;
-
-        $product = Product::with('unitOfMeasure')
-            ->where('company_id', $companyId)
-            ->where('id', $productId)
-            ->first();
+        $product = $this->products->firstWhere('id', $productId);
 
         return [
-            'abbreviation' => $product?->unitOfMeasure?->abbreviation ?? '',
-            'name' => $product?->unitOfMeasure?->name ?? '',
+            'abbreviation' => $product?->unit_abbreviation ?? '',
+            'name' => $product?->unit_name ?? '',
         ];
+    }
+
+    public function searchProducts(string $search): void
+    {
+        $this->productSearch = $search;
+    }
+
+    #[Computed(persist: true)]
+    public function products()
+    {
+        $companyId = $this->purchase->company_id;
+
+        return Product::where('products.company_id', $companyId)
+            ->where('products.is_active', true)
+            ->leftJoin('units_of_measure', 'units_of_measure.id', '=', 'products.unit_of_measure_id')
+            ->select(
+                'products.id',
+                'products.name',
+                'products.sku',
+                'products.cost',
+                'products.unit_of_measure_id',
+                'units_of_measure.abbreviation as unit_abbreviation',
+                'units_of_measure.name as unit_name'
+            )
+            ->orderBy('products.name')
+            ->get();
+    }
+
+    #[Computed]
+    public function filteredProducts()
+    {
+        $companyId = $this->purchase->company_id;
+
+        if (! $companyId || $this->productSearch === '') {
+            return collect([]);
+        }
+
+        return Product::where('products.company_id', $companyId)
+            ->where('products.is_active', true)
+            ->leftJoin('units_of_measure', 'units_of_measure.id', '=', 'products.unit_of_measure_id')
+            ->select(
+                'products.id',
+                'products.name',
+                'products.sku',
+                'products.cost',
+                'products.unit_of_measure_id',
+                'units_of_measure.abbreviation as unit_abbreviation',
+                'units_of_measure.name as unit_name'
+            )
+            ->where(function ($q) {
+                $q->where('products.name', 'like', "%{$this->productSearch}%")
+                    ->orWhere('products.sku', 'like', "%{$this->productSearch}%");
+            })
+            ->orderBy('products.name')
+            ->limit(20)
+            ->get();
     }
 
     /**
@@ -244,20 +297,13 @@ new #[Layout('components.layouts.app')] class extends Component
     #[Computed]
     public function productsData(): array
     {
-        $companyId = $this->purchase->company_id;
-
-        return Product::with('unitOfMeasure')
-            ->where('company_id', $companyId)
-            ->where('is_active', true)
-            ->get()
-            ->keyBy('id')
-            ->map(fn ($p) => [
-                'name' => $p->name,
-                'sku' => $p->sku,
-                'cost' => (float) ($p->cost ?? 0),
-                'unit' => $p->unitOfMeasure?->abbreviation ?? '',
-                'unit_name' => $p->unitOfMeasure?->name ?? '',
-            ])->toArray();
+        return $this->products->keyBy('id')->map(fn ($p) => [
+            'name' => $p->name,
+            'sku' => $p->sku,
+            'cost' => (float) ($p->cost ?? 0),
+            'unit' => $p->unit_abbreviation ?? '',
+            'unit_name' => $p->unit_name ?? '',
+        ])->toArray();
     }
 
     public function with(): array
@@ -271,11 +317,6 @@ new #[Layout('components.layouts.app')] class extends Component
                 ->orderBy('name')
                 ->get(),
             'warehouses' => Warehouse::where('company_id', $companyId)
-                ->where('is_active', true)
-                ->orderBy('name')
-                ->get(),
-            'products' => Product::with('unitOfMeasure')
-                ->where('company_id', $companyId)
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(),
@@ -431,7 +472,7 @@ new #[Layout('components.layouts.app')] class extends Component
         </flux:card>
 
         {{-- Products --}}
-        <flux:card wire:key="products-card-{{ count($details) }}">
+        <flux:card wire:key="products-card-edit">
             <div class="flex items-center justify-between mb-4">
                 <flux:heading size="lg" badge="Requerido">Productos</flux:heading>
                 <div class="flex gap-2">
@@ -495,19 +536,28 @@ new #[Layout('components.layouts.app')] class extends Component
                             <!-- Product Select with Unit Badge -->
                             <flux:table.cell>
                                 <div class="flex flex-col gap-1">
-                                    <flux:select
-                                        variant="listbox"
-                                        searchable
-                                        x-model="productId"
-                                        x-on:change="selectProduct($event.target.value)"
-                                        placeholder="Buscar producto..."
-                                    >
-                                        @foreach($products as $product)
-                                            <flux:select.option value="{{ $product->id }}">
-                                                {{ $product->name }}{{ $product->sku ? ' - ' . $product->sku : '' }}
-                                            </flux:select.option>
-                                        @endforeach
-                                    </flux:select>
+                                    <div class="relative" x-data="{ searching: false, skipSearch: false }">
+                                        <flux:select
+                                            variant="combobox"
+                                            :filter="false"
+                                            x-model="productId"
+                                            x-on:change="searching = false; skipSearch = true; selectProduct($event.target.value)"
+                                            placeholder="Buscar producto..."
+                                        >
+                                            <x-slot:input>
+                                                <flux:select.input x-on:input.debounce.300ms="if (skipSearch) { skipSearch = false; return; } searching = true; $wire.searchProducts($event.target.value).finally(() => searching = false)" placeholder="Escriba para buscar producto..." />
+                                            </x-slot:input>
+                                            @foreach($this->filteredProducts as $product)
+                                                <flux:select.option value="{{ $product->id }}" wire:key="fp-{{ $product->id }}">
+                                                    {{ $product->name }}{{ $product->sku ? ' - ' . $product->sku : '' }}
+                                                </flux:select.option>
+                                            @endforeach
+                                        </flux:select>
+                                        <!-- Spinner inside combobox (right side) -->
+                                        <div x-show="searching" x-transition.opacity class="absolute right-9 top-2.5 pointer-events-none z-10">
+                                            <flux:icon name="arrow-path" class="w-4 h-4 animate-spin text-blue-500" />
+                                        </div>
+                                    </div>
 
                                     <!-- Unit Badge (Alpine.js - instant) -->
                                     <template x-if="productInfo && productInfo.unit">
