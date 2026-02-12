@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\PurchasesBySupplierExport;
 use App\Exports\PurchasesDetailedExport;
 use App\Exports\PurchasesSummaryByLineExport;
+use App\Models\Purchase;
 use App\Models\PurchaseDetail;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -127,6 +129,68 @@ class PurchaseReportController extends Controller
     }
 
     /**
+     * Export purchases by supplier report as PDF.
+     */
+    public function exportBySupplierPdf(Request $request)
+    {
+        $companyId = $this->getEffectiveCompanyId($request);
+
+        if (! $companyId) {
+            return back()->with('error', 'Debe seleccionar una empresa');
+        }
+
+        $startDate = $request->get('inicio', now()->startOfMonth()->format('Y-m-d'));
+        $endDate = $request->get('fin', now()->endOfMonth()->format('Y-m-d'));
+        $supplierId = $request->get('proveedor');
+        $acquisitionType = $request->get('tipo');
+
+        $data = $this->getBySupplierData($companyId, $startDate, $endDate, $supplierId, $acquisitionType);
+
+        $pdf = Pdf::loadView('reports.purchases-by-supplier-pdf', [
+            'supplierData' => $data['supplierData'],
+            'totals' => $data['totals'],
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+        ]);
+
+        $pdf->setPaper('letter', 'portrait');
+
+        $filename = 'compras-por-proveedor-'.now()->format('Y-m-d').'.pdf';
+
+        return $pdf->download($filename);
+    }
+
+    /**
+     * Export purchases by supplier report as Excel.
+     */
+    public function exportBySupplierExcel(Request $request)
+    {
+        $companyId = $this->getEffectiveCompanyId($request);
+
+        if (! $companyId) {
+            return back()->with('error', 'Debe seleccionar una empresa');
+        }
+
+        $startDate = $request->get('inicio', now()->startOfMonth()->format('Y-m-d'));
+        $endDate = $request->get('fin', now()->endOfMonth()->format('Y-m-d'));
+        $supplierId = $request->get('proveedor');
+        $acquisitionType = $request->get('tipo');
+
+        $filename = 'compras-por-proveedor-'.now()->format('Y-m-d').'.xlsx';
+
+        return Excel::download(
+            new PurchasesBySupplierExport(
+                $companyId,
+                $startDate,
+                $endDate,
+                $supplierId ? (int) $supplierId : null,
+                $acquisitionType
+            ),
+            $filename
+        );
+    }
+
+    /**
      * Get effective company ID based on user permissions.
      */
     protected function getEffectiveCompanyId(Request $request): ?int
@@ -151,8 +215,8 @@ class PurchaseReportController extends Controller
                 'purchases.supplier_id',
                 'products.name as product_name',
                 'products.category_id',
-                'unit_of_measures.abbreviation as unit_abbreviation',
-                'unit_of_measures.name as unit_name',
+                'units_of_measure.abbreviation as unit_abbreviation',
+                'units_of_measure.name as unit_name',
                 'suppliers.name as supplier_name',
                 'product_categories.name as category_name',
                 'product_categories.legacy_code as category_code',
@@ -162,7 +226,7 @@ class PurchaseReportController extends Controller
             ])
             ->join('purchases', 'purchase_details.purchase_id', '=', 'purchases.id')
             ->join('products', 'purchase_details.product_id', '=', 'products.id')
-            ->leftJoin('unit_of_measures', 'products.unit_of_measure_id', '=', 'unit_of_measures.id')
+            ->leftJoin('units_of_measure', 'products.unit_of_measure_id', '=', 'units_of_measure.id')
             ->join('suppliers', 'purchases.supplier_id', '=', 'suppliers.id')
             ->leftJoin('product_categories', 'products.category_id', '=', 'product_categories.id')
             ->leftJoin('product_categories as parent_categories', 'product_categories.parent_id', '=', 'parent_categories.id')
@@ -269,6 +333,52 @@ class PurchaseReportController extends Controller
 
         return [
             'groupedByParent' => $groupedByParent,
+            'totals' => $totals,
+        ];
+    }
+
+    /**
+     * Get purchases by supplier data.
+     */
+    protected function getBySupplierData(int $companyId, string $startDate, string $endDate, ?string $supplierId = null, ?string $acquisitionType = null): array
+    {
+        $query = Purchase::query()
+            ->select([
+                'supplier_id',
+                DB::raw('COUNT(*) as invoice_count'),
+                DB::raw('SUM(total) as total_amount'),
+                DB::raw('SUM(subtotal) as subtotal_amount'),
+                DB::raw('SUM(tax_amount) as tax_amount'),
+                DB::raw('SUM(discount_amount) as discount_amount'),
+            ])
+            ->where('company_id', $companyId)
+            ->whereIn('status', ['aprobado', 'recibido'])
+            ->where('document_date', '>=', $startDate)
+            ->where('document_date', '<=', $endDate)
+            ->with(['supplier:id,name,tax_id'])
+            ->groupBy('supplier_id');
+
+        if ($supplierId) {
+            $query->where('supplier_id', $supplierId);
+        }
+
+        if ($acquisitionType) {
+            $query->where('acquisition_type', $acquisitionType);
+        }
+
+        $supplierData = $query->orderByDesc('total_amount')->get();
+
+        $totals = [
+            'total_invoices' => $supplierData->sum('invoice_count'),
+            'total_amount' => $supplierData->sum('total_amount'),
+            'subtotal_amount' => $supplierData->sum('subtotal_amount'),
+            'tax_amount' => $supplierData->sum('tax_amount'),
+            'discount_amount' => $supplierData->sum('discount_amount'),
+            'total_suppliers' => $supplierData->count(),
+        ];
+
+        return [
+            'supplierData' => $supplierData,
             'totals' => $totals,
         ];
     }

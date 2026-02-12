@@ -116,8 +116,8 @@ class InventoryReportController extends Controller
                 'products.name as product_name',
                 'products.sku',
                 'products.cost as product_cost',
-                'unit_of_measures.abbreviation as unit_abbreviation',
-                'unit_of_measures.name as unit_name',
+                'units_of_measure.abbreviation as unit_abbreviation',
+                'units_of_measure.name as unit_name',
                 'product_categories.id as category_id',
                 'product_categories.name as category_name',
                 'product_categories.legacy_code as category_code',
@@ -126,7 +126,7 @@ class InventoryReportController extends Controller
                 'parent_categories.legacy_code as parent_code',
             ])
             ->join('products', 'im.product_id', '=', 'products.id')
-            ->leftJoin('unit_of_measures', 'products.unit_of_measure_id', '=', 'unit_of_measures.id')
+            ->leftJoin('units_of_measure', 'products.unit_of_measure_id', '=', 'units_of_measure.id')
             ->leftJoin('product_categories', 'products.category_id', '=', 'product_categories.id')
             ->leftJoin('product_categories as parent_categories', 'product_categories.parent_id', '=', 'parent_categories.id')
             ->where('im.company_id', $companyId)
@@ -141,8 +141,8 @@ class InventoryReportController extends Controller
                 'products.name',
                 'products.sku',
                 'products.cost',
-                'unit_of_measures.abbreviation',
-                'unit_of_measures.name',
+                'units_of_measure.abbreviation',
+                'units_of_measure.name',
                 'product_categories.id',
                 'product_categories.name',
                 'product_categories.legacy_code',

@@ -87,8 +87,8 @@ new #[Layout('components.layouts.app')] class extends Component
                 'dispatches.area_id',
                 'products.name as product_name',
                 'products.category_id',
-                'unit_of_measures.abbreviation as unit_abbreviation',
-                'unit_of_measures.name as unit_name',
+                'units_of_measure.abbreviation as unit_abbreviation',
+                'units_of_measure.name as unit_name',
                 'warehouses.name as warehouse_name',
                 'areas.name as area_name',
                 'product_categories.name as category_name',
@@ -98,7 +98,7 @@ new #[Layout('components.layouts.app')] class extends Component
             ])
             ->join('dispatches', 'dispatch_details.dispatch_id', '=', 'dispatches.id')
             ->join('products', 'dispatch_details.product_id', '=', 'products.id')
-            ->leftJoin('unit_of_measures', 'dispatch_details.unit_of_measure_id', '=', 'unit_of_measures.id')
+            ->leftJoin('units_of_measure', 'dispatch_details.unit_of_measure_id', '=', 'units_of_measure.id')
             ->join('warehouses', 'dispatches.warehouse_id', '=', 'warehouses.id')
             ->leftJoin('areas', 'dispatches.area_id', '=', 'areas.id')
             ->leftJoin('product_categories', 'products.category_id', '=', 'product_categories.id')

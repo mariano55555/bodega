@@ -217,6 +217,8 @@ Route::middleware(['auth'])->group(function () {
         // Administrative Reports
         Volt::route('administrative', 'reports.administrative')->name('administrative');
         Volt::route('purchases-by-supplier', 'reports.purchases-by-supplier')->name('purchases-by-supplier');
+        Route::get('purchases-by-supplier/pdf', [\App\Http\Controllers\PurchaseReportController::class, 'exportBySupplierPdf'])->name('purchases-by-supplier.pdf');
+        Route::get('purchases-by-supplier/excel', [\App\Http\Controllers\PurchaseReportController::class, 'exportBySupplierExcel'])->name('purchases-by-supplier.excel');
         Volt::route('self-consumption', 'reports.self-consumption')->name('self-consumption');
         Volt::route('donations-consolidated', 'reports.donations-consolidated')->name('donations-consolidated');
         Volt::route('pre-closure-differences', 'reports.pre-closure-differences')->name('pre-closure-differences');

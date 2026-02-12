@@ -109,14 +109,60 @@ new #[Layout('components.layouts.app')] class extends Component
         ];
     }
 
-    public function exportPdf(): void
+    public function exportPdf()
     {
-        session()->flash('info', 'Exportación a PDF - próximamente disponible');
+        $isSuperAdmin = auth()->user()->isSuperAdmin();
+        $effectiveCompanyId = $isSuperAdmin ? $this->company_id : auth()->user()->company_id;
+
+        if (! $effectiveCompanyId) {
+            session()->flash('info', 'Debe seleccionar una empresa');
+
+            return;
+        }
+
+        $params = [
+            'empresa' => $effectiveCompanyId,
+            'inicio' => $this->start_date,
+            'fin' => $this->end_date,
+        ];
+
+        if ($this->supplier_id) {
+            $params['proveedor'] = $this->supplier_id;
+        }
+
+        if ($this->acquisition_type) {
+            $params['tipo'] = $this->acquisition_type;
+        }
+
+        return $this->redirect(route('reports.purchases-by-supplier.pdf', $params));
     }
 
-    public function exportExcel(): void
+    public function exportExcel()
     {
-        session()->flash('info', 'Exportación a Excel - próximamente disponible');
+        $isSuperAdmin = auth()->user()->isSuperAdmin();
+        $effectiveCompanyId = $isSuperAdmin ? $this->company_id : auth()->user()->company_id;
+
+        if (! $effectiveCompanyId) {
+            session()->flash('info', 'Debe seleccionar una empresa');
+
+            return;
+        }
+
+        $params = [
+            'empresa' => $effectiveCompanyId,
+            'inicio' => $this->start_date,
+            'fin' => $this->end_date,
+        ];
+
+        if ($this->supplier_id) {
+            $params['proveedor'] = $this->supplier_id;
+        }
+
+        if ($this->acquisition_type) {
+            $params['tipo'] = $this->acquisition_type;
+        }
+
+        return $this->redirect(route('reports.purchases-by-supplier.excel', $params));
     }
 }; ?>
 

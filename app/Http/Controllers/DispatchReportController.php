@@ -205,8 +205,8 @@ class DispatchReportController extends Controller
                 'dispatches.area_id',
                 'products.name as product_name',
                 'products.category_id',
-                'unit_of_measures.abbreviation as unit_abbreviation',
-                'unit_of_measures.name as unit_name',
+                'units_of_measure.abbreviation as unit_abbreviation',
+                'units_of_measure.name as unit_name',
                 'warehouses.name as warehouse_name',
                 'areas.name as area_name',
                 'product_categories.name as category_name',
@@ -216,7 +216,7 @@ class DispatchReportController extends Controller
             ])
             ->join('dispatches', 'dispatch_details.dispatch_id', '=', 'dispatches.id')
             ->join('products', 'dispatch_details.product_id', '=', 'products.id')
-            ->leftJoin('unit_of_measures', 'dispatch_details.unit_of_measure_id', '=', 'unit_of_measures.id')
+            ->leftJoin('units_of_measure', 'dispatch_details.unit_of_measure_id', '=', 'units_of_measure.id')
             ->join('warehouses', 'dispatches.warehouse_id', '=', 'warehouses.id')
             ->leftJoin('areas', 'dispatches.area_id', '=', 'areas.id')
             ->leftJoin('product_categories', 'products.category_id', '=', 'product_categories.id')
@@ -452,8 +452,8 @@ class DispatchReportController extends Controller
                 'products.id as product_id',
                 'products.name as product_name',
                 'products.sku',
-                'unit_of_measures.abbreviation as unit_abbreviation',
-                'unit_of_measures.name as unit_name',
+                'units_of_measure.abbreviation as unit_abbreviation',
+                'units_of_measure.name as unit_name',
                 'product_categories.id as category_id',
                 'product_categories.name as category_name',
                 'product_categories.legacy_code as category_code',
@@ -462,7 +462,7 @@ class DispatchReportController extends Controller
                 'parent_categories.legacy_code as parent_code',
             ])
             ->join('products', 'im.product_id', '=', 'products.id')
-            ->leftJoin('unit_of_measures', 'products.unit_of_measure_id', '=', 'unit_of_measures.id')
+            ->leftJoin('units_of_measure', 'products.unit_of_measure_id', '=', 'units_of_measure.id')
             ->leftJoin('product_categories', 'products.category_id', '=', 'product_categories.id')
             ->leftJoin('product_categories as parent_categories', 'product_categories.parent_id', '=', 'parent_categories.id')
             ->where('im.company_id', $companyId)
@@ -476,8 +476,8 @@ class DispatchReportController extends Controller
                 'products.id',
                 'products.name',
                 'products.sku',
-                'unit_of_measures.abbreviation',
-                'unit_of_measures.name',
+                'units_of_measure.abbreviation',
+                'units_of_measure.name',
                 'product_categories.id',
                 'product_categories.name',
                 'product_categories.legacy_code',
