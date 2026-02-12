@@ -589,6 +589,7 @@ new #[Layout('components.layouts.app')] class extends Component
             <flux:table>
                 <flux:table.columns>
                     <flux:table.column>N° Traslado</flux:table.column>
+                    <flux:table.column>Doc. Físico</flux:table.column>
                     <flux:table.column>Origen</flux:table.column>
                     <flux:table.column>Destino</flux:table.column>
                     <flux:table.column>Razón</flux:table.column>
@@ -602,6 +603,14 @@ new #[Layout('components.layouts.app')] class extends Component
                         <flux:table.row wire:key="transfer-{{ $transfer->id }}">
                             <flux:table.cell>
                                 <span class="font-medium">{{ $transfer->transfer_number }}</span>
+                            </flux:table.cell>
+                            <flux:table.cell>
+                                <span class="font-medium">{{ $transfer->physical_document_number ?? '-' }}</span>
+                                @if($transfer->document_date)
+                                    <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                                        {{ $transfer->document_date->format('d/m/Y') }}
+                                    </div>
+                                @endif
                             </flux:table.cell>
                             <flux:table.cell>
                                 {{ $transfer->fromWarehouse?->name ?? '-' }}
@@ -656,7 +665,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         </flux:table.row>
                     @empty
                         <flux:table.row>
-                            <flux:table.cell colspan="7" class="text-center py-8">
+                            <flux:table.cell colspan="8" class="text-center py-8">
                                 <flux:icon name="arrow-path" class="h-12 w-12 text-zinc-400 mx-auto mb-3" />
                                 <flux:text class="text-zinc-500">No se encontraron traslados</flux:text>
                             </flux:table.cell>

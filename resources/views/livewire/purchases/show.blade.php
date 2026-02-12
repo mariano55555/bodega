@@ -373,7 +373,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                     <flux:table.cell>
                                         @if ($detail->tax_percentage > 0)
                                             {{ number_format($detail->tax_percentage, 2) }}%
-                                            <div class="text-xs text-gray-500">+${{ number_format($detail->tax_amount, 5) }}</div>
+                                            <div class="text-xs text-gray-500">${{ number_format($detail->tax_amount, 5) }}</div>
                                         @else
                                             -
                                         @endif
@@ -429,8 +429,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
                     @if ($purchase->tax_amount > 0)
                         <div class="flex justify-between">
-                            <flux:text class="text-gray-600 dark:text-gray-400">IVA</flux:text>
-                            <flux:text class="font-semibold">${{ number_format($purchase->tax_amount, 5) }}</flux:text>
+                            <flux:text class="text-gray-600 dark:text-gray-400">IVA (incluido)</flux:text>
+                            <flux:text class="font-semibold text-gray-500 dark:text-gray-400">${{ number_format($purchase->tax_amount, 5) }}</flux:text>
                         </div>
                     @endif
 

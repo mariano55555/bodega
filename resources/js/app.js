@@ -285,6 +285,11 @@ document.addEventListener('alpine:init', () => {
             return this.productId ? (parseFloat(stockData[this.productId]) || 0) : 0;
         },
 
+        get total() {
+            const unitCost = this.productInfo?.unit_cost || 0;
+            return (parseFloat(this.quantity) || 0) * unitCost;
+        },
+
         selectProduct(id) {
             this.productId = id;
             this.syncToLivewire();

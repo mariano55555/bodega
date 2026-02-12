@@ -112,6 +112,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                 'unit_abbreviation' => $p->unitOfMeasure?->abbreviation ?? 'UND',
                 'unit_name' => $p->unitOfMeasure?->name ?? 'Unidad',
                 'available_stock' => $p->inventory->first()?->available_quantity ?? 0,
+                'unit_cost' => (float) ($p->inventory->first()?->unit_cost ?? 0),
             ])
             ->toArray();
     }
@@ -197,10 +198,15 @@ new #[Layout('components.layouts.app')] class extends Component {
             $this->transfer->details()->delete();
 
             foreach ($validated['products'] as $product) {
+                $inventoryRecord = Inventory::where('product_id', $product['product_id'])
+                    ->where('warehouse_id', $validated['from_warehouse_id'])
+                    ->first();
+
                 InventoryTransferDetail::create([
                     'transfer_id' => $this->transfer->id,
                     'product_id' => $product['product_id'],
                     'quantity' => $product['quantity'],
+                    'unit_cost' => $inventoryRecord?->unit_cost ?? 0,
                     'notes' => $product['notes'] ?? null,
                 ]);
             }
@@ -339,9 +345,11 @@ new #[Layout('components.layouts.app')] class extends Component {
                 <flux:table>
                     <flux:table.columns>
                         <flux:table.column class="w-12">#</flux:table.column>
-                        <flux:table.column class="min-w-[300px]">Producto</flux:table.column>
+                        <flux:table.column class="min-w-[220px]">Producto</flux:table.column>
                         <flux:table.column class="w-28 text-center">Cantidad</flux:table.column>
                         <flux:table.column class="w-32 text-center">Stock Disp.</flux:table.column>
+                        <flux:table.column class="w-32 text-right">Costo Unit.</flux:table.column>
+                        <flux:table.column class="w-32 text-right">Total</flux:table.column>
                         <flux:table.column class="w-24 text-center">Acciones</flux:table.column>
                     </flux:table.columns>
 
@@ -419,6 +427,26 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 </template>
                             </flux:table.cell>
 
+                            <!-- Unit Cost (read-only from inventory) -->
+                            <flux:table.cell class="text-right tabular-nums">
+                                <template x-if="productInfo && productInfo.unit_cost > 0">
+                                    <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">$<span x-text="productInfo.unit_cost.toFixed(5)"></span></span>
+                                </template>
+                                <template x-if="!productInfo || productInfo.unit_cost == 0">
+                                    <span class="text-zinc-400 text-sm">-</span>
+                                </template>
+                            </flux:table.cell>
+
+                            <!-- Total (quantity * unit_cost) -->
+                            <flux:table.cell class="text-right tabular-nums">
+                                <template x-if="productInfo && productInfo.unit_cost > 0">
+                                    <span class="text-sm font-semibold text-zinc-700 dark:text-zinc-300">$<span x-text="total.toFixed(5)"></span></span>
+                                </template>
+                                <template x-if="!productInfo || productInfo.unit_cost == 0">
+                                    <span class="text-zinc-400 text-sm">-</span>
+                                </template>
+                            </flux:table.cell>
+
                             <!-- Actions -->
                             <flux:table.cell class="text-center">
                                 <div class="flex items-center justify-center gap-1" x-show="productId">
@@ -447,7 +475,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
                         <!-- Expandable Notes Row -->
                         <flux:table.row x-show="expanded" x-collapse class="bg-zinc-50 dark:bg-zinc-800">
-                            <flux:table.cell colspan="5" class="py-3">
+                            <flux:table.cell colspan="7" class="py-3">
                                 <div class="px-4">
                                     <flux:label>Notas (opcional)</flux:label>
                                     <textarea

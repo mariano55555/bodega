@@ -225,6 +225,11 @@ class Product extends Model
         return $this->hasMany(InventoryAlert::class);
     }
 
+    public function priceHistories(): HasMany
+    {
+        return $this->hasMany(ProductPriceHistory::class);
+    }
+
     /**
      * Scope a query to only include active products.
      */

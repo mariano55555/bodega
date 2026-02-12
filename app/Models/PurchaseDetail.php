@@ -61,8 +61,8 @@ class PurchaseDetail extends Model
                 $detail->tax_amount = $taxableAmount * ($detail->tax_percentage / 100);
             }
 
-            // Calculate total
-            $detail->total = $detail->subtotal - $detail->discount_amount + $detail->tax_amount;
+            // Calculate total (IVA is informational only - prices already include IVA)
+            $detail->total = $detail->subtotal - $detail->discount_amount;
         });
     }
 

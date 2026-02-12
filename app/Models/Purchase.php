@@ -241,7 +241,7 @@ class Purchase extends Model
         $this->subtotal = $this->details->sum(fn ($detail) => $detail->quantity * $detail->unit_cost);
         $this->tax_amount = $this->details->sum('tax_amount');
         $this->discount_amount = $this->details->sum('discount_amount');
-        $this->total = $this->subtotal + $this->tax_amount - $this->discount_amount + $this->shipping_cost;
+        $this->total = $this->subtotal - $this->discount_amount + $this->shipping_cost;
         $this->save();
     }
 
@@ -340,6 +340,37 @@ class Purchase extends Model
                 $inventory->is_active = true;
                 $inventory->active_at = $inventory->active_at ?? now();
                 $inventory->save();
+
+                // Update product cost and create price history if cost changed
+                $product = Product::find($detail->product_id);
+                if ($product) {
+                    $oldCost = (float) ($product->cost ?? 0);
+                    $newCost = (float) $detail->unit_cost;
+
+                    if (round($oldCost, 5) !== round($newCost, 5)) {
+                        $costChange = $newCost - $oldCost;
+                        $changePercentage = $oldCost > 0
+                            ? round(($costChange / $oldCost) * 100, 2)
+                            : 0;
+
+                        ProductPriceHistory::create([
+                            'product_id' => $product->id,
+                            'old_cost' => $oldCost,
+                            'new_cost' => $newCost,
+                            'cost_change' => $costChange,
+                            'change_percentage' => $changePercentage,
+                            'source_type' => 'purchase',
+                            'source_id' => $this->id,
+                            'notes' => "Actualización de costo por compra {$this->purchase_number}",
+                            'is_active' => true,
+                            'active_at' => now(),
+                            'created_by' => $userId,
+                        ]);
+
+                        $product->cost = $newCost;
+                        $product->save();
+                    }
+                }
 
                 // Update or create product-supplier relationship
                 $this->syncProductSupplier($detail);

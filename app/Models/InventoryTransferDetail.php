@@ -20,6 +20,7 @@ class InventoryTransferDetail extends Model
         'transfer_id',
         'product_id',
         'quantity',
+        'unit_cost',
         'notes',
         'created_by',
         'updated_by',
@@ -35,6 +36,7 @@ class InventoryTransferDetail extends Model
     {
         return [
             'quantity' => 'decimal:5',
+            'unit_cost' => 'decimal:5',
         ];
     }
 
