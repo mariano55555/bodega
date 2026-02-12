@@ -32,12 +32,12 @@ class PurchasePolicy
 
         // Warehouse managers can view purchases for their warehouses
         if ($user->isWarehouseManager()) {
-            return $user->warehouses->contains('id', $purchase->warehouse_id);
+            return $user->hasWarehouseAccess($purchase->warehouse_id);
         }
 
         // Warehouse operators can view purchases for their warehouses
         if ($user->isWarehouseOperator()) {
-            return $user->warehouses->contains('id', $purchase->warehouse_id);
+            return $user->hasWarehouseAccess($purchase->warehouse_id);
         }
 
         return false;
@@ -83,7 +83,7 @@ class PurchasePolicy
 
         // Warehouse managers can update purchases for their warehouses
         if ($user->isWarehouseManager()) {
-            return $user->warehouses->contains('id', $purchase->warehouse_id);
+            return $user->hasWarehouseAccess($purchase->warehouse_id);
         }
 
         // Creator can update their own draft purchases
@@ -116,7 +116,7 @@ class PurchasePolicy
 
         // Warehouse managers can delete draft purchases for their warehouses
         if ($user->isWarehouseManager()) {
-            return $user->warehouses->contains('id', $purchase->warehouse_id);
+            return $user->hasWarehouseAccess($purchase->warehouse_id);
         }
 
         // Creator can delete their own draft purchases
@@ -149,7 +149,7 @@ class PurchasePolicy
 
         // Warehouse managers can submit purchases for their warehouses
         if ($user->isWarehouseManager()) {
-            return $user->warehouses->contains('id', $purchase->warehouse_id);
+            return $user->hasWarehouseAccess($purchase->warehouse_id);
         }
 
         // Creator can submit their own draft purchases
@@ -182,7 +182,7 @@ class PurchasePolicy
 
         // Warehouse managers can approve purchases for their warehouses
         if ($user->isWarehouseManager()) {
-            return $user->warehouses->contains('id', $purchase->warehouse_id);
+            return $user->hasWarehouseAccess($purchase->warehouse_id);
         }
 
         return false;
@@ -210,12 +210,12 @@ class PurchasePolicy
 
         // Warehouse managers can receive purchases for their warehouses
         if ($user->isWarehouseManager()) {
-            return $user->warehouses->contains('id', $purchase->warehouse_id);
+            return $user->hasWarehouseAccess($purchase->warehouse_id);
         }
 
         // Warehouse operators can receive purchases for their warehouses
         if ($user->isWarehouseOperator()) {
-            return $user->warehouses->contains('id', $purchase->warehouse_id);
+            return $user->hasWarehouseAccess($purchase->warehouse_id);
         }
 
         return false;
@@ -243,7 +243,7 @@ class PurchasePolicy
 
         // Warehouse managers can cancel purchases for their warehouses
         if ($user->isWarehouseManager()) {
-            return $user->warehouses->contains('id', $purchase->warehouse_id);
+            return $user->hasWarehouseAccess($purchase->warehouse_id);
         }
 
         // Creator can cancel their own purchases in draft status
