@@ -233,23 +233,23 @@ new class extends Component
         @endif
 
         <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {{-- Warehouse Selection --}}
+            <flux:field>
+                <flux:label badge="Requerido">Almacén</flux:label>
+                <flux:select wire:model.live="warehouse_id" placeholder="Seleccione un almacén" :disabled="!$company_id">
+                    @foreach ($this->warehouses as $warehouse)
+                        <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
+                    @endforeach
+                    <option value="all">-- Todas las bodegas --</option>
+                </flux:select>
+            </flux:field>
+
             {{-- Product Selection --}}
             <flux:field>
                 <flux:label badge="Requerido">Producto</flux:label>
                 <flux:select wire:model.live="product_id" placeholder="Seleccione un producto" :disabled="!$company_id">
                     @foreach ($this->products as $product)
                         <option value="{{ $product->id }}">{{ $product->name }}</option>
-                    @endforeach
-                </flux:select>
-            </flux:field>
-
-            {{-- Warehouse Selection --}}
-            <flux:field>
-                <flux:label badge="Requerido">Almacén</flux:label>
-                <flux:select wire:model.live="warehouse_id" placeholder="Seleccione un almacén" :disabled="!$company_id">
-                    <option value="all">-- Todas las bodegas --</option>
-                    @foreach ($this->warehouses as $warehouse)
-                        <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
                     @endforeach
                 </flux:select>
             </flux:field>
