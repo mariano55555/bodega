@@ -154,7 +154,19 @@ new class extends Component
                 ->sum('quantity_out');
 
             $currentStock = (float) $initialStock + (float) $entries - (float) $exits;
-            $unitCost = (float) ($product->product_cost ?? 0);
+
+            // Get warehouse-specific unit cost from the most recent movement
+            $lastCostMovement = InventoryMovement::where('company_id', $companyId)
+                ->where('product_id', $product->product_id)
+                ->where('warehouse_id', $warehouseId)
+                ->where('movement_date', '<=', $this->end_date)
+                ->whereNotNull('balance_quantity')
+                ->where('unit_cost', '>', 0)
+                ->orderByDesc('movement_date')
+                ->orderByDesc('id')
+                ->first();
+
+            $unitCost = (float) ($lastCostMovement?->unit_cost ?? $product->product_cost ?? 0);
             $totalCost = $currentStock * $unitCost;
 
             return (object) [
