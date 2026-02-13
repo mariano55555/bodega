@@ -66,7 +66,7 @@ class KardexExport implements FromCollection, ShouldAutoSize, WithHeadings, With
             ['Período: '.($this->dateFrom ? \Carbon\Carbon::parse($this->dateFrom)->format('d/m/Y') : 'Inicio').' - '.($this->dateTo ? \Carbon\Carbon::parse($this->dateTo)->format('d/m/Y') : 'Fin')],
             ['Generado: '.now()->format('d/m/Y H:i')],
             [],
-            ['Fecha', 'Documento', 'Referencia', 'Transacción', 'Entrada', 'Salida', 'Saldo'],
+            ['Fecha', 'Documento', 'Referencia', 'Transacción', 'Saldo Inicial', 'Entrada', 'Salida', 'Saldo Final', 'Costo Unitario', 'Valor Total'],
         ];
     }
 
@@ -75,14 +75,20 @@ class KardexExport implements FromCollection, ShouldAutoSize, WithHeadings, With
      */
     public function map($movement): array
     {
+        $initialBalance = $movement->balance_quantity - $movement->quantity_in + $movement->quantity_out;
+        $totalValue = $movement->balance_quantity * ($movement->unit_cost ?? 0);
+
         return [
             $movement->movement_date?->format('d/m/Y') ?? $movement->created_at->format('d/m/Y'),
             $movement->document_number ?? '',
             $movement->reference_number ?? '',
             $movement->movementReason?->name ?? $movement->movement_type_spanish,
+            $initialBalance,
             $movement->quantity_in > 0 ? $movement->quantity_in : '',
             $movement->quantity_out > 0 ? $movement->quantity_out : '',
             $movement->balance_quantity,
+            $movement->unit_cost ?? 0,
+            $totalValue,
         ];
     }
 
@@ -94,20 +100,17 @@ class KardexExport implements FromCollection, ShouldAutoSize, WithHeadings, With
     public function styles(Worksheet $sheet)
     {
         return [
-            // Style the first row as header
             1 => [
                 'font' => [
                     'bold' => true,
                     'size' => 16,
                 ],
             ],
-            // Style rows 2-5 as info
             '2:5' => [
                 'font' => [
                     'size' => 11,
                 ],
             ],
-            // Style the table header row (row 7)
             7 => [
                 'font' => [
                     'bold' => true,

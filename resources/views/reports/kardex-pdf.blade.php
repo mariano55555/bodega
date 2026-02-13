@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kardex de Inventario - {{ $product->name }}</title>
     <style>
+        @page {
+            margin: 15mm 10mm 20mm 10mm;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -13,99 +17,130 @@
 
         body {
             font-family: 'DejaVu Sans', sans-serif;
-            font-size: 10px;
+            font-size: 9px;
             color: #333;
-            padding: 20px;
+            line-height: 1.4;
         }
 
         .header {
+            width: 100%;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #1e3a5f;
+            padding-bottom: 10px;
+        }
+
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .header-table td {
+            vertical-align: top;
+        }
+
+        .logo-cell {
+            width: 25%;
+        }
+
+        .logo {
+            max-width: 180px;
+            max-height: 60px;
+        }
+
+        .title-cell {
+            width: 50%;
             text-align: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #333;
         }
 
-        .header h1 {
-            font-size: 18px;
+        .info-cell {
+            width: 25%;
+            text-align: right;
+            font-size: 9px;
+        }
+
+        .institution-name {
+            font-size: 12px;
+            font-weight: bold;
+            color: #1e3a5f;
+            margin-bottom: 3px;
+        }
+
+        .department-name {
+            font-size: 10px;
+            color: #555;
             margin-bottom: 5px;
-            color: #1a1a1a;
         }
 
-        .header h2 {
-            font-size: 14px;
-            color: #666;
-            font-weight: normal;
+        .report-title {
+            font-size: 13px;
+            font-weight: bold;
+            color: #1e3a5f;
+            margin-bottom: 3px;
         }
 
         .info-section {
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             background-color: #f5f5f5;
             padding: 10px;
-            border-radius: 4px;
         }
 
-        .info-row {
-            display: table;
+        .info-table {
             width: 100%;
-            margin-bottom: 8px;
+            border-collapse: collapse;
         }
 
-        .info-row:last-child {
-            margin-bottom: 0;
+        .info-table td {
+            padding: 3px 5px;
+            font-size: 9px;
         }
 
-        .info-label {
-            display: table-cell;
-            width: 25%;
+        .info-table .label {
             font-weight: bold;
             color: #555;
+            width: 20%;
         }
 
-        .info-value {
-            display: table-cell;
-            width: 75%;
+        .info-table .value {
             color: #333;
+            width: 80%;
         }
 
-        table {
+        table.data-table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 15px;
         }
 
-        thead {
-            background-color: #333;
-            color: white;
+        table.data-table thead {
+            background-color: #e8e8e8;
         }
 
-        th {
-            padding: 8px 6px;
+        table.data-table th {
+            padding: 6px 4px;
             text-align: left;
-            font-size: 9px;
+            font-size: 8px;
             font-weight: bold;
+            border-bottom: 1px solid #ccc;
+            color: #333;
             text-transform: uppercase;
         }
 
-        th.right {
+        table.data-table th.right {
             text-align: right;
         }
 
-        td {
-            padding: 6px;
-            border-bottom: 1px solid #ddd;
-            font-size: 9px;
+        table.data-table td {
+            padding: 5px 4px;
+            border-bottom: 1px solid #eee;
+            font-size: 8px;
         }
 
-        td.right {
+        table.data-table td.right {
             text-align: right;
         }
 
-        td.center {
-            text-align: center;
-        }
-
-        tbody tr:nth-child(even) {
-            background-color: #f9f9f9;
+        table.data-table tbody tr:nth-child(even) {
+            background-color: #fafafa;
         }
 
         .quantity-in {
@@ -127,44 +162,85 @@
             color: #dc2626;
         }
 
-        .summary {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #f5f5f5;
-            border-radius: 4px;
+        .cost {
+            color: #555;
         }
 
-        .summary-row {
-            display: table;
-            width: 100%;
-            margin-bottom: 8px;
-        }
-
-        .summary-label {
-            display: table-cell;
-            width: 70%;
+        .value-col {
             font-weight: bold;
-            font-size: 11px;
+            color: #1a1a1a;
         }
 
-        .summary-value {
-            display: table-cell;
-            width: 30%;
+        .summary {
+            margin-top: 15px;
+            background-color: #1e3a5f;
+            color: white;
+            padding: 12px 15px;
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .summary-table td {
+            padding: 4px 10px;
+            font-size: 10px;
+        }
+
+        .summary-table .label {
+            font-weight: bold;
             text-align: right;
-            font-size: 11px;
+            width: 70%;
+        }
+
+        .summary-table .value {
+            text-align: right;
+            width: 30%;
+            font-weight: bold;
+        }
+
+        .summary-table .separator td {
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
+            padding-top: 8px;
+            margin-top: 4px;
+        }
+
+        .signatures {
+            margin-top: 50px;
+            page-break-inside: avoid;
+        }
+
+        .signatures-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .signatures-table td {
+            width: 33.33%;
+            text-align: center;
+            padding: 0 30px;
+            vertical-align: bottom;
+        }
+
+        .signature-line {
+            border-top: 1px solid #333;
+            padding-top: 8px;
+            margin-top: 50px;
+            font-size: 10px;
             font-weight: bold;
         }
 
         .footer {
             position: fixed;
-            bottom: 15px;
-            left: 20px;
-            right: 20px;
+            bottom: 5mm;
+            left: 10mm;
+            right: 10mm;
             text-align: center;
             font-size: 8px;
             color: #666;
             border-top: 1px solid #ddd;
-            padding-top: 8px;
+            padding-top: 5px;
         }
 
         .no-data {
@@ -172,47 +248,61 @@
             padding: 40px;
             color: #999;
             font-style: italic;
+            font-size: 11px;
         }
 
         .document-info {
-            font-size: 8px;
+            font-size: 7px;
             color: #666;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>Kardex de Inventario</h1>
-        <h2>Reporte de Movimientos</h2>
+        <table class="header-table">
+            <tr>
+                <td class="logo-cell">
+                    <img src="{{ public_path('images/LOGO-ENA_gris.png') }}" alt="Logo" class="logo">
+                </td>
+                <td class="title-cell">
+                    <div class="institution-name">ESCUELA NACIONAL DE AGRICULTURA "ROBERTO QUIÑÓNEZ"</div>
+                    <div class="department-name">GERENCIA ADMINISTRATIVA</div>
+                    <div class="report-title">KARDEX DE INVENTARIO</div>
+                </td>
+                <td class="info-cell">
+                    <div>Página #</div>
+                    <div>Fecha de reporte:</div>
+                    <div>{{ now()->format('d/m/Y') }}</div>
+                </td>
+            </tr>
+        </table>
     </div>
 
     <div class="info-section">
-        <div class="info-row">
-            <span class="info-label">Producto:</span>
-            <span class="info-value">{{ $product->name }} (SKU: {{ $product->sku }})</span>
-        </div>
-        <div class="info-row">
-            <span class="info-label">Almacén:</span>
-            <span class="info-value">{{ $warehouse->name }}</span>
-        </div>
-        <div class="info-row">
-            <span class="info-label">Período:</span>
-            <span class="info-value">
-                @if ($dateFrom && $dateTo)
-                    {{ \Carbon\Carbon::parse($dateFrom)->format('d/m/Y') }} - {{ \Carbon\Carbon::parse($dateTo)->format('d/m/Y') }}
-                @elseif ($dateFrom)
-                    Desde {{ \Carbon\Carbon::parse($dateFrom)->format('d/m/Y') }}
-                @elseif ($dateTo)
-                    Hasta {{ \Carbon\Carbon::parse($dateTo)->format('d/m/Y') }}
-                @else
-                    Todos los registros
-                @endif
-            </span>
-        </div>
-        <div class="info-row">
-            <span class="info-label">Fecha de Reporte:</span>
-            <span class="info-value">{{ now()->format('d/m/Y H:i') }}</span>
-        </div>
+        <table class="info-table">
+            <tr>
+                <td class="label">Producto:</td>
+                <td class="value">{{ $product->name }} (SKU: {{ $product->sku }})</td>
+            </tr>
+            <tr>
+                <td class="label">Almacén:</td>
+                <td class="value">{{ $warehouse->name }}</td>
+            </tr>
+            <tr>
+                <td class="label">Período:</td>
+                <td class="value">
+                    @if ($dateFrom && $dateTo)
+                        {{ \Carbon\Carbon::parse($dateFrom)->format('d/m/Y') }} - {{ \Carbon\Carbon::parse($dateTo)->format('d/m/Y') }}
+                    @elseif ($dateFrom)
+                        Desde {{ \Carbon\Carbon::parse($dateFrom)->format('d/m/Y') }}
+                    @elseif ($dateTo)
+                        Hasta {{ \Carbon\Carbon::parse($dateTo)->format('d/m/Y') }}
+                    @else
+                        Todos los registros
+                    @endif
+                </td>
+            </tr>
+        </table>
     </div>
 
     @if ($movements->isEmpty())
@@ -220,19 +310,26 @@
             No se encontraron movimientos para el período seleccionado
         </div>
     @else
-        <table>
+        <table class="data-table">
             <thead>
                 <tr>
-                    <th style="width: 12%;">Fecha</th>
-                    <th style="width: 20%;">Documento</th>
-                    <th style="width: 28%;">Transacción</th>
-                    <th class="right" style="width: 13%;">Entrada</th>
-                    <th class="right" style="width: 13%;">Salida</th>
-                    <th class="right" style="width: 14%;">Saldo</th>
+                    <th style="width: 10%;">Fecha</th>
+                    <th style="width: 14%;">Documento</th>
+                    <th style="width: 18%;">Transacción</th>
+                    <th class="right" style="width: 9%;">Saldo Ini.</th>
+                    <th class="right" style="width: 9%;">Entrada</th>
+                    <th class="right" style="width: 9%;">Salida</th>
+                    <th class="right" style="width: 10%;">Saldo Final</th>
+                    <th class="right" style="width: 10%;">Costo Unit.</th>
+                    <th class="right" style="width: 11%;">Valor Total</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach ($movements as $movement)
+                    @php
+                        $initialBalance = $movement->balance_quantity - $movement->quantity_in + $movement->quantity_out;
+                        $totalValue = $movement->balance_quantity * ($movement->unit_cost ?? 0);
+                    @endphp
                     <tr>
                         <td>
                             {{ $movement->movement_date?->format('d/m/Y') ?? $movement->created_at->format('d/m/Y') }}
@@ -242,7 +339,7 @@
                                 <strong>{{ $movement->document_number }}</strong>
                             @endif
                             @if ($movement->reference_number)
-                                <br><span class="document-info">{{ $movement->reference_number }}</span>
+                                <br><span class="document-info">Ref: {{ $movement->reference_number }}</span>
                             @endif
                             @if (! $movement->document_number && ! $movement->reference_number)
                                 <span class="document-info">Sin documento</span>
@@ -251,10 +348,15 @@
                         <td>
                             @if ($movement->movementReason)
                                 <strong>{{ $movement->movementReason->legacy_code ?? $movement->movementReason->code }}</strong><br>
-                                <span style="font-size: 8px; color: #666;">{{ $movement->movementReason->legacy_name ?? $movement->movementReason->name }}</span>
+                                <span style="font-size: 7px; color: #666;">{{ $movement->movementReason->legacy_name ?? $movement->movementReason->name }}</span>
                             @else
                                 {{ $movement->movement_type_spanish }}
                             @endif
+                        </td>
+                        <td class="right">
+                            <span class="{{ $initialBalance < 0 ? 'balance-negative' : '' }}">
+                                {{ number_format($initialBalance, 2) }}
+                            </span>
                         </td>
                         <td class="right">
                             @if ($movement->quantity_in > 0)
@@ -275,47 +377,77 @@
                                 {{ number_format($movement->balance_quantity, 2) }}
                             </span>
                         </td>
+                        <td class="right cost">
+                            @if ($movement->unit_cost)
+                                ${{ number_format($movement->unit_cost, 2) }}
+                            @else
+                                -
+                            @endif
+                        </td>
+                        <td class="right value-col">
+                            ${{ number_format($totalValue, 2) }}
+                        </td>
                     </tr>
                 @endforeach
             </tbody>
         </table>
 
         @php
+            $firstMovement = $movements->first();
             $lastMovement = $movements->last();
+            $initialBalance = $firstMovement->balance_quantity - $firstMovement->quantity_in + $firstMovement->quantity_out;
             $finalValue = $lastMovement->balance_quantity * ($lastMovement->unit_cost ?? 0);
+            $totalIn = $movements->sum('quantity_in');
+            $totalOut = $movements->sum('quantity_out');
         @endphp
         <div class="summary">
-            <div class="summary-row">
-                <span class="summary-label">Total Entradas:</span>
-                <span class="summary-value quantity-in">{{ number_format($movements->sum('quantity_in'), 2) }}</span>
-            </div>
-            <div class="summary-row">
-                <span class="summary-label">Total Salidas:</span>
-                <span class="summary-value quantity-out">{{ number_format($movements->sum('quantity_out'), 2) }}</span>
-            </div>
-            <div class="summary-row">
-                <span class="summary-label">Valor en Inventario:</span>
-                <span class="summary-value" style="color: #d97706;">${{ number_format($finalValue, 2) }}</span>
-            </div>
-            <div class="summary-row" style="border-top: 2px solid #333; padding-top: 8px; margin-top: 8px;">
-                <span class="summary-label">Total Movimientos:</span>
-                <span class="summary-value">{{ $movements->count() }}</span>
-            </div>
-            <div class="summary-row">
-                <span class="summary-label">Existencia Actual:</span>
-                <span class="summary-value balance {{ $lastMovement->balance_quantity < 0 ? 'balance-negative' : '' }}">
-                    {{ number_format($lastMovement->balance_quantity, 2) }}
-                </span>
-            </div>
-            <div class="summary-row">
-                <span class="summary-label">Costo Unitario Actual:</span>
-                <span class="summary-value">${{ number_format($lastMovement->unit_cost ?? 0, 2) }}</span>
-            </div>
+            <table class="summary-table">
+                <tr>
+                    <td class="label">Total Entradas:</td>
+                    <td class="value">{{ number_format($totalIn, 2) }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Total Salidas:</td>
+                    <td class="value">{{ number_format($totalOut, 2) }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Valor en Inventario:</td>
+                    <td class="value">${{ number_format($finalValue, 2) }}</td>
+                </tr>
+                <tr class="separator">
+                    <td class="label">Total Movimientos:</td>
+                    <td class="value">{{ $movements->count() }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Existencia Actual:</td>
+                    <td class="value">{{ number_format($lastMovement->balance_quantity, 2) }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Costo Unitario Actual:</td>
+                    <td class="value">${{ number_format($lastMovement->unit_cost ?? 0, 2) }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="signatures">
+            <table class="signatures-table">
+                <tr>
+                    <td>
+                        <div class="signature-line">Elaborado</div>
+                    </td>
+                    <td>
+                        <div class="signature-line">Revisado</div>
+                    </td>
+                    <td>
+                        <div class="signature-line">Autorizado</div>
+                    </td>
+                </tr>
+            </table>
         </div>
     @endif
 
     <div class="footer">
-        <p>Generado el {{ now()->format('d/m/Y H:i') }} | {{ auth()->user()->name }} | Bodega System</p>
+        Generado el {{ now()->format('d/m/Y H:i') }} | {{ auth()->user()->name }} | Sistema de Bodega
     </div>
 </body>
 </html>
