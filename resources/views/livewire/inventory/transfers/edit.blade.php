@@ -183,6 +183,45 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         \DB::beginTransaction();
         try {
+            // Validate stock availability inside transaction with lock (aggregate check: same product in multiple rows)
+            $productQuantities = [];
+            foreach ($validated['products'] as $index => $product) {
+                $pid = $product['product_id'];
+                if (! isset($productQuantities[$pid])) {
+                    $productQuantities[$pid] = ['total' => 0, 'indices' => []];
+                }
+                $productQuantities[$pid]['total'] += $product['quantity'];
+                $productQuantities[$pid]['indices'][] = $index;
+            }
+
+            $inventories = Inventory::where('warehouse_id', $validated['from_warehouse_id'])
+                ->whereIn('product_id', array_keys($productQuantities))
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('product_id');
+
+            $hasStockError = false;
+            foreach ($productQuantities as $pid => $data) {
+                $available = $inventories->get($pid)?->available_quantity ?? 0;
+                if ($data['total'] > $available) {
+                    $hasStockError = true;
+                    $productName = Product::find($pid)?->name ?? "Producto #{$pid}";
+                    foreach ($data['indices'] as $idx) {
+                        $this->addError(
+                            "products.{$idx}.quantity",
+                            "Stock insuficiente para '{$productName}'. Disponible: ".number_format($available, 5).", solicitado total: ".number_format($data['total'], 5)
+                        );
+                    }
+                }
+            }
+
+            if ($hasStockError) {
+                \DB::rollBack();
+                $this->addError('stock', 'Uno o más productos exceden el stock disponible en la bodega de origen.');
+
+                return;
+            }
+
             // Update transfer
             $this->transfer->update([
                 'from_warehouse_id' => $validated['from_warehouse_id'],
@@ -197,10 +236,9 @@ new #[Layout('components.layouts.app')] class extends Component {
             // Delete existing details and create new ones
             $this->transfer->details()->delete();
 
+            // Create transfer details using already-fetched inventory data
             foreach ($validated['products'] as $product) {
-                $inventoryRecord = Inventory::where('product_id', $product['product_id'])
-                    ->where('warehouse_id', $validated['from_warehouse_id'])
-                    ->first();
+                $inventoryRecord = $inventories->get($product['product_id']);
 
                 InventoryTransferDetail::create([
                     'transfer_id' => $this->transfer->id,
@@ -407,8 +445,15 @@ new #[Layout('components.layouts.app')] class extends Component {
                                         @change="updateQuantity()"
                                         step="0.00001"
                                         min="0"
-                                        class="block w-full text-center rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                                        :max="productId && availableStock > 0 ? availableStock : ''"
+                                        class="block w-full text-center rounded-lg border bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:outline-none dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500"
+                                        :class="exceedsStock ? 'border-red-500 dark:border-red-500 ring-2 ring-red-200 dark:ring-red-900/50' : 'border-zinc-200 dark:border-zinc-600 focus:border-zinc-400 dark:focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700'"
                                     />
+                                    <template x-if="exceedsStock">
+                                        <span class="text-xs text-red-600 dark:text-red-400">
+                                            Máx: <span x-text="availableStock.toFixed(5)"></span>
+                                        </span>
+                                    </template>
                                     <flux:error name="products.{{ $index }}.quantity" />
                                 </div>
                             </flux:table.cell>
@@ -507,6 +552,11 @@ new #[Layout('components.layouts.app')] class extends Component {
             </div>
 
             <flux:error name="products" class="mt-2" />
+            @error('stock')
+                <flux:callout color="red" icon="exclamation-triangle" class="mt-4">
+                    {{ $message }}
+                </flux:callout>
+            @enderror
         </flux:card>
 
         <flux:card>

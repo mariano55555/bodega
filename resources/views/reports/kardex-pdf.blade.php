@@ -6,28 +6,48 @@
     <title>Kardex de Inventario - {{ $product->name }}</title>
     <style>
         @page {
-            margin: 15mm 10mm 20mm 10mm;
-        }
+    margin-top: 120px;
+    margin-right: 15mm;
+    margin-bottom: 20mm;
+    margin-left: 15mm;
+}
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
 
-        body {
-            font-family: 'DejaVu Sans', sans-serif;
-            font-size: 9px;
-            color: #333;
-            line-height: 1.4;
-        }
+body {
+    font-family: 'DejaVu Sans', sans-serif;
+    font-size: 9px;
+    color: #333;
+    line-height: 1.4;
+    margin: 0;
+    padding: 0;
+}
 
         .header {
-            width: 100%;
-            margin-bottom: 15px;
-            border-bottom: 2px solid #1e3a5f;
-            padding-bottom: 10px;
-        }
+    position: fixed;
+    top: -120px;
+    left: 0px;
+    right: 0px;
+    height: 100px;
+    border-bottom: 2px solid #1e3a5f;
+    padding-bottom: 10px;
+}
+
+.footer {
+    position: fixed;
+    bottom: -20mm;
+    left: 0px;
+    right: 0px;
+    text-align: center;
+    font-size: 8px;
+    color: #666;
+    border-top: 1px solid #ddd;
+    padding-top: 5px;
+}
 
         .header-table {
             width: 100%;
@@ -231,18 +251,6 @@
             font-weight: bold;
         }
 
-        .footer {
-            position: fixed;
-            bottom: 5mm;
-            left: 10mm;
-            right: 10mm;
-            text-align: center;
-            font-size: 8px;
-            color: #666;
-            border-top: 1px solid #ddd;
-            padding-top: 5px;
-        }
-
         .no-data {
             text-align: center;
             padding: 40px;
@@ -270,7 +278,6 @@
                     <div class="report-title">KARDEX DE INVENTARIO</div>
                 </td>
                 <td class="info-cell">
-                    <div>Página #</div>
                     <div>Fecha de reporte:</div>
                     <div>{{ now()->format('d/m/Y') }}</div>
                 </td>
@@ -449,5 +456,17 @@
     <div class="footer">
         Generado el {{ now()->format('d/m/Y H:i') }} | {{ auth()->user()->name }} | Sistema de Bodega
     </div>
+
+    <script type="text/php">
+        if (isset($pdf)) {
+            $text = "Página {PAGE_NUM} de {PAGE_COUNT}";
+            $font = $fontMetrics->getFont("DejaVu Sans");
+            $size = 8;
+            $width = $fontMetrics->getTextWidth($text, $font, $size);
+            $x = $pdf->get_width() - $width - 57;
+            $y = 14;
+            $pdf->page_text($x, $y, $text, $font, $size, array(0.4, 0.4, 0.4));
+        }
+    </script>
 </body>
 </html>

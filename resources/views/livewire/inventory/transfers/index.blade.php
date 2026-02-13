@@ -207,20 +207,25 @@ new #[Layout('components.layouts.app')] class extends Component
         $fromWarehouse = (int) $this->fromWarehouseId;
         $toWarehouse = (int) $this->toWarehouseId;
 
-        // Check available stock
-        $fromInventory = Inventory::where([
-            'product_id' => $productId,
-            'warehouse_id' => $fromWarehouse,
-        ])->first();
-
-        if (!$fromInventory || $fromInventory->available_quantity < (float) $this->quantity) {
-            $this->addError('quantity', __('Insufficient stock available for transfer'));
-            return;
-        }
-
         // Process transfer - Create with pending status (workflow-based)
         \DB::beginTransaction();
         try {
+            // Check available stock inside transaction with lock to prevent race conditions
+            $fromInventory = Inventory::where([
+                'product_id' => $productId,
+                'warehouse_id' => $fromWarehouse,
+            ])->lockForUpdate()->first();
+
+            $requestedQty = (float) $this->quantity;
+            $available = $fromInventory ? (float) $fromInventory->available_quantity : 0;
+
+            if (! $fromInventory || $available < $requestedQty) {
+                \DB::rollBack();
+                $this->addError('quantity', 'Stock insuficiente. Disponible: '.number_format($available, 5).', solicitado: '.number_format($requestedQty, 5));
+
+                return;
+            }
+
             // Create the InventoryTransfer record with PENDING status
             $transfer = InventoryTransfer::create([
                 'from_warehouse_id' => $fromWarehouse,
@@ -412,15 +417,22 @@ new #[Layout('components.layouts.app')] class extends Component
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- Quantity -->
-                        <flux:field>
+                        <flux:field x-data="{ exceedsStock: false, maxStock: {{ $availableStock !== null ? (float) str_replace(',', '', $availableStock) : 0 }} }">
                             <flux:label badge="Requerido">{{ __('Transfer Quantity') }}</flux:label>
                             <flux:input
                                 type="number"
                                 step="0.00001"
                                 min="0.00001"
+                                :max="$availableStock !== null && (float) str_replace(',', '', $availableStock) > 0 ? str_replace(',', '', $availableStock) : null"
                                 wire:model="quantity"
                                 placeholder="0.00000"
+                                x-on:input="exceedsStock = maxStock > 0 && parseFloat($event.target.value || 0) > maxStock"
                             />
+                            <template x-if="exceedsStock">
+                                <span class="text-xs text-red-600 dark:text-red-400">
+                                    Máx disponible: {{ $availableStock }} unidades
+                                </span>
+                            </template>
                             <flux:error name="quantity" />
                         </flux:field>
 

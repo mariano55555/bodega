@@ -357,46 +357,72 @@ new #[Layout('components.layouts.app')] class extends Component
             'document_date' => 'fecha del documento',
         ]);
 
-        // Validate stock and get unit of measure for each item
-        $validatedItems = [];
-        foreach ($this->quickItems as $index => $item) {
-            $productId = $item['product_id'];
-            $quantity = (float) $item['quantity'];
-            $unitPrice = (float) ($item['unit_price'] ?? 0);
-
-            $product = Product::find($productId);
-            if (! $product || ! $product->unit_of_measure_id) {
-                $this->addError("quickItems.{$index}.product_id", 'El producto no tiene una unidad de medida asignada.');
-
-                return;
-            }
-
-            $inventory = Inventory::where('product_id', $productId)
-                ->where('warehouse_id', (int) $this->warehouse_id)
-                ->where('is_active', true)
-                ->first();
-
-            $availableQty = $inventory ? (float) $inventory->available_quantity : 0;
-
-            if ($quantity > $availableQty) {
-                $this->addError("quickItems.{$index}.quantity", "La cantidad ({$quantity}) excede el stock disponible ({$availableQty}).");
-
-                return;
-            }
-
-            $validatedItems[] = [
-                'product_id' => $productId,
-                'quantity' => $quantity,
-                'unit_price' => $unitPrice,
-                'unit_of_measure_id' => $product->unit_of_measure_id,
-                'inventory' => $inventory,
-            ];
-        }
-
         $companyId = $this->isSuperAdmin() ? $this->company_id : auth()->user()->company_id;
 
         \DB::beginTransaction();
         try {
+            // Validate stock availability inside transaction with lock (aggregate check: same product in multiple rows)
+            $productQuantities = [];
+            foreach ($this->quickItems as $index => $item) {
+                $pid = $item['product_id'];
+                if (! isset($productQuantities[$pid])) {
+                    $productQuantities[$pid] = ['total' => 0, 'indices' => []];
+                }
+                $productQuantities[$pid]['total'] += (float) $item['quantity'];
+                $productQuantities[$pid]['indices'][] = $index;
+            }
+
+            $productModels = Product::whereIn('id', array_keys($productQuantities))->get()->keyBy('id');
+            $inventories = Inventory::where('warehouse_id', (int) $this->warehouse_id)
+                ->whereIn('product_id', array_keys($productQuantities))
+                ->where('is_active', true)
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('product_id');
+
+            $hasStockError = false;
+            foreach ($productQuantities as $pid => $data) {
+                $product = $productModels->get($pid);
+                if (! $product || ! $product->unit_of_measure_id) {
+                    $hasStockError = true;
+                    foreach ($data['indices'] as $idx) {
+                        $this->addError("quickItems.{$idx}.product_id", 'El producto no tiene una unidad de medida asignada.');
+                    }
+
+                    continue;
+                }
+
+                $available = (float) ($inventories->get($pid)?->available_quantity ?? 0);
+                if ($data['total'] > $available) {
+                    $hasStockError = true;
+                    foreach ($data['indices'] as $idx) {
+                        $this->addError(
+                            "quickItems.{$idx}.quantity",
+                            "Stock insuficiente para '{$product->name}'. Disponible: ".number_format($available, 5).", solicitado total: ".number_format($data['total'], 5)
+                        );
+                    }
+                }
+            }
+
+            if ($hasStockError) {
+                \DB::rollBack();
+
+                return;
+            }
+
+            // Build validated items from bulk-fetched data
+            $validatedItems = [];
+            foreach ($this->quickItems as $item) {
+                $pid = $item['product_id'];
+                $validatedItems[] = [
+                    'product_id' => $pid,
+                    'quantity' => (float) $item['quantity'],
+                    'unit_price' => (float) ($item['unit_price'] ?? 0),
+                    'unit_of_measure_id' => $productModels->get($pid)->unit_of_measure_id,
+                    'inventory' => $inventories->get($pid),
+                ];
+            }
+
             // Create dispatch directly in 'despachado' status
             $dispatch = Dispatch::create([
                 'company_id' => $companyId,
@@ -925,15 +951,22 @@ new #[Layout('components.layouts.app')] class extends Component
 
                             {{-- Row 3: Quantity and Price --}}
                             <div class="grid grid-cols-2 gap-3">
-                                <flux:field>
+                                <flux:field x-data="{ exceedsStock: false, maxStock: {{ (float) ($item['stock'] ?? 0) }} }">
                                     <flux:label class="text-xs">Cantidad</flux:label>
                                     <flux:input
                                         type="number"
                                         step="0.00001"
                                         min="0.00001"
+                                        :max="!empty($item['stock']) && (float) $item['stock'] > 0 ? $item['stock'] : null"
                                         wire:model="quickItems.{{ $index }}.quantity"
                                         placeholder="Cantidad"
+                                        x-on:input="exceedsStock = maxStock > 0 && parseFloat($event.target.value || 0) > maxStock"
                                     />
+                                    <template x-if="exceedsStock">
+                                        <span class="text-xs text-red-600 dark:text-red-400">
+                                            Máx disponible: {{ $item['stock'] ?? '0' }} {{ $item['unit'] ?? '' }}
+                                        </span>
+                                    </template>
                                     @error("quickItems.{$index}.quantity")
                                         <flux:text class="text-red-600 dark:text-red-400 text-xs">{{ $message }}</flux:text>
                                     @enderror

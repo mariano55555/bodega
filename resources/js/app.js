@@ -285,6 +285,11 @@ document.addEventListener('alpine:init', () => {
             return this.productId ? (parseFloat(stockData[this.productId]) || 0) : 0;
         },
 
+        get exceedsStock() {
+            if (!this.productId || this.availableStock <= 0) return false;
+            return (parseFloat(this.quantity) || 0) > this.availableStock;
+        },
+
         get total() {
             const unitCost = this.productInfo?.unit_cost || 0;
             return (parseFloat(this.quantity) || 0) * unitCost;
@@ -292,11 +297,23 @@ document.addEventListener('alpine:init', () => {
 
         selectProduct(id) {
             this.productId = id;
+            // Cap quantity if it exceeds new product's available stock
+            this.capQuantityToStock();
             this.syncToLivewire();
         },
 
         updateQuantity() {
+            this.capQuantityToStock();
             this.syncToLivewire();
+        },
+
+        capQuantityToStock() {
+            if (this.productId && this.availableStock > 0) {
+                const qty = parseFloat(this.quantity) || 0;
+                if (qty > this.availableStock) {
+                    this.quantity = parseFloat(this.availableStock.toFixed(5));
+                }
+            }
         },
 
         clearRow() {

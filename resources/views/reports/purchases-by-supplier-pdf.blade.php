@@ -6,7 +6,10 @@
     <title>Reporte de Compras por Proveedor</title>
     <style>
         @page {
-            margin: 15mm 10mm 20mm 10mm;
+            margin-top: 5mm;
+            margin-right: 20mm;
+            margin-bottom: 20mm;
+            margin-left: 20mm;
         }
 
         * {
@@ -20,11 +23,17 @@
             font-size: 10px;
             color: #333;
             line-height: 1.4;
+            margin: 0;
+            padding: 0;
+            padding-top: 110px;
         }
 
         .header {
-            width: 100%;
-            margin-bottom: 20px;
+            position: fixed;
+            top: 0px;
+            left: 0px;
+            right: 0px;
+            height: 100px;
             border-bottom: 2px solid #1e3a5f;
             padding-bottom: 10px;
         }
@@ -216,9 +225,9 @@
 
         .footer {
             position: fixed;
-            bottom: 5mm;
-            left: 10mm;
-            right: 10mm;
+            bottom: -15mm;
+            left: 0px;
+            right: 0px;
             text-align: center;
             font-size: 8px;
             color: #666;
@@ -348,5 +357,17 @@
     <div class="footer">
         Generado el {{ now()->format('d/m/Y H:i') }} | {{ auth()->user()->name }} | Sistema de Bodega
     </div>
+
+    <script type="text/php">
+        if (isset($pdf)) {
+            $text = "Página {PAGE_NUM} de {PAGE_COUNT}";
+            $font = $fontMetrics->getFont("DejaVu Sans");
+            $size = 8;
+            $width = $fontMetrics->getTextWidth($text, $font, $size);
+            $x = $pdf->get_width() - $width - 57;
+            $y = 14;
+            $pdf->page_text($x, $y, $text, $font, $size, array(0.4, 0.4, 0.4));
+        }
+    </script>
 </body>
 </html>
