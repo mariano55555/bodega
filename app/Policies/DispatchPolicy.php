@@ -39,9 +39,9 @@ class DispatchPolicy
      */
     public function update(User $user, Dispatch $dispatch): bool
     {
-        // User can only update dispatches from their company that are still draft or pending
+        // TEMPORAL: Se permite editar despachos entregados para agregar productos faltantes
         return $user->company_id === $dispatch->company_id
-            && in_array($dispatch->status, ['borrador', 'pendiente']);
+            && in_array($dispatch->status, ['borrador', 'pendiente', 'entregado']);
     }
 
     /**

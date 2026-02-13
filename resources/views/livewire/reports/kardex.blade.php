@@ -16,7 +16,7 @@ new class extends Component
     public ?int $product_id = null;
 
     #[Url]
-    public ?int $warehouse_id = null;
+    public string|int|null $warehouse_id = null;
 
     #[Url]
     public ?string $date_from = null;
@@ -97,6 +97,12 @@ new class extends Component
     }
 
     #[Computed]
+    public function isAllWarehouses(): bool
+    {
+        return $this->warehouse_id === 'all';
+    }
+
+    #[Computed]
     public function movements()
     {
         if (! $this->company_id || ! $this->product_id || ! $this->warehouse_id) {
@@ -106,9 +112,12 @@ new class extends Component
         $query = InventoryMovement::query()
             ->where('company_id', $this->company_id)
             ->where('product_id', $this->product_id)
-            ->where('warehouse_id', $this->warehouse_id)
             ->whereNotNull('balance_quantity')
             ->with(['product', 'warehouse', 'movementReason', 'dispatch', 'transfer', 'purchase', 'donation']);
+
+        if (! $this->isAllWarehouses) {
+            $query->where('warehouse_id', $this->warehouse_id);
+        }
 
         if ($this->date_from) {
             $query->whereDate('movement_date', '>=', $this->date_from);
@@ -126,7 +135,8 @@ new class extends Component
             $query->where('movement_reason_id', $this->movement_reason_id);
         }
 
-        return $query->orderBy('movement_date')
+        return $query->orderBy('warehouse_id')
+            ->orderBy('movement_date')
             ->orderBy('id')
             ->get();
     }
@@ -144,7 +154,7 @@ new class extends Component
     #[Computed]
     public function selectedWarehouse()
     {
-        if (! $this->warehouse_id) {
+        if (! $this->warehouse_id || $this->isAllWarehouses) {
             return null;
         }
 
@@ -153,10 +163,10 @@ new class extends Component
 
     public function exportPdf(): void
     {
-        if (! $this->product_id || ! $this->warehouse_id) {
+        if (! $this->product_id || ! $this->warehouse_id || $this->isAllWarehouses) {
             $this->dispatch('notify', [
                 'type' => 'error',
-                'message' => 'Por favor seleccione un producto y un almacén',
+                'message' => 'Para exportar PDF seleccione un producto y un almacén específico',
             ]);
 
             return;
@@ -172,10 +182,10 @@ new class extends Component
 
     public function exportExcel(): void
     {
-        if (! $this->product_id || ! $this->warehouse_id) {
+        if (! $this->product_id || ! $this->warehouse_id || $this->isAllWarehouses) {
             $this->dispatch('notify', [
                 'type' => 'error',
-                'message' => 'Por favor seleccione un producto y un almacén',
+                'message' => 'Para exportar Excel seleccione un producto y un almacén específico',
             ]);
 
             return;
@@ -237,6 +247,7 @@ new class extends Component
             <flux:field>
                 <flux:label badge="Requerido">Almacén</flux:label>
                 <flux:select wire:model.live="warehouse_id" placeholder="Seleccione un almacén" :disabled="!$company_id">
+                    <option value="all">-- Todas las bodegas --</option>
                     @foreach ($this->warehouses as $warehouse)
                         <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
                     @endforeach
@@ -300,7 +311,7 @@ new class extends Component
                 Limpiar Filtros
             </flux:button>
 
-            @if ($product_id && $warehouse_id)
+            @if ($product_id && $warehouse_id && $warehouse_id !== 'all')
                 <flux:button wire:click="exportPdf" variant="primary" icon="document-arrow-down">
                     Exportar PDF
                 </flux:button>
@@ -313,7 +324,7 @@ new class extends Component
     </flux:card>
 
     {{-- Report Header --}}
-    @if ($this->selectedProduct && $this->selectedWarehouse)
+    @if ($this->selectedProduct && ($this->selectedWarehouse || $this->isAllWarehouses))
         <flux:card class="mb-6">
             <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div>
@@ -329,7 +340,11 @@ new class extends Component
                 <div>
                     <flux:heading size="sm" class="mb-1">Almacén</flux:heading>
                     <p class="text-sm text-zinc-600 dark:text-zinc-400">
-                        {{ $this->selectedWarehouse->name }}
+                        @if ($this->isAllWarehouses)
+                            Todas las bodegas
+                        @else
+                            {{ $this->selectedWarehouse->name }}
+                        @endif
                     </p>
                 </div>
 
@@ -352,8 +367,10 @@ new class extends Component
                 <flux:text class="mt-2">
                     @if (! $company_id)
                         Seleccione una empresa para comenzar
-                    @elseif (! $product_id || ! $warehouse_id)
-                        Seleccione un producto y un almacén para ver el kardex
+                    @elseif (! $product_id)
+                        Seleccione un producto para ver el kardex
+                    @elseif (! $warehouse_id)
+                        Seleccione un almacén para ver el kardex
                     @else
                         No se encontraron movimientos para el período seleccionado
                     @endif
@@ -364,6 +381,9 @@ new class extends Component
                 <flux:table>
                     <flux:table.columns>
                         <flux:table.column class="w-32">Fecha</flux:table.column>
+                        @if ($this->isAllWarehouses)
+                            <flux:table.column>Bodega</flux:table.column>
+                        @endif
                         <flux:table.column>Documento</flux:table.column>
                         <flux:table.column>Transacción</flux:table.column>
                         <flux:table.column align="right">Saldo Inicial</flux:table.column>
@@ -380,6 +400,12 @@ new class extends Component
                                 <flux:table.cell>
                                     {{ $movement->movement_date?->format('d/m/Y') ?? $movement->created_at->format('d/m/Y') }}
                                 </flux:table.cell>
+
+                                @if ($this->isAllWarehouses)
+                                    <flux:table.cell>
+                                        <flux:badge size="sm">{{ $movement->warehouse?->name ?? '-' }}</flux:badge>
+                                    </flux:table.cell>
+                                @endif
 
                                 <flux:table.cell>
                                     <div class="flex flex-col gap-1">
@@ -512,57 +538,124 @@ new class extends Component
             <div class="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-700">
                 @if ($this->movements->isNotEmpty())
                     @php
-                        $firstMovement = $this->movements->first();
-                        $lastMovement = $this->movements->last();
-                        $initialBalance = $firstMovement->balance_quantity - $firstMovement->quantity_in + $firstMovement->quantity_out;
-                        $finalValue = $lastMovement->balance_quantity * ($lastMovement->unit_cost ?? 0);
                         $totalIn = $this->movements->sum('quantity_in');
                         $totalOut = $this->movements->sum('quantity_out');
                     @endphp
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {{-- Row 1 --}}
-                        <div class="flex items-center gap-2">
-                            <flux:text class="font-medium">Total Entradas:</flux:text>
-                            <flux:text class="font-semibold text-green-600 dark:text-green-400">
-                                {{ number_format($totalIn, 2) }}
-                            </flux:text>
+                    @if ($this->isAllWarehouses)
+                        {{-- Summary per warehouse when showing all --}}
+                        @php
+                            $byWarehouse = $this->movements->groupBy('warehouse_id');
+                        @endphp
+
+                        <flux:heading size="sm" class="mb-3">Resumen por Bodega</flux:heading>
+                        <div class="space-y-3">
+                            @foreach ($byWarehouse as $whId => $whMovements)
+                                @php
+                                    $lastWh = $whMovements->last();
+                                    $whName = $lastWh->warehouse?->name ?? 'N/A';
+                                    $whFinalValue = $lastWh->balance_quantity * ($lastWh->unit_cost ?? 0);
+                                @endphp
+                                <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                                    <div class="mb-2 font-medium text-zinc-900 dark:text-zinc-100">{{ $whName }}</div>
+                                    <div class="grid grid-cols-2 gap-2 text-sm md:grid-cols-5">
+                                        <div>
+                                            <span class="text-zinc-500">Entradas:</span>
+                                            <span class="font-semibold text-green-600 dark:text-green-400">{{ number_format($whMovements->sum('quantity_in'), 2) }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-zinc-500">Salidas:</span>
+                                            <span class="font-semibold text-blue-600 dark:text-blue-400">{{ number_format($whMovements->sum('quantity_out'), 2) }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-zinc-500">Existencia:</span>
+                                            <span class="font-semibold {{ $lastWh->balance_quantity < 0 ? 'text-red-600 dark:text-red-400' : '' }}">{{ number_format($lastWh->balance_quantity, 2) }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-zinc-500">Costo Unit.:</span>
+                                            <span class="font-semibold">${{ number_format($lastWh->unit_cost ?? 0, 2) }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-zinc-500">Valor:</span>
+                                            <span class="font-semibold text-amber-600 dark:text-amber-400">${{ number_format($whFinalValue, 2) }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
                         </div>
 
-                        <div class="flex items-center gap-2">
-                            <flux:text class="font-medium">Total Salidas:</flux:text>
-                            <flux:text class="font-semibold text-blue-600 dark:text-blue-400">
-                                {{ number_format($totalOut, 2) }}
-                            </flux:text>
-                        </div>
+                        <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                            <div class="flex items-center gap-2">
+                                <flux:text class="font-medium">Total Entradas (todas):</flux:text>
+                                <flux:text class="font-semibold text-green-600 dark:text-green-400">
+                                    {{ number_format($totalIn, 2) }}
+                                </flux:text>
+                            </div>
 
-                        <div class="flex items-center gap-2">
-                            <flux:text class="font-medium">Valor en Inventario:</flux:text>
-                            <flux:text class="font-semibold text-amber-600 dark:text-amber-400">
-                                ${{ number_format($finalValue, 2) }}
-                            </flux:text>
-                        </div>
+                            <div class="flex items-center gap-2">
+                                <flux:text class="font-medium">Total Salidas (todas):</flux:text>
+                                <flux:text class="font-semibold text-blue-600 dark:text-blue-400">
+                                    {{ number_format($totalOut, 2) }}
+                                </flux:text>
+                            </div>
 
-                        {{-- Row 2 --}}
-                        <div class="flex items-center gap-2">
-                            <flux:text class="font-medium">Total Movimientos:</flux:text>
-                            <flux:text class="font-semibold">{{ $this->movements->count() }}</flux:text>
+                            <div class="flex items-center gap-2">
+                                <flux:text class="font-medium">Total Movimientos:</flux:text>
+                                <flux:text class="font-semibold">{{ $this->movements->count() }}</flux:text>
+                            </div>
                         </div>
+                    @else
+                        @php
+                            $firstMovement = $this->movements->first();
+                            $lastMovement = $this->movements->last();
+                            $initialBalance = $firstMovement->balance_quantity - $firstMovement->quantity_in + $firstMovement->quantity_out;
+                            $finalValue = $lastMovement->balance_quantity * ($lastMovement->unit_cost ?? 0);
+                        @endphp
 
-                        <div class="flex items-center gap-2">
-                            <flux:text class="font-medium">Existencia Actual:</flux:text>
-                            <flux:text class="font-semibold {{ $lastMovement->balance_quantity < 0 ? 'text-red-600 dark:text-red-400' : '' }}">
-                                {{ number_format($lastMovement->balance_quantity, 2) }}
-                            </flux:text>
-                        </div>
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            {{-- Row 1 --}}
+                            <div class="flex items-center gap-2">
+                                <flux:text class="font-medium">Total Entradas:</flux:text>
+                                <flux:text class="font-semibold text-green-600 dark:text-green-400">
+                                    {{ number_format($totalIn, 2) }}
+                                </flux:text>
+                            </div>
 
-                        <div class="flex items-center gap-2">
-                            <flux:text class="font-medium">Costo Unitario Actual:</flux:text>
-                            <flux:text class="font-semibold">
-                                ${{ number_format($lastMovement->unit_cost ?? 0, 2) }}
-                            </flux:text>
+                            <div class="flex items-center gap-2">
+                                <flux:text class="font-medium">Total Salidas:</flux:text>
+                                <flux:text class="font-semibold text-blue-600 dark:text-blue-400">
+                                    {{ number_format($totalOut, 2) }}
+                                </flux:text>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <flux:text class="font-medium">Valor en Inventario:</flux:text>
+                                <flux:text class="font-semibold text-amber-600 dark:text-amber-400">
+                                    ${{ number_format($finalValue, 2) }}
+                                </flux:text>
+                            </div>
+
+                            {{-- Row 2 --}}
+                            <div class="flex items-center gap-2">
+                                <flux:text class="font-medium">Total Movimientos:</flux:text>
+                                <flux:text class="font-semibold">{{ $this->movements->count() }}</flux:text>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <flux:text class="font-medium">Existencia Actual:</flux:text>
+                                <flux:text class="font-semibold {{ $lastMovement->balance_quantity < 0 ? 'text-red-600 dark:text-red-400' : '' }}">
+                                    {{ number_format($lastMovement->balance_quantity, 2) }}
+                                </flux:text>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <flux:text class="font-medium">Costo Unitario Actual:</flux:text>
+                                <flux:text class="font-semibold">
+                                    ${{ number_format($lastMovement->unit_cost ?? 0, 2) }}
+                                </flux:text>
+                            </div>
                         </div>
-                    </div>
+                    @endif
                 @else
                     <div class="flex items-center gap-2">
                         <flux:text class="font-medium">Total de Movimientos:</flux:text>

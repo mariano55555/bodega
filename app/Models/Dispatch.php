@@ -518,6 +518,7 @@ class Dispatch extends Model
 
     public function canBeEdited(): bool
     {
-        return in_array($this->status, ['borrador', 'pendiente']);
+        // TEMPORAL: Se permite editar despachos entregados para agregar productos faltantes
+        return in_array($this->status, ['borrador', 'pendiente', 'entregado']);
     }
 }

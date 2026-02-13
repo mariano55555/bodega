@@ -3,6 +3,9 @@
 use App\Models\Employee;
 use App\Models\Dispatch;
 use App\Models\DispatchDetail;
+use App\Models\Inventory;
+use App\Models\InventoryMovement;
+use App\Models\MovementReason;
 use App\Models\Product;
 use App\Models\UnitOfMeasure;
 use App\Models\Warehouse;
@@ -187,6 +190,8 @@ new #[Layout('components.layouts.app')] class extends Component
         ]);
 
         \DB::transaction(function () {
+            $isDelivered = in_array($this->dispatch->status, ['despachado', 'entregado']);
+
             $this->dispatch->update([
                 'warehouse_id' => $this->warehouse_id,
                 'area_id' => $this->area_id,
@@ -205,10 +210,13 @@ new #[Layout('components.layouts.app')] class extends Component
             // Get existing detail IDs
             $existingIds = collect($this->details)->pluck('id')->filter()->toArray();
 
-            // Delete removed details
-            $this->dispatch->details()->whereNotIn('id', $existingIds)->delete();
+            // No eliminar detalles existentes si el despacho ya fue despachado/entregado (tienen movimientos de inventario)
+            if (! $isDelivered) {
+                $this->dispatch->details()->whereNotIn('id', $existingIds)->delete();
+            }
 
             // Update or create details
+            $newDetails = [];
             foreach ($this->details as $detail) {
                 if (isset($detail['id']) && $detail['id']) {
                     // Update existing
@@ -221,7 +229,7 @@ new #[Layout('components.layouts.app')] class extends Component
                     ]);
                 } else {
                     // Create new
-                    DispatchDetail::create([
+                    $newDetail = DispatchDetail::create([
                         'dispatch_id' => $this->dispatch->id,
                         'product_id' => $detail['product_id'],
                         'quantity' => $detail['quantity'],
@@ -229,7 +237,13 @@ new #[Layout('components.layouts.app')] class extends Component
                         'unit_price' => $detail['unit_price'] ?? 0,
                         'notes' => $detail['notes'] ?? null,
                     ]);
+                    $newDetails[] = $newDetail;
                 }
+            }
+
+            // TEMPORAL: Si el despacho ya fue despachado/entregado, procesar inventario para los nuevos items
+            if ($isDelivered && ! empty($newDetails)) {
+                $this->processInventoryForNewDetails($newDetails);
             }
 
             $this->dispatch->calculateTotals();
@@ -237,6 +251,93 @@ new #[Layout('components.layouts.app')] class extends Component
             session()->flash('success', 'Despacho actualizado exitosamente.');
             $this->redirect(route('dispatches.show', $this->dispatch), navigate: true);
         });
+    }
+
+    /**
+     * TEMPORAL: Procesa movimientos de inventario para nuevos detalles agregados a despachos ya entregados/despachados.
+     *
+     * @param  array<DispatchDetail>  $newDetails
+     */
+    private function processInventoryForNewDetails(array $newDetails): void
+    {
+        $dispatch = $this->dispatch;
+        $userId = auth()->id();
+
+        $movementReason = MovementReason::where('code', 'DISPATCH')->first()
+            ?? MovementReason::where('movement_type', 'out')->first();
+
+        if (! $movementReason) {
+            throw new \Exception('Movement reason for dispatch not found');
+        }
+
+        $movementType = match ($dispatch->dispatch_type) {
+            'venta' => 'sale',
+            'interno' => 'transfer_out',
+            'externo' => 'transfer_out',
+            'donacion' => 'sale',
+            default => 'sale',
+        };
+
+        foreach ($newDetails as $detail) {
+            // Marcar como despachado y entregado
+            $detail->quantity_dispatched = $detail->quantity;
+            $detail->is_reserved = true;
+            $detail->reserved_by = $userId;
+            $detail->reserved_at = now();
+
+            if ($dispatch->status === 'entregado') {
+                $detail->quantity_delivered = $detail->quantity;
+            }
+
+            $detail->save();
+
+            // Obtener balance actual del producto en la bodega
+            $currentStock = InventoryMovement::where('warehouse_id', $dispatch->warehouse_id)
+                ->where('product_id', $detail->product_id)
+                ->whereNotNull('balance_quantity')
+                ->orderBy('movement_date', 'desc')
+                ->orderBy('id', 'desc')
+                ->first();
+
+            $previousBalance = $currentStock ? $currentStock->balance_quantity : 0;
+            $newBalance = $previousBalance - $detail->quantity;
+
+            // Crear movimiento de inventario
+            InventoryMovement::create([
+                'company_id' => $dispatch->company_id,
+                'warehouse_id' => $dispatch->warehouse_id,
+                'product_id' => $detail->product_id,
+                'movement_reason_id' => $movementReason->id,
+                'dispatch_id' => $dispatch->id,
+                'movement_type' => $movementType,
+                'movement_date' => $dispatch->dispatched_at ?? now(),
+                'quantity' => $detail->quantity,
+                'quantity_in' => 0,
+                'quantity_out' => $detail->quantity,
+                'balance_quantity' => $newBalance,
+                'previous_quantity' => $previousBalance,
+                'new_quantity' => $newBalance,
+                'unit_cost' => $detail->unit_price,
+                'total_cost' => $detail->quantity * $detail->unit_price,
+                'document_type' => $dispatch->document_type,
+                'document_number' => $dispatch->document_number,
+                'notes' => "Despacho {$dispatch->dispatch_number} - Producto agregado post-entrega",
+                'is_active' => true,
+                'active_at' => now(),
+                'created_by' => $userId,
+            ]);
+
+            // Actualizar inventario
+            $inventory = Inventory::where('product_id', $detail->product_id)
+                ->where('warehouse_id', $dispatch->warehouse_id)
+                ->first();
+
+            if ($inventory) {
+                $inventory->quantity -= $detail->quantity;
+                $inventory->available_quantity -= $detail->quantity;
+                $inventory->save();
+            }
+        }
     }
 
     public function isSuperAdmin(): bool
