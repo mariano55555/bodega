@@ -2,6 +2,7 @@
 document.addEventListener('alpine:init', () => {
     // Initialize stores for dispatch rows
     Alpine.store('dispatchProducts', {});
+    Alpine.store('dispatchAvailableStock', {});
     Alpine.store('rowTotals', {});
     Alpine.store('grandTotal', 0);
 
@@ -36,6 +37,16 @@ document.addEventListener('alpine:init', () => {
             return this.productId ? data[this.productId] : null;
         },
 
+        get availableStock() {
+            const stockData = Alpine.store('dispatchAvailableStock') || {};
+            return this.productId ? (parseFloat(stockData[this.productId]) || 0) : 0;
+        },
+
+        get exceedsStock() {
+            if (!this.productId || this.availableStock <= 0) return false;
+            return (parseFloat(this.quantity) || 0) > this.availableStock;
+        },
+
         get total() {
             return (parseFloat(this.quantity) || 0) * (parseFloat(this.unitPrice) || 0);
         },
@@ -53,13 +64,24 @@ document.addEventListener('alpine:init', () => {
                 this.unitPrice = productsData[id].cost || 0;
                 this.unitId = productsData[id].unit_id || '';
             }
+            this.capQuantityToStock();
             this.emitTotal();
             this.syncToLivewire();
         },
 
         updateQuantity() {
+            this.capQuantityToStock();
             this.emitTotal();
             this.syncToLivewire();
+        },
+
+        capQuantityToStock() {
+            if (this.productId && this.availableStock > 0) {
+                const qty = parseFloat(this.quantity) || 0;
+                if (qty > this.availableStock) {
+                    this.quantity = parseFloat(this.availableStock.toFixed(5));
+                }
+            }
         },
 
         updateUnitPrice() {

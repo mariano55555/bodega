@@ -6,10 +6,10 @@
     <title>Resumen Salidas por Línea Presupuestaria</title>
     <style>
         @page {
-            margin-top: 5mm;
-            margin-right: 20mm;
+            margin-top: 35mm;
+            margin-right: 15mm;
             margin-bottom: 20mm;
-            margin-left: 20mm;
+            margin-left: 15mm;
         }
 
         * {
@@ -25,15 +25,14 @@
             line-height: 1.4;
             margin: 0;
             padding: 0;
-            padding-top: 110px;
         }
 
         .header {
             position: fixed;
-            top: 0px;
-            left: 0px;
-            right: 0px;
-            height: 100px;
+            top: 10mm;
+            left: 5mm;
+            right: 5mm;
+            height: 30mm;
             border-bottom: 2px solid #1e3a5f;
             padding-bottom: 10px;
         }
@@ -211,7 +210,7 @@
 
         .footer {
             position: fixed;
-            bottom: -15mm;
+            bottom: -20mm;
             left: 0px;
             right: 0px;
             text-align: center;
@@ -250,6 +249,8 @@
             </tr>
         </table>
     </div>
+
+    <div style="margin-top: 45mm;"></div>
 
     @if ($groupedByParent->isEmpty())
         <div class="no-data">
@@ -328,7 +329,7 @@
             $font = $fontMetrics->getFont("DejaVu Sans");
             $size = 8;
             $width = $fontMetrics->getTextWidth($text, $font, $size);
-            $x = $pdf->get_width() - $width - 57;
+            $x = ($pdf->get_width() - $width) / 2 + 60;
             $y = 14;
             $pdf->page_text($x, $y, $text, $font, $size, array(0.4, 0.4, 0.4));
         }

@@ -1,53 +1,52 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kardex de Inventario - {{ $product->name }}</title>
     <style>
         @page {
-    margin-top: 120px;
-    margin-right: 15mm;
-    margin-bottom: 20mm;
-    margin-left: 15mm;
-}
+            margin-top: 35mm;
+            margin-right: 15mm;
+            margin-bottom: 20mm;
+            margin-left: 15mm;
+        }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-body {
-    font-family: 'DejaVu Sans', sans-serif;
-    font-size: 9px;
-    color: #333;
-    line-height: 1.4;
-    margin: 0;
-    padding: 0;
-}
+        body {
+            font-family: 'DejaVu Sans', sans-serif;
+            font-size: 9px;
+            color: #333;
+            line-height: 1.4;
+        }
 
         .header {
-    position: fixed;
-    top: -120px;
-    left: 0px;
-    right: 0px;
-    height: 100px;
-    border-bottom: 2px solid #1e3a5f;
-    padding-bottom: 10px;
-}
+            position: fixed;
+            top: 10mm;
+            left: 5mm;
+            right: 5mm;
+            height: 30mm;
+            border-bottom: 2px solid #1e3a5f;
+            padding-bottom: 5px;
+        }
 
-.footer {
-    position: fixed;
-    bottom: -20mm;
-    left: 0px;
-    right: 0px;
-    text-align: center;
-    font-size: 8px;
-    color: #666;
-    border-top: 1px solid #ddd;
-    padding-top: 5px;
-}
+        .footer {
+            position: fixed;
+            bottom: -20mm;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 8px;
+            color: #666;
+            border-top: 1px solid #ddd;
+            padding-top: 5px;
+        }
 
         .header-table {
             width: 100%;
@@ -102,6 +101,7 @@ body {
             margin-bottom: 15px;
             background-color: #f5f5f5;
             padding: 10px;
+            margin-top: 45mm;
         }
 
         .info-table {
@@ -126,9 +126,11 @@ body {
         }
 
         table.data-table {
-            width: 100%;
+            width: 95%;
             border-collapse: collapse;
             margin-bottom: 15px;
+            margin-left: 5mm;
+            margin-right: 5mm;
         }
 
         table.data-table thead {
@@ -176,6 +178,8 @@ body {
         .balance {
             font-weight: bold;
             color: #1a1a1a;
+            margin-left: 5mm;
+            margin-right: 5mm;
         }
 
         .balance-negative {
@@ -196,6 +200,8 @@ body {
             background-color: #1e3a5f;
             color: white;
             padding: 12px 15px;
+            margin-right: 5mm;
+            margin-left: 5mm;
         }
 
         .summary-table {
@@ -265,6 +271,7 @@ body {
         }
     </style>
 </head>
+
 <body>
     <div class="header">
         <table class="header-table">
@@ -299,13 +306,14 @@ body {
                 <td class="label">Período:</td>
                 <td class="value">
                     @if ($dateFrom && $dateTo)
-                        {{ \Carbon\Carbon::parse($dateFrom)->format('d/m/Y') }} - {{ \Carbon\Carbon::parse($dateTo)->format('d/m/Y') }}
+                    {{ \Carbon\Carbon::parse($dateFrom)->format('d/m/Y') }} - {{
+                    \Carbon\Carbon::parse($dateTo)->format('d/m/Y') }}
                     @elseif ($dateFrom)
-                        Desde {{ \Carbon\Carbon::parse($dateFrom)->format('d/m/Y') }}
+                    Desde {{ \Carbon\Carbon::parse($dateFrom)->format('d/m/Y') }}
                     @elseif ($dateTo)
-                        Hasta {{ \Carbon\Carbon::parse($dateTo)->format('d/m/Y') }}
+                    Hasta {{ \Carbon\Carbon::parse($dateTo)->format('d/m/Y') }}
                     @else
-                        Todos los registros
+                    Todos los registros
                     @endif
                 </td>
             </tr>
@@ -313,144 +321,145 @@ body {
     </div>
 
     @if ($movements->isEmpty())
-        <div class="no-data">
-            No se encontraron movimientos para el período seleccionado
-        </div>
+    <div class="no-data">
+        No se encontraron movimientos para el período seleccionado
+    </div>
     @else
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th style="width: 10%;">Fecha</th>
-                    <th style="width: 14%;">Documento</th>
-                    <th style="width: 18%;">Transacción</th>
-                    <th class="right" style="width: 9%;">Saldo Ini.</th>
-                    <th class="right" style="width: 9%;">Entrada</th>
-                    <th class="right" style="width: 9%;">Salida</th>
-                    <th class="right" style="width: 10%;">Saldo Final</th>
-                    <th class="right" style="width: 10%;">Costo Unit.</th>
-                    <th class="right" style="width: 11%;">Valor Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach ($movements as $movement)
-                    @php
-                        $initialBalance = $movement->balance_quantity - $movement->quantity_in + $movement->quantity_out;
-                        $totalValue = $movement->balance_quantity * ($movement->unit_cost ?? 0);
-                    @endphp
-                    <tr>
-                        <td>
-                            {{ $movement->movement_date?->format('d/m/Y') ?? $movement->created_at->format('d/m/Y') }}
-                        </td>
-                        <td>
-                            @if ($movement->document_number)
-                                <strong>{{ $movement->document_number }}</strong>
-                            @endif
-                            @if ($movement->reference_number)
-                                <br><span class="document-info">Ref: {{ $movement->reference_number }}</span>
-                            @endif
-                            @if (! $movement->document_number && ! $movement->reference_number)
-                                <span class="document-info">Sin documento</span>
-                            @endif
-                        </td>
-                        <td>
-                            @if ($movement->movementReason)
-                                <strong>{{ $movement->movementReason->legacy_code ?? $movement->movementReason->code }}</strong><br>
-                                <span style="font-size: 7px; color: #666;">{{ $movement->movementReason->legacy_name ?? $movement->movementReason->name }}</span>
-                            @else
-                                {{ $movement->movement_type_spanish }}
-                            @endif
-                        </td>
-                        <td class="right">
-                            <span class="{{ $initialBalance < 0 ? 'balance-negative' : '' }}">
-                                {{ number_format($initialBalance, 2) }}
-                            </span>
-                        </td>
-                        <td class="right">
-                            @if ($movement->quantity_in > 0)
-                                <span class="quantity-in">{{ number_format($movement->quantity_in, 2) }}</span>
-                            @else
-                                -
-                            @endif
-                        </td>
-                        <td class="right">
-                            @if ($movement->quantity_out > 0)
-                                <span class="quantity-out">{{ number_format($movement->quantity_out, 2) }}</span>
-                            @else
-                                -
-                            @endif
-                        </td>
-                        <td class="right">
-                            <span class="balance {{ $movement->balance_quantity < 0 ? 'balance-negative' : '' }}">
-                                {{ number_format($movement->balance_quantity, 2) }}
-                            </span>
-                        </td>
-                        <td class="right cost">
-                            @if ($movement->unit_cost)
-                                ${{ number_format($movement->unit_cost, 2) }}
-                            @else
-                                -
-                            @endif
-                        </td>
-                        <td class="right value-col">
-                            ${{ number_format($totalValue, 2) }}
-                        </td>
-                    </tr>
-                @endforeach
-            </tbody>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 9%;">Fecha</th>
+                <th style="width: 12%;">Documento</th>
+                <th style="width: 17%;">Transacción</th>
+                <th class="right" style="width: 8%;">Saldo Ini.</th>
+                <th class="right" style="width: 8%;">Entrada</th>
+                <th class="right" style="width: 8%;">Salida</th>
+                <th class="right" style="width: 9%;">Saldo Final</th>
+                <th class="right" style="width: 9%;">Costo Unit.</th>
+                <th class="right" style="width: 10%;">Valor Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach ($movements as $movement)
+            @php
+            $initialBalance = $movement->balance_quantity - $movement->quantity_in + $movement->quantity_out;
+            $totalValue = $movement->balance_quantity * ($movement->unit_cost ?? 0);
+            @endphp
+            <tr>
+                <td>
+                    {{ $movement->movement_date?->format('d/m/Y') ?? $movement->created_at->format('d/m/Y') }}
+                </td>
+                <td>
+                    @if ($movement->document_number)
+                    <strong>{{ $movement->document_number }}</strong>
+                    @endif
+                    @if ($movement->reference_number)
+                    <br><span class="document-info">Ref: {{ $movement->reference_number }}</span>
+                    @endif
+                    @if (! $movement->document_number && ! $movement->reference_number)
+                    <span class="document-info">Sin documento</span>
+                    @endif
+                </td>
+                <td>
+                    @if ($movement->movementReason)
+                    <strong>{{ $movement->movementReason->legacy_code ?? $movement->movementReason->code }}</strong><br>
+                    <span style="font-size: 7px; color: #666;">{{ $movement->movementReason->legacy_name ??
+                        $movement->movementReason->name }}</span>
+                    @else
+                    {{ $movement->movement_type_spanish }}
+                    @endif
+                </td>
+                <td class="right">
+                    <span class="{{ $initialBalance < 0 ? 'balance-negative' : '' }}">
+                        {{ number_format($initialBalance, 2) }}
+                    </span>
+                </td>
+                <td class="right">
+                    @if ($movement->quantity_in > 0)
+                    <span class="quantity-in">{{ number_format($movement->quantity_in, 2) }}</span>
+                    @else
+                    -
+                    @endif
+                </td>
+                <td class="right">
+                    @if ($movement->quantity_out > 0)
+                    <span class="quantity-out">{{ number_format($movement->quantity_out, 2) }}</span>
+                    @else
+                    -
+                    @endif
+                </td>
+                <td class="right">
+                    <span class="balance {{ $movement->balance_quantity < 0 ? 'balance-negative' : '' }}">
+                        {{ number_format($movement->balance_quantity, 2) }}
+                    </span>
+                </td>
+                <td class="right cost">
+                    @if ($movement->unit_cost)
+                    ${{ number_format($movement->unit_cost, 2) }}
+                    @else
+                    -
+                    @endif
+                </td>
+                <td class="right value-col">
+                    ${{ number_format($totalValue, 2) }}
+                </td>
+            </tr>
+            @endforeach
+        </tbody>
+    </table>
+
+    @php
+    $firstMovement = $movements->first();
+    $lastMovement = $movements->last();
+    $initialBalance = $firstMovement->balance_quantity - $firstMovement->quantity_in + $firstMovement->quantity_out;
+    $finalValue = $lastMovement->balance_quantity * ($lastMovement->unit_cost ?? 0);
+    $totalIn = $movements->sum('quantity_in');
+    $totalOut = $movements->sum('quantity_out');
+    @endphp
+    <div class="summary">
+        <table class="summary-table">
+            <tr>
+                <td class="label">Total Entradas:</td>
+                <td class="value">{{ number_format($totalIn, 2) }}</td>
+            </tr>
+            <tr>
+                <td class="label">Total Salidas:</td>
+                <td class="value">{{ number_format($totalOut, 2) }}</td>
+            </tr>
+            <tr>
+                <td class="label">Valor en Inventario:</td>
+                <td class="value">${{ number_format($finalValue, 2) }}</td>
+            </tr>
+            <tr class="separator">
+                <td class="label">Total Movimientos:</td>
+                <td class="value">{{ $movements->count() }}</td>
+            </tr>
+            <tr>
+                <td class="label">Existencia Actual:</td>
+                <td class="value">{{ number_format($lastMovement->balance_quantity, 2) }}</td>
+            </tr>
+            <tr>
+                <td class="label">Costo Unitario Actual:</td>
+                <td class="value">${{ number_format($lastMovement->unit_cost ?? 0, 2) }}</td>
+            </tr>
         </table>
+    </div>
 
-        @php
-            $firstMovement = $movements->first();
-            $lastMovement = $movements->last();
-            $initialBalance = $firstMovement->balance_quantity - $firstMovement->quantity_in + $firstMovement->quantity_out;
-            $finalValue = $lastMovement->balance_quantity * ($lastMovement->unit_cost ?? 0);
-            $totalIn = $movements->sum('quantity_in');
-            $totalOut = $movements->sum('quantity_out');
-        @endphp
-        <div class="summary">
-            <table class="summary-table">
-                <tr>
-                    <td class="label">Total Entradas:</td>
-                    <td class="value">{{ number_format($totalIn, 2) }}</td>
-                </tr>
-                <tr>
-                    <td class="label">Total Salidas:</td>
-                    <td class="value">{{ number_format($totalOut, 2) }}</td>
-                </tr>
-                <tr>
-                    <td class="label">Valor en Inventario:</td>
-                    <td class="value">${{ number_format($finalValue, 2) }}</td>
-                </tr>
-                <tr class="separator">
-                    <td class="label">Total Movimientos:</td>
-                    <td class="value">{{ $movements->count() }}</td>
-                </tr>
-                <tr>
-                    <td class="label">Existencia Actual:</td>
-                    <td class="value">{{ number_format($lastMovement->balance_quantity, 2) }}</td>
-                </tr>
-                <tr>
-                    <td class="label">Costo Unitario Actual:</td>
-                    <td class="value">${{ number_format($lastMovement->unit_cost ?? 0, 2) }}</td>
-                </tr>
-            </table>
-        </div>
-
-        <div class="signatures">
-            <table class="signatures-table">
-                <tr>
-                    <td>
-                        <div class="signature-line">Elaborado</div>
-                    </td>
-                    <td>
-                        <div class="signature-line">Revisado</div>
-                    </td>
-                    <td>
-                        <div class="signature-line">Autorizado</div>
-                    </td>
-                </tr>
-            </table>
-        </div>
+    <div class="signatures">
+        <table class="signatures-table">
+            <tr>
+                <td>
+                    <div class="signature-line">Elaborado</div>
+                </td>
+                <td>
+                    <div class="signature-line">Revisado</div>
+                </td>
+                <td>
+                    <div class="signature-line">Autorizado</div>
+                </td>
+            </tr>
+        </table>
+    </div>
     @endif
 
     <div class="footer">
@@ -463,10 +472,11 @@ body {
             $font = $fontMetrics->getFont("DejaVu Sans");
             $size = 8;
             $width = $fontMetrics->getTextWidth($text, $font, $size);
-            $x = $pdf->get_width() - $width - 57;
+            $x = ($pdf->get_width() - $width) / 2 + 60;
             $y = 14;
             $pdf->page_text($x, $y, $text, $font, $size, array(0.4, 0.4, 0.4));
         }
     </script>
 </body>
+
 </html>

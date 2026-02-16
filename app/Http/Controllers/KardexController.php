@@ -67,7 +67,7 @@ class KardexController extends Controller
             'movements' => $movements,
             'dateFrom' => $validated['date_from'] ?? null,
             'dateTo' => $validated['date_to'] ?? null,
-        ]);
+        ])->setPaper('letter', 'portrait');
 
         $filename = sprintf(
             'kardex_%s_%s_%s.pdf',

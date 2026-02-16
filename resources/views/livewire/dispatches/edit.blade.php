@@ -189,8 +189,48 @@ new #[Layout('components.layouts.app')] class extends Component
             'details.*.unit_of_measure_id' => 'required|exists:units_of_measure,id',
         ]);
 
-        \DB::transaction(function () {
+        \DB::beginTransaction();
+        try {
             $isDelivered = in_array($this->dispatch->status, ['despachado', 'entregado']);
+
+            // Validate stock availability inside transaction with lock (aggregate check: same product in multiple rows)
+            $productQuantities = [];
+            foreach ($this->details as $index => $detail) {
+                $pid = $detail['product_id'];
+                if (! isset($productQuantities[$pid])) {
+                    $productQuantities[$pid] = ['total' => 0, 'indices' => []];
+                }
+                $productQuantities[$pid]['total'] += (float) $detail['quantity'];
+                $productQuantities[$pid]['indices'][] = $index;
+            }
+
+            $inventories = Inventory::where('warehouse_id', $this->warehouse_id)
+                ->whereIn('product_id', array_keys($productQuantities))
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('product_id');
+
+            $hasStockError = false;
+            foreach ($productQuantities as $pid => $data) {
+                $available = $inventories->get($pid)?->available_quantity ?? 0;
+                if ($data['total'] > $available) {
+                    $hasStockError = true;
+                    $productName = Product::find($pid)?->name ?? "Producto #{$pid}";
+                    foreach ($data['indices'] as $idx) {
+                        $this->addError(
+                            "details.{$idx}.quantity",
+                            "Stock insuficiente para '{$productName}'. Disponible: ".number_format($available, 5).", solicitado total: ".number_format($data['total'], 5)
+                        );
+                    }
+                }
+            }
+
+            if ($hasStockError) {
+                \DB::rollBack();
+                $this->addError('stock', 'Uno o más productos exceden el stock disponible en la bodega.');
+
+                return;
+            }
 
             $this->dispatch->update([
                 'warehouse_id' => $this->warehouse_id,
@@ -248,9 +288,15 @@ new #[Layout('components.layouts.app')] class extends Component
 
             $this->dispatch->calculateTotals();
 
+            \DB::commit();
+
             session()->flash('success', 'Despacho actualizado exitosamente.');
             $this->redirect(route('dispatches.show', $this->dispatch), navigate: true);
-        });
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            session()->flash('error', 'Error al actualizar el despacho. Por favor intente nuevamente.');
+            \Log::error('Error updating dispatch: '.$e->getMessage());
+        }
     }
 
     /**
@@ -343,6 +389,24 @@ new #[Layout('components.layouts.app')] class extends Component
     public function isSuperAdmin(): bool
     {
         return auth()->user()->isSuperAdmin();
+    }
+
+    /**
+     * Get available stock per product for the selected warehouse (for Alpine.js frontend validation)
+     */
+    #[\Livewire\Attributes\Computed]
+    public function availableStockData(): array
+    {
+        if (! $this->warehouse_id) {
+            return [];
+        }
+
+        return Inventory::where('warehouse_id', $this->warehouse_id)
+            ->where('available_quantity', '>', 0)
+            ->get()
+            ->keyBy('product_id')
+            ->map(fn ($inv) => $inv->available_quantity)
+            ->toArray();
     }
 
     /**
@@ -510,6 +574,7 @@ new #[Layout('components.layouts.app')] class extends Component
                  x-data
                  x-init="
                     $store.dispatchProducts = @js($this->productsData);
+                    $store.dispatchAvailableStock = @js($this->availableStockData);
                     $store.rowTotals = {};
                     $store.grandTotal = 0;
                  "
@@ -581,11 +646,23 @@ new #[Layout('components.layouts.app')] class extends Component
                                         type="number"
                                         step="0.00001"
                                         min="0.00001"
+                                        :max="availableStock > 0 ? availableStock : undefined"
                                         x-model.number="quantity"
                                         @input="emitTotal()"
                                         @change="updateQuantity()"
-                                        class="block w-full text-center rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                                        :class="exceedsStock ? 'border-red-500 dark:border-red-500 ring-2 ring-red-200 dark:ring-red-900/50' : 'border-zinc-200 dark:border-zinc-600 focus:border-zinc-400 dark:focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700'"
+                                        class="block w-full text-center rounded-lg bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:outline-none dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500"
                                     />
+                                    <template x-if="exceedsStock">
+                                        <span class="text-xs text-red-600 dark:text-red-400">
+                                            Máx: <span x-text="availableStock.toFixed(5)"></span>
+                                        </span>
+                                    </template>
+                                    <template x-if="productId && availableStock > 0 && !exceedsStock">
+                                        <span class="text-xs text-zinc-500 dark:text-zinc-400">
+                                            Disp: <span x-text="availableStock.toFixed(5)"></span>
+                                        </span>
+                                    </template>
                                     <flux:error name="details.{{ $index }}.quantity" />
                                 </div>
                             </flux:table.cell>
@@ -682,6 +759,13 @@ new #[Layout('components.layouts.app')] class extends Component
             </div>
 
             <flux:error name="details" />
+
+            @error('stock')
+                <flux:callout variant="danger" icon="exclamation-triangle" class="mt-4">
+                    <flux:callout.heading>Stock insuficiente</flux:callout.heading>
+                    <flux:callout.text>{{ $message }}</flux:callout.text>
+                </flux:callout>
+            @enderror
         </flux:card>
 
         <div class="flex justify-end gap-2">
