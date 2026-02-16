@@ -47,7 +47,7 @@ class KardexController extends Controller
             ->where('product_id', $validated['product_id'])
             ->where('warehouse_id', $validated['warehouse_id'])
             ->whereNotNull('balance_quantity')
-            ->with(['product', 'warehouse', 'movementReason']);
+            ->with(['product', 'warehouse', 'movementReason', 'dispatch', 'purchase', 'donation']);
 
         if (isset($validated['date_from'])) {
             $query->whereDate('movement_date', '>=', $validated['date_from']);
