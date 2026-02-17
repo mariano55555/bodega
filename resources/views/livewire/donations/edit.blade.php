@@ -429,7 +429,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 <flux:label>Valor Unitario Estimado *</flux:label>
                                 <flux:input
                                     type="number"
-                                    step="0.01"
+                                    step="0.00001"
                                     wire:model="details.{{ $index }}.estimated_unit_value"
                                     required
                                 />

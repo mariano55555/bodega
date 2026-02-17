@@ -609,7 +609,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
                             <flux:field>
                                 <flux:label badge="Requerido">Valor Unitario Estimado</flux:label>
-                                <flux:input type="number" step="0.01" wire:model="details.{{ $index }}.estimated_unit_value" />
+                                <flux:input type="number" step="0.00001" wire:model="details.{{ $index }}.estimated_unit_value" />
                                 <flux:error name="details.{{ $index }}.estimated_unit_value" />
                             </flux:field>
 

@@ -378,7 +378,7 @@ return [
     'completed' => 'Completado',
     'pending' => 'Pendiente',
     'failed' => 'Fallido',
-    'cancelled' => 'Cancelado',
+    'cancelled' => 'Anulado',
     'timeout' => 'Tiempo Agotado',
 
     // General Messages

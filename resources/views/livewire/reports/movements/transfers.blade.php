@@ -92,7 +92,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'in_transit' => 'En Tránsito',
             'received' => 'Recibido',
             'completed' => 'Completado',
-            'cancelled' => 'Cancelado',
+            'cancelled' => 'Anulado',
         ];
     }
 

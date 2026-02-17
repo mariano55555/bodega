@@ -976,7 +976,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                     <flux:label class="text-xs">Precio Unitario</flux:label>
                                     <flux:input
                                         type="number"
-                                        step="0.01"
+                                        step="0.00001"
                                         min="0"
                                         wire:model="quickItems.{{ $index }}.unit_price"
                                         placeholder="Precio"

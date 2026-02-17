@@ -77,10 +77,10 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function cancel(): void
     {
         if ($this->transfer->cancel()) {
-            \Flux::toast(variant: 'success', text: 'Traslado cancelado exitosamente.');
+            \Flux::toast(variant: 'success', text: 'Traslado anulado exitosamente.');
             $this->transfer->refresh();
         } else {
-            \Flux::toast(variant: 'danger', text: 'No se puede cancelar el traslado en su estado actual.');
+            \Flux::toast(variant: 'danger', text: 'No se puede anular el traslado en su estado actual.');
         }
     }
 }; ?>
@@ -115,14 +115,14 @@ new #[Layout('components.layouts.app')] class extends Component {
                         'in_transit' => 'En Tránsito',
                         'received' => 'Recibido',
                         'completed' => 'Completado',
-                        'cancelled' => 'Cancelado',
+                        'cancelled' => 'Anulado',
                         // Spanish fallbacks
                         'pendiente' => 'Pendiente',
                         'aprobado' => 'Aprobado',
                         'en_transito' => 'En Tránsito',
                         'recibido' => 'Recibido',
                         'completado' => 'Completado',
-                        'cancelado' => 'Cancelado',
+                        'cancelado' => 'Anulado',
                     ];
                 @endphp
                 <flux:badge :color="$statusColors[$transfer->status] ?? 'zinc'" size="lg">
@@ -180,8 +180,8 @@ new #[Layout('components.layouts.app')] class extends Component {
 
             @can('cancel', $transfer)
                 @if (in_array($transfer->status, ['pending', 'pendiente', 'approved', 'aprobado']))
-                    <flux:button variant="danger" icon="x-circle" wire:click="cancel" wire:confirm="¿Está seguro de cancelar este traslado?">
-                        Cancelar
+                    <flux:button variant="danger" icon="x-circle" wire:click="cancel" wire:confirm="¿Está seguro de anular este traslado?">
+                        Anular
                     </flux:button>
                 @endif
             @endcan
@@ -505,7 +505,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 <flux:icon name="x-circle" class="w-5 h-5 text-red-500" />
                             </div>
                             <div class="flex-1">
-                                <flux:text class="text-sm text-zinc-500 dark:text-zinc-400">Cancelado</flux:text>
+                                <flux:text class="text-sm text-zinc-500 dark:text-zinc-400">Anulado</flux:text>
                                 <flux:text class="text-xs text-zinc-400">{{ $transfer->cancelled_at->format('d/m/Y H:i') }}</flux:text>
                             </div>
                         </div>
@@ -592,7 +592,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                                     <flux:icon name="x-mark" class="w-3 h-3 text-white" />
                                 </div>
                                 <div class="flex-1 pt-0.5">
-                                    <flux:text class="text-sm font-medium text-red-600 dark:text-red-400">Cancelado</flux:text>
+                                    <flux:text class="text-sm font-medium text-red-600 dark:text-red-400">Anulado</flux:text>
                                     <flux:text class="text-xs text-zinc-400">{{ $transfer->cancelled_at->format('d/m/Y H:i') }}</flux:text>
                                 </div>
                             </div>

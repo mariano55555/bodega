@@ -72,8 +72,8 @@
                         <td class="px-4 py-3 text-green-600 font-medium">+Stock</td>
                     </tr>
                     <tr>
-                        <td class="px-4 py-3"><flux:badge color="red" size="sm">Cancelado</flux:badge></td>
-                        <td class="px-4 py-3">Traslado cancelado</td>
+                        <td class="px-4 py-3"><flux:badge color="red" size="sm">Anulado</flux:badge></td>
+                        <td class="px-4 py-3">Traslado anulado</td>
                         <td class="px-4 py-3">Sin cambios</td>
                         <td class="px-4 py-3">Sin cambios</td>
                     </tr>

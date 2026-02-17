@@ -91,7 +91,7 @@ return [
     'rejected' => 'Rechazado',
     'completed' => 'Completado',
     'in_progress' => 'En progreso',
-    'cancelled' => 'Cancelado',
+    'cancelled' => 'Anulado',
     'draft' => 'Borrador',
     'published' => 'Publicado',
     'activate' => 'Activar',

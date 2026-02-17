@@ -67,8 +67,8 @@
                         <td class="px-4 py-3 text-red-600 font-medium">-Stock</td>
                     </tr>
                     <tr>
-                        <td class="px-4 py-3"><flux:badge color="red" size="sm">Cancelado</flux:badge></td>
-                        <td class="px-4 py-3">Despacho cancelado</td>
+                        <td class="px-4 py-3"><flux:badge color="red" size="sm">Anulado</flux:badge></td>
+                        <td class="px-4 py-3">Despacho anulado</td>
                         <td class="px-4 py-3">No afecta</td>
                     </tr>
                 </tbody>

@@ -180,7 +180,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 'borrador' => 'Borrador',
                 'pendiente' => 'Pendiente',
                 'aprobado' => 'Aprobado',
-                'cancelado' => 'Cancelado',
+                'cancelado' => 'Anulado',
             ];
             $statusLabel = $statusLabels[$purchase->status] ?? $purchase->status;
             $this->purchaseLoadErrors[] = 'La compra debe estar en estado "Recibido" para poder despachar. Estado actual: '.$statusLabel;
@@ -310,7 +310,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'details.*.product_id' => 'required|exists:products,id',
             'details.*.quantity' => 'required|numeric|min:0.0001',
             'details.*.unit_of_measure_id' => 'required|exists:units_of_measure,id',
-            'details.*.unit_price' => 'required|numeric|min:0.01',
+            'details.*.unit_price' => 'required|numeric|min:0.00001',
         ];
 
         // Add company_id validation for super admins

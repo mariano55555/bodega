@@ -124,7 +124,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 'borrador' => 'Borrador',
                 'pendiente' => 'Pendiente',
                 'aprobado' => 'Aprobado',
-                'cancelado' => 'Cancelado',
+                'cancelado' => 'Anulado',
             ];
             $statusLabel = $statusLabels[$purchase->status] ?? $purchase->status;
             $this->purchaseLoadErrors[] = 'La compra debe estar en estado "Recibido" para poder trasladar. Estado actual: '.$statusLabel;

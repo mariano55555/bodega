@@ -72,7 +72,7 @@ class TransferReportExport implements FromCollection, ShouldAutoSize, WithHeadin
             'in_transit' => 'En Tránsito',
             'received' => 'Recibido',
             'completed' => 'Completado',
-            'cancelled' => 'Cancelado',
+            'cancelled' => 'Anulado',
         ];
 
         return [

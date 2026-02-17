@@ -596,7 +596,7 @@ class InventoryMovement extends Model
             'approved' => 'Aprobado',
             'rejected' => 'Rechazado',
             'completed' => 'Completado',
-            'cancelled' => 'Cancelado',
+            'cancelled' => 'Anulado',
         ];
 
         return $statuses[$this->status] ?? $this->status;
