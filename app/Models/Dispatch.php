@@ -372,7 +372,7 @@ class Dispatch extends Model
                     'movement_reason_id' => $movementReason->id,
                     'dispatch_id' => $this->id,
                     'movement_type' => $movementType,
-                    'movement_date' => $this->dispatched_at ?? now(),
+                    'movement_date' => $this->document_date ?? $this->dispatched_at ?? now(),
                     'quantity' => $detail->quantity_dispatched,
                     'quantity_in' => 0,
                     'quantity_out' => $detail->quantity_dispatched,
