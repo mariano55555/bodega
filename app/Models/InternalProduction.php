@@ -292,7 +292,7 @@ class InternalProduction extends Model
                     'movement_reason_id' => $movementReason->id,
                     'internal_production_id' => $this->id,
                     'movement_type' => 'production',
-                    'movement_date' => now(),
+                    'movement_date' => $this->document_date ?? now(),
                     'quantity' => $detail->quantity,
                     'quantity_in' => $detail->quantity,
                     'quantity_out' => 0,
