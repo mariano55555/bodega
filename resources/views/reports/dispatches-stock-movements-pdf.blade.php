@@ -15,9 +15,9 @@
         body { font-family: 'DejaVu Sans', sans-serif; font-size: 9px; color: #333; line-height: 1.3; margin: 0; padding: 0; }
         .footer { position: fixed; bottom: -20mm; left: 0px; right: 0px; text-align: center; font-size: 7px; color: #666; border-top: 1px solid #ddd; padding-top: 5px; }
         table.report-table { width: 95%; border-collapse: collapse; margin-left: auto; margin-right: auto; }
-        .header-cell { padding: 10px 0 5px 0; }
+        .header-cell { padding: 10px 0 5px 0; border: none !important; }
         .header-table { width: 100%; border-collapse: collapse; }
-        .header-table td { vertical-align: top; }
+        .header-table td { vertical-align: top; border: none !important; }
         .logo-cell { width: 25%; }
         .logo { max-width: 180px; max-height: 60px; }
         .title-cell { width: 50%; text-align: center; }
@@ -109,7 +109,7 @@
                     </tr>
                     @foreach ($group->items as $item)
                         <tr>
-                            <td>{{ $item->product_name }}</td>
+                            <td>{{ $item->product_name }}<br><span style="font-size: 7pt; color: #666;">{{ $item->sku }}</span></td>
                             <td>{{ $item->unit }}</td>
                             <td class="right">{{ number_format($item->initial_stock, 2) }}</td>
                             <td class="right green">{{ number_format($item->entries, 2) }}</td>

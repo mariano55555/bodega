@@ -270,7 +270,8 @@ class StockMovementsExport implements FromCollection, ShouldAutoSize, WithColumn
 
                     // Data rows
                     foreach ($group->items as $item) {
-                        $sheet->setCellValue("A{$currentRow}", $item->product_name);
+                        $sheet->setCellValue("A{$currentRow}", $item->product_name."\n".$item->sku);
+                        $sheet->getStyle("A{$currentRow}")->getAlignment()->setWrapText(true);
                         $sheet->setCellValue("B{$currentRow}", $item->unit);
                         $sheet->setCellValue("C{$currentRow}", $item->initial_stock);
                         $sheet->setCellValue("D{$currentRow}", $item->entries);

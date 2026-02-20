@@ -86,6 +86,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 'dispatches.warehouse_id',
                 'dispatches.area_id',
                 'products.name as product_name',
+                'products.sku',
                 'products.category_id',
                 'units_of_measure.abbreviation as unit_abbreviation',
                 'units_of_measure.name as unit_name',
@@ -330,7 +331,8 @@ new #[Layout('components.layouts.app')] class extends Component
                                     </flux:table.cell>
 
                                     <flux:table.cell>
-                                        {{ $item->product_name }}
+                                        <div class="font-medium">{{ $item->product_name }}</div>
+                                        <div class="text-xs text-zinc-500">{{ $item->sku }}</div>
                                     </flux:table.cell>
 
                                     <flux:table.cell>

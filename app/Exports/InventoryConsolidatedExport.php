@@ -131,7 +131,10 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
 
             return (object) [
                 'product_name' => $product->product_name,
+                'sku' => $product->sku,
                 'unit' => $product->unit_abbreviation ?? $product->unit_name ?? '-',
+                'category_name' => $product->category_name,
+                'category_code' => $product->category_code,
                 'parent_name' => $product->parent_name,
                 'parent_code' => $product->parent_code,
                 'initial_stock' => (float) $initialStock,
@@ -146,11 +149,28 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
         $this->groupedData = $results->groupBy('parent_name')->map(function ($items, $parentName) {
             $firstItem = $items->first();
 
+            $subcategories = $items->groupBy('category_name')->map(function ($subItems, $categoryName) {
+                $first = $subItems->first();
+
+                return (object) [
+                    'category_name' => $categoryName ?: 'Sin Subcategoría',
+                    'category_code' => $first->category_code ?? '',
+                    'items' => $subItems->sortBy('sku')->values(),
+                    'subtotals' => (object) [
+                        'initial_stock' => $subItems->sum('initial_stock'),
+                        'entries' => $subItems->sum('entries'),
+                        'exits' => $subItems->sum('exits'),
+                        'current_stock' => $subItems->sum('current_stock'),
+                        'total_cost' => $subItems->sum('total_cost'),
+                    ],
+                ];
+            })->sortBy('category_code')->values();
+
             return (object) [
                 'parent_name' => $parentName ?: 'Sin Categoría',
                 'parent_code' => $firstItem->parent_code ?? '',
-                'items' => $items,
-                'subtotals' => (object) [
+                'subcategories' => $subcategories,
+                'parent_subtotals' => (object) [
                     'initial_stock' => $items->sum('initial_stock'),
                     'entries' => $items->sum('entries'),
                     'exits' => $items->sum('exits'),
@@ -158,7 +178,7 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
                     'total_cost' => $items->sum('total_cost'),
                 ],
             ];
-        });
+        })->sortBy(fn ($group) => $group->parent_code)->values();
 
         $this->grandTotals = [
             'initial_stock' => $results->sum('initial_stock'),
@@ -243,8 +263,8 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
                 $currentRow = 10;
 
                 foreach ($this->groupedData as $group) {
-                    // Category header
-                    $sheet->setCellValue("A{$currentRow}", "Línea Presupuestaria: {$group->parent_name} — Específico {$group->parent_code}");
+                    // Parent category header
+                    $sheet->setCellValue("A{$currentRow}", "{$group->parent_name} — Código {$group->parent_code}");
                     $sheet->mergeCells("A{$currentRow}:H{$currentRow}");
                     $sheet->getStyle("A{$currentRow}")->applyFromArray([
                         'font' => ['bold' => true, 'size' => 10, 'color' => ['rgb' => 'FFFFFF']],
@@ -255,68 +275,115 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
                     ]);
                     $currentRow++;
 
-                    // Column headers
-                    $headers = ['Descripción del Producto', 'Unidad de Medida', 'Existencia Inicial', 'Entradas', 'Salidas', 'Existencia Actual', 'Precio Unitario', 'Costo Total'];
-                    $columns = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-                    foreach ($headers as $i => $header) {
-                        $sheet->setCellValue("{$columns[$i]}{$currentRow}", $header);
-                    }
-                    $sheet->getStyle("A{$currentRow}:H{$currentRow}")->applyFromArray([
-                        'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
-                        'fill' => [
-                            'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => '2d4a6f'],
-                        ],
-                        'borders' => [
-                            'allBorders' => [
-                                'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                    foreach ($group->subcategories as $subcategory) {
+                        // Subcategory / Línea Presupuestaria header
+                        $sheet->setCellValue("A{$currentRow}", "Línea Presupuestaria: {$subcategory->category_name} — Específico {$subcategory->category_code}");
+                        $sheet->mergeCells("A{$currentRow}:H{$currentRow}");
+                        $sheet->getStyle("A{$currentRow}")->applyFromArray([
+                            'font' => ['bold' => true, 'size' => 9, 'color' => ['rgb' => 'FFFFFF']],
+                            'fill' => [
+                                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                                'startColor' => ['rgb' => '3b6998'],
                             ],
-                        ],
-                    ]);
-                    $currentRow++;
+                        ]);
+                        $currentRow++;
 
-                    // Data rows
-                    foreach ($group->items as $item) {
-                        $sheet->setCellValue("A{$currentRow}", $item->product_name);
-                        $sheet->setCellValue("B{$currentRow}", $item->unit);
-                        $sheet->setCellValue("C{$currentRow}", $item->initial_stock);
-                        $sheet->setCellValue("D{$currentRow}", $item->entries);
-                        $sheet->setCellValue("E{$currentRow}", $item->exits);
-                        $sheet->setCellValue("F{$currentRow}", $item->current_stock);
-                        $sheet->setCellValue("G{$currentRow}", $item->unit_cost);
-                        $sheet->setCellValue("H{$currentRow}", $item->total_cost);
+                        // Column headers
+                        $headers = ['Descripción del Producto', 'Unidad de Medida', 'Existencia Inicial', 'Entradas', 'Salidas', 'Existencia Actual', 'Precio Unitario', 'Costo Total'];
+                        $columns = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+                        foreach ($headers as $i => $header) {
+                            $sheet->setCellValue("{$columns[$i]}{$currentRow}", $header);
+                        }
+                        $sheet->getStyle("A{$currentRow}:H{$currentRow}")->applyFromArray([
+                            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+                            'fill' => [
+                                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                                'startColor' => ['rgb' => '2d4a6f'],
+                            ],
+                            'borders' => [
+                                'allBorders' => [
+                                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                                ],
+                            ],
+                        ]);
+                        $currentRow++;
 
-                        $sheet->getStyle("C{$currentRow}:H{$currentRow}")
+                        // Data rows
+                        foreach ($subcategory->items as $item) {
+                            $sheet->setCellValue("A{$currentRow}", $item->product_name."\n".$item->sku);
+                            $sheet->getStyle("A{$currentRow}")->getAlignment()->setWrapText(true);
+                            $sheet->setCellValue("B{$currentRow}", $item->unit);
+                            $sheet->setCellValue("C{$currentRow}", $item->initial_stock);
+                            $sheet->setCellValue("D{$currentRow}", $item->entries);
+                            $sheet->setCellValue("E{$currentRow}", $item->exits);
+                            $sheet->setCellValue("F{$currentRow}", $item->current_stock);
+                            $sheet->setCellValue("G{$currentRow}", $item->unit_cost);
+                            $sheet->setCellValue("H{$currentRow}", $item->total_cost);
+
+                            $sheet->getStyle("C{$currentRow}:H{$currentRow}")
+                                ->getNumberFormat()
+                                ->setFormatCode('#,##0.00');
+                            $sheet->getStyle("C{$currentRow}:H{$currentRow}")->getAlignment()->setHorizontal('right');
+                            $sheet->getStyle("G{$currentRow}:H{$currentRow}")
+                                ->getNumberFormat()
+                                ->setFormatCode('$#,##0.00');
+
+                            $sheet->getStyle("D{$currentRow}")->getFont()->getColor()->setRGB('16a34a');
+                            $sheet->getStyle("E{$currentRow}")->getFont()->getColor()->setRGB('dc2626');
+                            $sheet->getStyle("F{$currentRow}")->getFont()->setBold(true);
+                            $sheet->getStyle("H{$currentRow}")->getFont()->setBold(true);
+
+                            $currentRow++;
+                        }
+
+                        // Subcategory subtotal row
+                        $sheet->setCellValue("A{$currentRow}", '');
+                        $sheet->setCellValue("B{$currentRow}", "Total Línea {$subcategory->category_code}");
+                        $sheet->setCellValue("C{$currentRow}", $subcategory->subtotals->initial_stock);
+                        $sheet->setCellValue("D{$currentRow}", $subcategory->subtotals->entries);
+                        $sheet->setCellValue("E{$currentRow}", $subcategory->subtotals->exits);
+                        $sheet->setCellValue("F{$currentRow}", $subcategory->subtotals->current_stock);
+                        $sheet->setCellValue("G{$currentRow}", '');
+                        $sheet->setCellValue("H{$currentRow}", $subcategory->subtotals->total_cost);
+
+                        $sheet->getStyle("A{$currentRow}:H{$currentRow}")->applyFromArray([
+                            'font' => ['bold' => true],
+                            'fill' => [
+                                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                                'startColor' => ['rgb' => 'e8e8e8'],
+                            ],
+                            'borders' => [
+                                'top' => [
+                                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                                ],
+                            ],
+                        ]);
+                        $sheet->getStyle("B{$currentRow}")->getAlignment()->setHorizontal('right');
+                        $sheet->getStyle("C{$currentRow}:F{$currentRow}")
                             ->getNumberFormat()
                             ->setFormatCode('#,##0.00');
-                        $sheet->getStyle("C{$currentRow}:H{$currentRow}")->getAlignment()->setHorizontal('right');
-                        $sheet->getStyle("G{$currentRow}:H{$currentRow}")
+                        $sheet->getStyle("H{$currentRow}")
                             ->getNumberFormat()
                             ->setFormatCode('$#,##0.00');
-
-                        $sheet->getStyle("D{$currentRow}")->getFont()->getColor()->setRGB('16a34a');
-                        $sheet->getStyle("E{$currentRow}")->getFont()->getColor()->setRGB('dc2626');
-                        $sheet->getStyle("F{$currentRow}")->getFont()->setBold(true);
-                        $sheet->getStyle("H{$currentRow}")->getFont()->setBold(true);
-
+                        $sheet->getStyle("C{$currentRow}:H{$currentRow}")->getAlignment()->setHorizontal('right');
                         $currentRow++;
                     }
 
-                    // Subtotal row
+                    // Parent category subtotal row
                     $sheet->setCellValue("A{$currentRow}", '');
-                    $sheet->setCellValue("B{$currentRow}", "Total Línea {$group->parent_code}");
-                    $sheet->setCellValue("C{$currentRow}", $group->subtotals->initial_stock);
-                    $sheet->setCellValue("D{$currentRow}", $group->subtotals->entries);
-                    $sheet->setCellValue("E{$currentRow}", $group->subtotals->exits);
-                    $sheet->setCellValue("F{$currentRow}", $group->subtotals->current_stock);
+                    $sheet->setCellValue("B{$currentRow}", "Total {$group->parent_name}");
+                    $sheet->setCellValue("C{$currentRow}", $group->parent_subtotals->initial_stock);
+                    $sheet->setCellValue("D{$currentRow}", $group->parent_subtotals->entries);
+                    $sheet->setCellValue("E{$currentRow}", $group->parent_subtotals->exits);
+                    $sheet->setCellValue("F{$currentRow}", $group->parent_subtotals->current_stock);
                     $sheet->setCellValue("G{$currentRow}", '');
-                    $sheet->setCellValue("H{$currentRow}", $group->subtotals->total_cost);
+                    $sheet->setCellValue("H{$currentRow}", $group->parent_subtotals->total_cost);
 
                     $sheet->getStyle("A{$currentRow}:H{$currentRow}")->applyFromArray([
                         'font' => ['bold' => true],
                         'fill' => [
                             'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => 'e8e8e8'],
+                            'startColor' => ['rgb' => 'd0d0d0'],
                         ],
                         'borders' => [
                             'top' => [

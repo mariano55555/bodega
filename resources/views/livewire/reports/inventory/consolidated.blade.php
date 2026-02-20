@@ -25,8 +25,8 @@ new class extends Component
 
     public function mount(): void
     {
-        $this->start_date = now()->startOfMonth()->format('Y-m-d');
-        $this->end_date = now()->endOfMonth()->format('Y-m-d');
+        $this->start_date = request()->query('inicio', now()->startOfMonth()->format('Y-m-d'));
+        $this->end_date = request()->query('fin', now()->endOfMonth()->format('Y-m-d'));
 
         if (! auth()->user()->isSuperAdmin()) {
             $this->company_id = (string) auth()->user()->company_id;
@@ -196,11 +196,28 @@ new class extends Component
         return $this->reportData->groupBy('parent_name')->map(function ($items, $parentName) {
             $firstItem = $items->first();
 
+            $subcategories = $items->groupBy('category_name')->map(function ($subItems, $categoryName) {
+                $first = $subItems->first();
+
+                return (object) [
+                    'category_name' => $categoryName ?: 'Sin Subcategoría',
+                    'category_code' => $first->category_code ?? '',
+                    'items' => $subItems->sortBy('sku')->values(),
+                    'subtotals' => (object) [
+                        'initial_stock' => $subItems->sum('initial_stock'),
+                        'entries' => $subItems->sum('entries'),
+                        'exits' => $subItems->sum('exits'),
+                        'current_stock' => $subItems->sum('current_stock'),
+                        'total_cost' => $subItems->sum('total_cost'),
+                    ],
+                ];
+            })->sortBy('category_code')->values();
+
             return (object) [
                 'parent_name' => $parentName ?: 'Sin Categoría',
                 'parent_code' => $firstItem->parent_code ?? '',
-                'items' => $items,
-                'subtotals' => (object) [
+                'subcategories' => $subcategories,
+                'parent_subtotals' => (object) [
                     'initial_stock' => $items->sum('initial_stock'),
                     'entries' => $items->sum('entries'),
                     'exits' => $items->sum('exits'),
@@ -208,7 +225,7 @@ new class extends Component
                     'total_cost' => $items->sum('total_cost'),
                 ],
             ];
-        });
+        })->sortBy(fn ($group) => $group->parent_code)->values();
     }
 
     #[Computed]
@@ -379,98 +396,134 @@ new class extends Component
             </flux:card>
         </div>
 
-        {{-- Grouped Data by Línea Presupuestaria --}}
-        @forelse ($this->groupedByCategory as $parentName => $group)
+        {{-- Grouped Data by Categoría Padre > Línea Presupuestaria --}}
+        @forelse ($this->groupedByCategory as $group)
             <flux:card>
-                <div class="mb-4 flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <div class="rounded-lg bg-amber-100 p-2 dark:bg-amber-900">
-                            <flux:icon name="folder" class="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                        </div>
-                        <div>
-                            <flux:heading size="lg">Línea Presupuestaria: {{ $group->parent_name }}</flux:heading>
-                            <flux:text class="text-sm text-gray-500">Específico {{ $group->parent_code }}</flux:text>
-                        </div>
+                {{-- Parent Category Header --}}
+                <div class="mb-4 flex items-center gap-3 rounded-lg bg-zinc-100 p-3 dark:bg-zinc-800">
+                    <div class="rounded-lg bg-amber-100 p-2 dark:bg-amber-900">
+                        <flux:icon name="folder" class="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div>
+                        <flux:heading size="lg">{{ $group->parent_name }}</flux:heading>
+                        <flux:text class="text-sm text-gray-500">Código {{ $group->parent_code }}</flux:text>
                     </div>
                 </div>
 
-                <div class="overflow-x-auto">
-                    <flux:table>
-                        <flux:table.columns>
-                            <flux:table.column>Descripción del Producto</flux:table.column>
-                            <flux:table.column>Unidad de Medida</flux:table.column>
-                            <flux:table.column class="text-right">Existencia Inicial</flux:table.column>
-                            <flux:table.column class="text-right">Entradas</flux:table.column>
-                            <flux:table.column class="text-right">Salidas</flux:table.column>
-                            <flux:table.column class="text-right">Existencia Actual</flux:table.column>
-                            <flux:table.column class="text-right">Precio Unitario</flux:table.column>
-                            <flux:table.column class="text-right">Costo Total</flux:table.column>
-                        </flux:table.columns>
+                {{-- Subcategories / Líneas Presupuestarias --}}
+                @foreach ($group->subcategories as $subcategory)
+                    <div class="mb-6 last:mb-0" wire:key="sub-{{ $subcategory->category_code }}">
+                        <div class="mb-2 flex items-center gap-2 border-l-4 border-blue-500 pl-3">
+                            <div>
+                                <flux:heading size="md">Línea Presupuestaria: {{ $subcategory->category_name }}</flux:heading>
+                                <flux:text class="text-sm text-gray-500">Específico {{ $subcategory->category_code }}</flux:text>
+                            </div>
+                        </div>
 
-                        <flux:table.rows>
-                            @foreach ($group->items as $item)
-                                <flux:table.row :key="$item->product_id">
-                                    <flux:table.cell>
-                                        <div class="font-medium">{{ $item->product_name }}</div>
-                                    </flux:table.cell>
+                        <div class="overflow-x-auto">
+                            <flux:table>
+                                <flux:table.columns>
+                                    <flux:table.column>Descripción del Producto</flux:table.column>
+                                    <flux:table.column>Unidad de Medida</flux:table.column>
+                                    <flux:table.column align="end">Existencia Inicial</flux:table.column>
+                                    <flux:table.column align="end">Entradas</flux:table.column>
+                                    <flux:table.column align="end">Salidas</flux:table.column>
+                                    <flux:table.column align="end">Existencia Actual</flux:table.column>
+                                    <flux:table.column align="end">Precio Unitario</flux:table.column>
+                                    <flux:table.column align="end">Costo Total</flux:table.column>
+                                </flux:table.columns>
 
-                                    <flux:table.cell>
-                                        <flux:badge>{{ $item->unit }}</flux:badge>
-                                    </flux:table.cell>
+                                <flux:table.rows>
+                                    @foreach ($subcategory->items as $item)
+                                        <flux:table.row :key="$item->product_id">
+                                            <flux:table.cell>
+                                                <div class="font-medium">{{ $item->product_name }}</div>
+                                                <div class="text-xs text-zinc-500">{{ $item->sku }}</div>
+                                            </flux:table.cell>
 
-                                    <flux:table.cell class="text-right tabular-nums">
-                                        {{ number_format($item->initial_stock, 2) }}
-                                    </flux:table.cell>
+                                            <flux:table.cell>
+                                                <flux:badge>{{ $item->unit }}</flux:badge>
+                                            </flux:table.cell>
 
-                                    <flux:table.cell class="text-right tabular-nums text-green-600 dark:text-green-400">
-                                        {{ number_format($item->entries, 2) }}
-                                    </flux:table.cell>
+                                            <flux:table.cell align="end" class="tabular-nums">
+                                                {{ number_format($item->initial_stock, 2) }}
+                                            </flux:table.cell>
 
-                                    <flux:table.cell class="text-right tabular-nums text-red-600 dark:text-red-400">
-                                        {{ number_format($item->exits, 2) }}
-                                    </flux:table.cell>
+                                            <flux:table.cell align="end" class="tabular-nums text-green-600 dark:text-green-400">
+                                                {{ number_format($item->entries, 2) }}
+                                            </flux:table.cell>
 
-                                    <flux:table.cell class="text-right font-medium tabular-nums">
-                                        {{ number_format($item->current_stock, 2) }}
-                                    </flux:table.cell>
+                                            <flux:table.cell align="end" class="tabular-nums text-red-600 dark:text-red-400">
+                                                {{ number_format($item->exits, 2) }}
+                                            </flux:table.cell>
 
-                                    <flux:table.cell class="text-right tabular-nums">
-                                        ${{ number_format($item->unit_cost, 2) }}
-                                    </flux:table.cell>
+                                            <flux:table.cell align="end" class="font-medium tabular-nums">
+                                                {{ number_format($item->current_stock, 2) }}
+                                            </flux:table.cell>
 
-                                    <flux:table.cell class="text-right font-semibold tabular-nums">
-                                        ${{ number_format($item->total_cost, 2) }}
-                                    </flux:table.cell>
-                                </flux:table.row>
-                            @endforeach
-                        </flux:table.rows>
-                    </flux:table>
-                </div>
+                                            <flux:table.cell align="end" class="tabular-nums">
+                                                ${{ number_format($item->unit_cost, 2) }}
+                                            </flux:table.cell>
 
-                {{-- Subtotal --}}
-                <div class="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">
+                                            <flux:table.cell align="end" class="font-semibold tabular-nums">
+                                                ${{ number_format($item->total_cost, 2) }}
+                                            </flux:table.cell>
+                                        </flux:table.row>
+                                    @endforeach
+
+                                    {{-- Subtotal row inside table --}}
+                                    <flux:table.row class="bg-gray-50 dark:bg-zinc-800/50 border-t-2 border-gray-300 dark:border-gray-600">
+                                        <flux:table.cell variant="strong">
+                                            Total Línea {{ $subcategory->category_code }}
+                                        </flux:table.cell>
+                                        <flux:table.cell></flux:table.cell>
+                                        <flux:table.cell align="end" variant="strong" class="tabular-nums">
+                                            {{ number_format($subcategory->subtotals->initial_stock, 2) }}
+                                        </flux:table.cell>
+                                        <flux:table.cell align="end" variant="strong" class="tabular-nums text-green-600 dark:text-green-400">
+                                            {{ number_format($subcategory->subtotals->entries, 2) }}
+                                        </flux:table.cell>
+                                        <flux:table.cell align="end" variant="strong" class="tabular-nums text-red-600 dark:text-red-400">
+                                            {{ number_format($subcategory->subtotals->exits, 2) }}
+                                        </flux:table.cell>
+                                        <flux:table.cell align="end" variant="strong" class="tabular-nums text-amber-600 dark:text-amber-400">
+                                            {{ number_format($subcategory->subtotals->current_stock, 2) }}
+                                        </flux:table.cell>
+                                        <flux:table.cell></flux:table.cell>
+                                        <flux:table.cell align="end" variant="strong" class="tabular-nums text-indigo-600 dark:text-indigo-400">
+                                            ${{ number_format($subcategory->subtotals->total_cost, 2) }}
+                                        </flux:table.cell>
+                                    </flux:table.row>
+                                </flux:table.rows>
+                            </flux:table>
+                        </div>
+                    </div>
+                @endforeach
+
+                {{-- Parent category total --}}
+                <div class="mt-4 border-t-2 border-gray-300 pt-4 dark:border-gray-600">
                     <div class="flex items-center justify-between">
-                        <flux:heading size="md">Total Línea {{ $group->parent_code }}</flux:heading>
+                        <flux:heading size="md">Total {{ $group->parent_name }}</flux:heading>
                         <div class="grid grid-cols-5 gap-6 text-right">
                             <div>
                                 <flux:text class="text-sm text-gray-500">Inicial</flux:text>
-                                <flux:heading size="md">{{ number_format($group->subtotals->initial_stock, 2) }}</flux:heading>
+                                <flux:heading size="md">{{ number_format($group->parent_subtotals->initial_stock, 2) }}</flux:heading>
                             </div>
                             <div>
                                 <flux:text class="text-sm text-gray-500">Entradas</flux:text>
-                                <flux:heading size="md" class="text-green-600 dark:text-green-400">{{ number_format($group->subtotals->entries, 2) }}</flux:heading>
+                                <flux:heading size="md" class="text-green-600 dark:text-green-400">{{ number_format($group->parent_subtotals->entries, 2) }}</flux:heading>
                             </div>
                             <div>
                                 <flux:text class="text-sm text-gray-500">Salidas</flux:text>
-                                <flux:heading size="md" class="text-red-600 dark:text-red-400">{{ number_format($group->subtotals->exits, 2) }}</flux:heading>
+                                <flux:heading size="md" class="text-red-600 dark:text-red-400">{{ number_format($group->parent_subtotals->exits, 2) }}</flux:heading>
                             </div>
                             <div>
                                 <flux:text class="text-sm text-gray-500">Actual</flux:text>
-                                <flux:heading size="md" class="text-amber-600 dark:text-amber-400">{{ number_format($group->subtotals->current_stock, 2) }}</flux:heading>
+                                <flux:heading size="md" class="text-amber-600 dark:text-amber-400">{{ number_format($group->parent_subtotals->current_stock, 2) }}</flux:heading>
                             </div>
                             <div>
                                 <flux:text class="text-sm text-gray-500">Costo Total</flux:text>
-                                <flux:heading size="md" class="text-indigo-600 dark:text-indigo-400">${{ number_format($group->subtotals->total_cost, 2) }}</flux:heading>
+                                <flux:heading size="md" class="text-indigo-600 dark:text-indigo-400">${{ number_format($group->parent_subtotals->total_cost, 2) }}</flux:heading>
                             </div>
                         </div>
                     </div>

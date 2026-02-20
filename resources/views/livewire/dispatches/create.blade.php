@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\UnitOfMeasure;
 use App\Models\Warehouse;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 
@@ -31,6 +32,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     // public $delivery_address = ''; // Comentado por petición del cliente: quitar dirección de entrega
     public $physical_document_number = '';
+
+    public bool $documentNumberExists = false;
 
     public $document_date = '';
 
@@ -286,6 +289,20 @@ new #[Layout('components.layouts.app')] class extends Component
             ->first();
 
         return $inventory ? (float) $inventory->available_quantity : 0;
+    }
+
+    public function updatedPhysicalDocumentNumber(): void
+    {
+        $this->documentNumberExists = false;
+
+        if (empty($this->physical_document_number)) {
+            return;
+        }
+
+        $this->documentNumberExists = DB::table('dispatches')
+            ->where('physical_document_number', $this->physical_document_number)
+            ->whereNull('deleted_at')
+            ->exists();
     }
 
     public function save(): void
@@ -576,8 +593,11 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label badge="Requerido">Número de documento físico</flux:label>
-                    <flux:input wire:model="physical_document_number" placeholder="Ingrese el número de documento físico" />
+                    <flux:input wire:model.blur="physical_document_number" placeholder="Ingrese el número de documento físico" />
                     <flux:error name="physical_document_number" />
+                    @if ($documentNumberExists)
+                        <flux:text size="sm" class="text-red-600">Este número de documento ya existe.</flux:text>
+                    @endif
                 </flux:field>
 
                 <flux:field>
@@ -951,7 +971,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 Cancelar
             </flux:button>
 
-            <flux:button type="submit" variant="primary" icon="check">
+            <flux:button type="submit" variant="primary" icon="check" :disabled="$documentNumberExists">
                 Guardar Despacho
             </flux:button>
         </div>

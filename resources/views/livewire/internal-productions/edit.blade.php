@@ -7,6 +7,7 @@ use App\Models\InternalProductionDetail;
 use App\Models\Product;
 use App\Models\UnitOfMeasure;
 use App\Models\Warehouse;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -24,6 +25,8 @@ new #[Layout('components.layouts.app')] class extends Component
     public $employee_id = '';
 
     public $physical_document_number = '';
+
+    public bool $documentNumberExists = false;
 
     public $document_date = '';
 
@@ -112,6 +115,21 @@ new #[Layout('components.layouts.app')] class extends Component
         $newRows = array_fill(0, 5, $this->getEmptyDetail());
         $this->details = array_merge($this->details, $newRows);
         \Flux::toast('5 filas agregadas', variant: 'success');
+    }
+
+    public function updatedPhysicalDocumentNumber(): void
+    {
+        $this->documentNumberExists = false;
+
+        if (empty($this->physical_document_number)) {
+            return;
+        }
+
+        $this->documentNumberExists = DB::table('internal_productions')
+            ->where('physical_document_number', $this->physical_document_number)
+            ->where('id', '!=', $this->internalProduction->id)
+            ->whereNull('deleted_at')
+            ->exists();
     }
 
     public function save(): void
@@ -295,8 +313,11 @@ new #[Layout('components.layouts.app')] class extends Component
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <flux:field>
                     <flux:label badge="Requerido">Número de Documento Físico</flux:label>
-                    <flux:input wire:model="physical_document_number" placeholder="Ingrese el número de documento" />
+                    <flux:input wire:model.blur="physical_document_number" placeholder="Ingrese el número de documento" />
                     <flux:error name="physical_document_number" />
+                    @if ($documentNumberExists)
+                        <flux:text size="sm" class="text-red-600">Este número de documento ya existe.</flux:text>
+                    @endif
                 </flux:field>
 
                 <flux:field>
@@ -522,7 +543,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 Cancelar
             </flux:button>
 
-            <flux:button type="submit" variant="primary" icon="check">
+            <flux:button type="submit" variant="primary" icon="check" :disabled="$documentNumberExists">
                 Guardar Cambios
             </flux:button>
         </div>

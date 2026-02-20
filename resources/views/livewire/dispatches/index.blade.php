@@ -533,7 +533,7 @@ new #[Layout('components.layouts.app')] class extends Component
     public function with(): array
     {
         $query = Dispatch::query()
-            ->with(['employee', 'warehouse', 'warehouse.company'])
+            ->with(['employee', 'area', 'warehouse', 'warehouse.company'])
             // Regular users can only see their company's dispatches
             ->when(! $this->isSuperAdmin(), fn ($q) => $q->where('company_id', auth()->user()->company_id))
             // Super admin company filter
@@ -663,7 +663,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 @if ($this->isSuperAdmin())
                     <flux:table.column>Empresa</flux:table.column>
                 @endif
-                <flux:table.column>Empleado/Receptor</flux:table.column>
+                <flux:table.column>Receptor/Área</flux:table.column>
                 <flux:table.column>Bodega</flux:table.column>
                 <flux:table.column>Tipo</flux:table.column>
                 <flux:table.column>Total</flux:table.column>
@@ -703,12 +703,14 @@ new #[Layout('components.layouts.app')] class extends Component
 
                         <flux:table.cell>
                             <div>
-                                @if ($dispatch->employee)
+                                @if ($dispatch->recipient_name)
+                                    <div class="font-medium">{{ $dispatch->recipient_name }}</div>
+                                @elseif ($dispatch->employee)
                                     <div class="font-medium">{{ $dispatch->employee->name }}</div>
                                 @endif
-                                @if ($dispatch->recipient_name)
+                                @if ($dispatch->area)
                                     <div class="text-sm text-gray-500 dark:text-gray-400">
-                                        {{ $dispatch->recipient_name }}
+                                        {{ $dispatch->area->name }}
                                     </div>
                                 @endif
                             </div>

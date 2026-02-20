@@ -24,7 +24,7 @@
 
                 <!-- 🏭 Operaciones de Bodega -->
                 <flux:navlist.group :heading="__('Operaciones de Bodega')" class="grid">
-                    <flux:navlist.item icon="cube" :href="route('inventory.products.index')" :current="request()->routeIs('inventory.products.*')" wire:navigate>{{ __('Catálogo de Productos') }}</flux:navlist.item>
+                    <flux:navlist.item icon="cube" :href="route('inventory.products.index')" :current="request()->routeIs('inventory.products.*')" wire:navigate>{{ __('Inventario de Productos') }}</flux:navlist.item>
                     <flux:navlist.item icon="shopping-cart" :href="route('purchases.index')" :current="request()->routeIs('purchases.index') || request()->routeIs('purchases.create') || request()->routeIs('purchases.show') || request()->routeIs('purchases.edit')" wire:navigate>{{ __('Compras') }}</flux:navlist.item>
                     <flux:navlist.item icon="document-arrow-up" :href="route('dte-imports.index')" :current="request()->routeIs('dte-imports.*')" wire:navigate>{{ __('Importar DTE') }}</flux:navlist.item>
                     <flux:navlist.item icon="gift" :href="route('donations.index')" :current="request()->routeIs('donations.*')" wire:navigate>{{ __('Donaciones') }}</flux:navlist.item>
@@ -37,6 +37,7 @@
 
                 <!-- 👥 Catálogos -->
                 <flux:navlist.group :heading="__('Catálogos')" class="grid">
+                    <flux:navlist.item icon="clipboard-document-list" :href="route('products.catalog')" :current="request()->routeIs('products.catalog')" wire:navigate>{{ __('Catálogo de Productos') }}</flux:navlist.item>
                     <flux:navlist.item icon="tag" :href="route('admin.categories.index')" :current="request()->routeIs('admin.categories.*')" wire:navigate>{{ __('Categorías de Productos') }}</flux:navlist.item>
                     <flux:navlist.item icon="scale" :href="route('admin.units.index')" :current="request()->routeIs('admin.units.*')" wire:navigate>{{ __('Unidades de Medida') }}</flux:navlist.item>
                     <flux:navlist.item icon="building-storefront" :href="route('purchases.suppliers.index')" :current="request()->routeIs('purchases.suppliers.*')" wire:navigate>{{ __('Proveedores') }}</flux:navlist.item>

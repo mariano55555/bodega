@@ -204,6 +204,7 @@ class DispatchReportController extends Controller
                 'dispatches.warehouse_id',
                 'dispatches.area_id',
                 'products.name as product_name',
+                'products.sku',
                 'products.category_id',
                 'units_of_measure.abbreviation as unit_abbreviation',
                 'units_of_measure.name as unit_name',

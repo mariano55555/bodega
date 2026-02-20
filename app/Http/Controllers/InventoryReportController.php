@@ -214,14 +214,33 @@ class InventoryReportController extends Controller
             ];
         });
 
+        // Group by parent category, then by subcategory within each parent
         $groupedByCategory = $results->groupBy('parent_name')->map(function ($items, $parentName) {
             $firstItem = $items->first();
+
+            // Group items by subcategory, sorted by category_code
+            $subcategories = $items->groupBy('category_name')->map(function ($subItems, $categoryName) {
+                $first = $subItems->first();
+
+                return (object) [
+                    'category_name' => $categoryName ?: 'Sin Subcategoría',
+                    'category_code' => $first->category_code ?? '',
+                    'items' => $subItems->sortBy('sku')->values(),
+                    'subtotals' => (object) [
+                        'initial_stock' => $subItems->sum('initial_stock'),
+                        'entries' => $subItems->sum('entries'),
+                        'exits' => $subItems->sum('exits'),
+                        'current_stock' => $subItems->sum('current_stock'),
+                        'total_cost' => $subItems->sum('total_cost'),
+                    ],
+                ];
+            })->sortBy('category_code')->values();
 
             return (object) [
                 'parent_name' => $parentName ?: 'Sin Categoría',
                 'parent_code' => $firstItem->parent_code ?? '',
-                'items' => $items,
-                'subtotals' => (object) [
+                'subcategories' => $subcategories,
+                'parent_subtotals' => (object) [
                     'initial_stock' => $items->sum('initial_stock'),
                     'entries' => $items->sum('entries'),
                     'exits' => $items->sum('exits'),
@@ -229,7 +248,7 @@ class InventoryReportController extends Controller
                     'total_cost' => $items->sum('total_cost'),
                 ],
             ];
-        });
+        })->sortBy(fn ($group) => $group->parent_code)->values();
 
         $totals = [
             'total_products' => $results->count(),

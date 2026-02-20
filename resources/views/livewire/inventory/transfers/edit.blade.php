@@ -2,6 +2,7 @@
 
 use App\Http\Requests\UpdateInventoryTransferRequest;
 use App\Models\{InventoryTransfer, InventoryTransferDetail, Warehouse, Product, Inventory};
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -14,6 +15,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     public $notes = '';
     public $document_date = '';
     public $physical_document_number = '';
+    public bool $documentNumberExists = false;
     public $shipping_cost = 0;
     public $products = [];
 
@@ -165,6 +167,21 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function updatedFromWarehouseId(): void
     {
         // Stock data will be automatically refreshed via computed property
+    }
+
+    public function updatedPhysicalDocumentNumber(): void
+    {
+        $this->documentNumberExists = false;
+
+        if (empty($this->physical_document_number)) {
+            return;
+        }
+
+        $this->documentNumberExists = DB::table('inventory_transfers')
+            ->where('physical_document_number', $this->physical_document_number)
+            ->where('id', '!=', $this->transfer->id)
+            ->whereNull('deleted_at')
+            ->exists();
     }
 
     public function save(): void
@@ -325,8 +342,11 @@ new #[Layout('components.layouts.app')] class extends Component {
 
                 <flux:field>
                     <flux:label badge="Requerido">Número de Documento Físico</flux:label>
-                    <flux:input wire:model="physical_document_number" placeholder="Ingrese el número de documento físico" maxlength="100" />
+                    <flux:input wire:model.blur="physical_document_number" placeholder="Ingrese el número de documento físico" maxlength="100" />
                     <flux:error name="physical_document_number" />
+                    @if ($documentNumberExists)
+                        <flux:text size="sm" class="text-red-600">Este número de documento ya existe.</flux:text>
+                    @endif
                 </flux:field>
 
                 <flux:field>
@@ -574,7 +594,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                 Cancelar
             </flux:button>
 
-            <flux:button type="submit" variant="primary" icon="check">
+            <flux:button type="submit" variant="primary" icon="check" :disabled="$documentNumberExists">
                 Actualizar Traslado
             </flux:button>
         </div>

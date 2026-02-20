@@ -63,6 +63,9 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('warehouse/companies/{company}/edit', 'warehouse.companies.edit')->name('warehouse.companies.edit');
     Volt::route('warehouse/capacity', 'warehouse.capacity.index')->name('warehouse.capacity.index');
 
+    // Product Catalog Routes (master list)
+    Volt::route('products/catalog', 'products.index')->name('products.catalog');
+
     // Inventory Management Routes
     Volt::route('inventory', 'inventory.dashboard')->name('inventory.dashboard');
 
