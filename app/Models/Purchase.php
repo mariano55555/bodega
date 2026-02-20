@@ -310,7 +310,7 @@ class Purchase extends Model
                     'movement_reason_id' => $movementReason->id,
                     'purchase_id' => $this->id,
                     'movement_type' => 'purchase',
-                    'movement_date' => $this->received_at ?? now(),
+                    'movement_date' => $this->document_date ?? $this->received_at ?? now(),
                     'quantity' => $detail->quantity,
                     'quantity_in' => $detail->quantity,
                     'quantity_out' => 0,

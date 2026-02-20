@@ -34,11 +34,15 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function processDispatch(): void
     {
-        if ($this->dispatch->dispatch(auth()->id())) {
-            session()->flash('success', 'Despacho procesado exitosamente. Stock actualizado.');
-            $this->dispatch->refresh();
-        } else {
-            session()->flash('error', 'No se pudo procesar el despacho.');
+        try {
+            if ($this->dispatch->dispatch(auth()->id())) {
+                session()->flash('success', 'Despacho procesado exitosamente. Stock actualizado.');
+                $this->dispatch->refresh();
+            } else {
+                session()->flash('error', 'No se pudo procesar el despacho.');
+            }
+        } catch (\Exception $e) {
+            session()->flash('error', $e->getMessage());
         }
     }
 

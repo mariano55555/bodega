@@ -24,16 +24,19 @@ class FixMovementDatesCommand extends Command
             $this->newLine();
         }
 
-        // 1. Show affected dispatch movements
+        // 1. Show affected purchase movements
+        $purchaseCount = $this->showAffectedPurchases($warehouseId);
+
+        // 2. Show affected dispatch movements
         $dispatchCount = $this->showAffectedDispatches($warehouseId);
 
-        // 2. Show affected transfer movements
+        // 3. Show affected transfer movements
         $transferCount = $this->showAffectedTransfers($warehouseId);
 
-        // 3. Show affected internal production movements
+        // 4. Show affected internal production movements
         $productionCount = $this->showAffectedProductions($warehouseId);
 
-        $totalAffected = $dispatchCount + $transferCount + $productionCount;
+        $totalAffected = $purchaseCount + $dispatchCount + $transferCount + $productionCount;
 
         if ($totalAffected === 0) {
             $this->info('No hay movimientos que corregir. Todas las fechas estan correctas.');
@@ -57,7 +60,20 @@ class FixMovementDatesCommand extends Command
         DB::beginTransaction();
 
         try {
-            // 4. Update dispatch movement dates
+            // 4. Update purchase movement dates
+            if ($purchaseCount > 0) {
+                $updated = DB::update('
+                    UPDATE inventory_movements im
+                    JOIN purchases p ON p.id = im.purchase_id
+                    SET im.movement_date = p.document_date
+                    WHERE p.document_date IS NOT NULL
+                    AND DATE(im.movement_date) != DATE(p.document_date)
+                    '.($warehouseId ? "AND im.warehouse_id = {$warehouseId}" : '').'
+                ');
+                $this->info("Movimientos de compras corregidos: {$updated}");
+            }
+
+            // 5. Update dispatch movement dates
             if ($dispatchCount > 0) {
                 $updated = DB::update('
                     UPDATE inventory_movements im
@@ -70,7 +86,7 @@ class FixMovementDatesCommand extends Command
                 $this->info("Movimientos de despachos corregidos: {$updated}");
             }
 
-            // 5. Update transfer movement dates
+            // 6. Update transfer movement dates
             if ($transferCount > 0) {
                 $updated = DB::update('
                     UPDATE inventory_movements im
@@ -83,7 +99,7 @@ class FixMovementDatesCommand extends Command
                 $this->info("Movimientos de traslados corregidos: {$updated}");
             }
 
-            // 6. Update internal production movement dates
+            // 7. Update internal production movement dates
             if ($productionCount > 0) {
                 $updated = DB::update('
                     UPDATE inventory_movements im
@@ -97,13 +113,14 @@ class FixMovementDatesCommand extends Command
                 $this->info("Movimientos de produccion interna corregidos: {$updated}");
             }
 
-            // 7. Recalculate balances for affected product/warehouse combinations
+            // 8. Recalculate balances for affected product/warehouse combinations
             $this->newLine();
             $this->info('Recalculando saldos...');
 
             $combinations = InventoryMovement::query()
                 ->where(function ($q) {
-                    $q->whereNotNull('dispatch_id')
+                    $q->whereNotNull('purchase_id')
+                        ->orWhereNotNull('dispatch_id')
                         ->orWhereNotNull('transfer_id')
                         ->orWhere('movement_type', 'production');
                 })
@@ -133,6 +150,58 @@ class FixMovementDatesCommand extends Command
 
             return Command::FAILURE;
         }
+    }
+
+    private function showAffectedPurchases(?string $warehouseId): int
+    {
+        $count = DB::table('inventory_movements as im')
+            ->join('purchases as p', 'p.id', '=', 'im.purchase_id')
+            ->whereNotNull('p.document_date')
+            ->whereRaw('DATE(im.movement_date) != DATE(p.document_date)')
+            ->when($warehouseId, fn ($q) => $q->where('im.warehouse_id', $warehouseId))
+            ->count();
+
+        $this->info("Movimientos de compras con fecha incorrecta: {$count}");
+
+        if ($count > 0) {
+            $sample = DB::table('inventory_movements as im')
+                ->join('purchases as p', 'p.id', '=', 'im.purchase_id')
+                ->join('products as p2', 'p2.id', '=', 'im.product_id')
+                ->join('warehouses as w', 'w.id', '=', 'im.warehouse_id')
+                ->whereNotNull('p.document_date')
+                ->whereRaw('DATE(im.movement_date) != DATE(p.document_date)')
+                ->when($warehouseId, fn ($q) => $q->where('im.warehouse_id', $warehouseId))
+                ->select([
+                    'im.id',
+                    'w.name as bodega',
+                    'p2.name as producto',
+                    'p.purchase_number',
+                    'im.movement_date as fecha_actual',
+                    'p.document_date as fecha_documento',
+                ])
+                ->limit(20)
+                ->get();
+
+            $this->table(
+                ['ID', 'Bodega', 'Producto', 'Compra', 'Fecha Actual', 'Fecha Documento'],
+                $sample->map(fn ($row) => [
+                    $row->id,
+                    mb_substr($row->bodega, 0, 20),
+                    mb_substr($row->producto, 0, 25),
+                    $row->purchase_number,
+                    $row->fecha_actual,
+                    $row->fecha_documento,
+                ])->toArray()
+            );
+
+            if ($count > 20) {
+                $this->line("... mostrando solo 20 de {$count} registros.");
+            }
+        }
+
+        $this->newLine();
+
+        return $count;
     }
 
     private function showAffectedDispatches(?string $warehouseId): int

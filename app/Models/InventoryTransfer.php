@@ -248,6 +248,24 @@ class InventoryTransfer extends Model
                 throw new \Exception('Movement reason TRANSFER_OUT not found');
             }
 
+            // Validate stock availability before creating movements
+            $stockErrors = [];
+            foreach ($this->details->load('product') as $detail) {
+                $inventory = Inventory::where('product_id', $detail->product_id)
+                    ->where('warehouse_id', $this->from_warehouse_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                $available = $inventory?->available_quantity ?? 0;
+                if ($available < $detail->quantity) {
+                    $stockErrors[] = "{$detail->product->name}: disponible ".number_format($available, 2).', solicitado '.number_format($detail->quantity, 2);
+                }
+            }
+
+            if (! empty($stockErrors)) {
+                throw new \Exception('Stock insuficiente en bodega origen. '.implode('; ', $stockErrors));
+            }
+
             // Create outbound inventory movements from transfer details
             foreach ($this->details as $detail) {
                 // Get current stock at origin warehouse

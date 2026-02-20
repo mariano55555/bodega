@@ -49,12 +49,16 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function ship(): void
     {
-        if ($this->transfer->ship(auth()->id(), $this->trackingNumber, $this->carrier)) {
-            \Flux::toast(variant: 'success', text: 'Traslado enviado exitosamente. Se han creado los movimientos de inventario.');
-            $this->modal('ship-modal')->close();
-            $this->transfer->refresh();
-        } else {
-            \Flux::toast(variant: 'danger', text: 'No se puede enviar el traslado en su estado actual.');
+        try {
+            if ($this->transfer->ship(auth()->id(), $this->trackingNumber, $this->carrier)) {
+                \Flux::toast(variant: 'success', text: 'Traslado enviado exitosamente. Se han creado los movimientos de inventario.');
+                $this->modal('ship-modal')->close();
+                $this->transfer->refresh();
+            } else {
+                \Flux::toast(variant: 'danger', text: 'No se puede enviar el traslado en su estado actual.');
+            }
+        } catch (\Exception $e) {
+            \Flux::toast(variant: 'danger', text: $e->getMessage());
         }
     }
 

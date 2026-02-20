@@ -351,6 +351,24 @@ class Dispatch extends Model
                 default => 'sale',
             };
 
+            // Validate stock availability before creating movements
+            $stockErrors = [];
+            foreach ($this->details->load('product') as $detail) {
+                $inventory = Inventory::where('product_id', $detail->product_id)
+                    ->where('warehouse_id', $this->warehouse_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                $available = $inventory?->available_quantity ?? 0;
+                if ($available < $detail->quantity) {
+                    $stockErrors[] = "{$detail->product->name}: disponible ".number_format($available, 2).', solicitado '.number_format($detail->quantity, 2);
+                }
+            }
+
+            if (! empty($stockErrors)) {
+                throw new \Exception('Stock insuficiente en bodega. '.implode('; ', $stockErrors));
+            }
+
             // Create inventory movements for each dispatch detail
             foreach ($this->details as $detail) {
                 // Get current stock for this product in this warehouse
