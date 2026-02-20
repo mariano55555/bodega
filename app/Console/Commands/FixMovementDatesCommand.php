@@ -33,10 +33,13 @@ class FixMovementDatesCommand extends Command
         // 3. Show affected transfer movements
         $transferCount = $this->showAffectedTransfers($warehouseId);
 
-        // 4. Show affected internal production movements
+        // 4. Show affected donation movements
+        $donationCount = $this->showAffectedDonations($warehouseId);
+
+        // 5. Show affected internal production movements
         $productionCount = $this->showAffectedProductions($warehouseId);
 
-        $totalAffected = $purchaseCount + $dispatchCount + $transferCount + $productionCount;
+        $totalAffected = $purchaseCount + $dispatchCount + $transferCount + $donationCount + $productionCount;
 
         if ($totalAffected === 0) {
             $this->info('No hay movimientos que corregir. Todas las fechas estan correctas.');
@@ -99,7 +102,20 @@ class FixMovementDatesCommand extends Command
                 $this->info("Movimientos de traslados corregidos: {$updated}");
             }
 
-            // 7. Update internal production movement dates
+            // 7. Update donation movement dates
+            if ($donationCount > 0) {
+                $updated = DB::update('
+                    UPDATE inventory_movements im
+                    JOIN donations d ON d.id = im.donation_id
+                    SET im.movement_date = d.document_date
+                    WHERE d.document_date IS NOT NULL
+                    AND DATE(im.movement_date) != DATE(d.document_date)
+                    '.($warehouseId ? "AND im.warehouse_id = {$warehouseId}" : '').'
+                ');
+                $this->info("Movimientos de donaciones corregidos: {$updated}");
+            }
+
+            // 8. Update internal production movement dates
             if ($productionCount > 0) {
                 $updated = DB::update('
                     UPDATE inventory_movements im
@@ -122,6 +138,7 @@ class FixMovementDatesCommand extends Command
                     $q->whereNotNull('purchase_id')
                         ->orWhereNotNull('dispatch_id')
                         ->orWhereNotNull('transfer_id')
+                        ->orWhereNotNull('donation_id')
                         ->orWhere('movement_type', 'production');
                 })
                 ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId))
@@ -293,6 +310,58 @@ class FixMovementDatesCommand extends Command
                     mb_substr($row->bodega, 0, 20),
                     mb_substr($row->producto, 0, 25),
                     $row->transfer_number,
+                    $row->fecha_actual,
+                    $row->fecha_documento,
+                ])->toArray()
+            );
+
+            if ($count > 20) {
+                $this->line("... mostrando solo 20 de {$count} registros.");
+            }
+        }
+
+        $this->newLine();
+
+        return $count;
+    }
+
+    private function showAffectedDonations(?string $warehouseId): int
+    {
+        $count = DB::table('inventory_movements as im')
+            ->join('donations as d', 'd.id', '=', 'im.donation_id')
+            ->whereNotNull('d.document_date')
+            ->whereRaw('DATE(im.movement_date) != DATE(d.document_date)')
+            ->when($warehouseId, fn ($q) => $q->where('im.warehouse_id', $warehouseId))
+            ->count();
+
+        $this->info("Movimientos de donaciones con fecha incorrecta: {$count}");
+
+        if ($count > 0) {
+            $sample = DB::table('inventory_movements as im')
+                ->join('donations as d', 'd.id', '=', 'im.donation_id')
+                ->join('products as p', 'p.id', '=', 'im.product_id')
+                ->join('warehouses as w', 'w.id', '=', 'im.warehouse_id')
+                ->whereNotNull('d.document_date')
+                ->whereRaw('DATE(im.movement_date) != DATE(d.document_date)')
+                ->when($warehouseId, fn ($q) => $q->where('im.warehouse_id', $warehouseId))
+                ->select([
+                    'im.id',
+                    'w.name as bodega',
+                    'p.name as producto',
+                    'd.donation_number',
+                    'im.movement_date as fecha_actual',
+                    'd.document_date as fecha_documento',
+                ])
+                ->limit(20)
+                ->get();
+
+            $this->table(
+                ['ID', 'Bodega', 'Producto', 'Donacion', 'Fecha Actual', 'Fecha Documento'],
+                $sample->map(fn ($row) => [
+                    $row->id,
+                    mb_substr($row->bodega, 0, 20),
+                    mb_substr($row->producto, 0, 25),
+                    $row->donation_number,
                     $row->fecha_actual,
                     $row->fecha_documento,
                 ])->toArray()
