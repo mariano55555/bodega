@@ -302,6 +302,7 @@ new #[Layout('components.layouts.app')] class extends Component
             <flux:table>
                 <flux:table.columns>
                     <flux:table.column>Número</flux:table.column>
+                    <flux:table.column>Doc. Físico</flux:table.column>
                     <flux:table.column>Fecha</flux:table.column>
                     <flux:table.column>Proveedor</flux:table.column>
                     <flux:table.column>Bodega</flux:table.column>
@@ -316,16 +317,20 @@ new #[Layout('components.layouts.app')] class extends Component
                 @forelse ($purchases as $purchase)
                     <flux:table.row :key="$purchase->id">
                         <flux:table.cell>
-                            <div>
-                                <div class="font-medium text-gray-900 dark:text-gray-100">
-                                    {{ $purchase->purchase_number }}
+                            <span class="font-medium text-gray-900 dark:text-gray-100">
+                                {{ $purchase->purchase_number }}
+                            </span>
+                        </flux:table.cell>
+
+                        <flux:table.cell>
+                            @if ($purchase->document_number)
+                                <span class="font-medium">{{ $purchase->document_number }}</span>
+                                <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                                    {{ ucfirst($purchase->document_type) }}
                                 </div>
-                                @if ($purchase->document_number)
-                                    <div class="text-sm text-gray-500 dark:text-gray-400">
-                                        {{ ucfirst($purchase->document_type) }}: {{ $purchase->document_number }}
-                                    </div>
-                                @endif
-                            </div>
+                            @else
+                                <span class="text-zinc-400">-</span>
+                            @endif
                         </flux:table.cell>
 
                         <flux:table.cell>
@@ -435,7 +440,7 @@ new #[Layout('components.layouts.app')] class extends Component
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="9" class="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <flux:table.cell colspan="10" class="text-center py-8 text-gray-500 dark:text-gray-400">
                             <flux:icon name="shopping-cart" class="mx-auto h-12 w-12 mb-3 opacity-20" />
                             <div>No se encontraron compras.</div>
                         </flux:table.cell>

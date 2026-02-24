@@ -36,6 +36,11 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->document_date = now()->format('Y-m-d');
     }
 
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
     public function updatedPerPage(): void
     {
         $this->resetPage();
@@ -95,10 +100,7 @@ new #[Layout('components.layouts.app')] class extends Component
             $query->where('company_id', $this->company_id);
         }
 
-        return $query->when($this->search, function ($query) {
-            $query->where('name', 'like', '%' . $this->search . '%')
-                  ->orWhere('sku', 'like', '%' . $this->search . '%');
-        })->orderBy('name')->get();
+        return $query->orderBy('name')->get();
     }
 
     #[Computed]
@@ -118,6 +120,15 @@ new #[Layout('components.layouts.app')] class extends Component
     {
         return InventoryTransfer::query()
             ->with(['fromWarehouse', 'toWarehouse'])
+            ->when($this->search, function ($q) {
+                $q->where(function ($query) {
+                    $query->where('transfer_number', 'like', "%{$this->search}%")
+                        ->orWhere('physical_document_number', 'like', "%{$this->search}%")
+                        ->orWhere('reason', 'like', "%{$this->search}%")
+                        ->orWhereHas('fromWarehouse', fn ($q) => $q->where('name', 'like', "%{$this->search}%"))
+                        ->orWhereHas('toWarehouse', fn ($q) => $q->where('name', 'like', "%{$this->search}%"));
+                });
+            })
             ->latest('created_at')
             ->paginate($this->perPage);
     }
@@ -580,20 +591,29 @@ new #[Layout('components.layouts.app')] class extends Component
             </flux:text>
         </div>
 
-        <!-- Stats and Per Page -->
-        <div class="flex items-center justify-between mb-4">
-            <div class="text-sm text-gray-600 dark:text-gray-400">
-                Mostrando {{ $this->transfers->firstItem() ?? 0 }} - {{ $this->transfers->lastItem() ?? 0 }} de {{ $this->transfers->total() }} traslados
+        <!-- Search and Per Page -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+            <div class="w-full sm:w-80">
+                <flux:input
+                    wire:model.live.debounce.300ms="search"
+                    placeholder="Buscar por número, documento físico, bodega..."
+                    icon="magnifying-glass"
+                />
             </div>
-            <div class="flex items-center gap-2">
-                <flux:text class="text-sm">Por página:</flux:text>
-                <flux:select wire:model.live="perPage" class="w-20">
-                    <option value="10">10</option>
-                    <option value="15">15</option>
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                </flux:select>
+            <div class="flex items-center gap-4">
+                <div class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                    {{ $this->transfers->firstItem() ?? 0 }} - {{ $this->transfers->lastItem() ?? 0 }} de {{ $this->transfers->total() }}
+                </div>
+                <div class="flex items-center gap-2">
+                    <flux:text class="text-sm">Por página:</flux:text>
+                    <flux:select wire:model.live="perPage" class="w-20">
+                        <option value="10">10</option>
+                        <option value="15">15</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </flux:select>
+                </div>
             </div>
         </div>
 
