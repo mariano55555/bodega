@@ -324,7 +324,10 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
                                 ->getNumberFormat()
                                 ->setFormatCode('#,##0.00');
                             $sheet->getStyle("C{$currentRow}:H{$currentRow}")->getAlignment()->setHorizontal('right');
-                            $sheet->getStyle("G{$currentRow}:H{$currentRow}")
+                            $sheet->getStyle("G{$currentRow}")
+                                ->getNumberFormat()
+                                ->setFormatCode('$#,##0.00000');
+                            $sheet->getStyle("H{$currentRow}")
                                 ->getNumberFormat()
                                 ->setFormatCode('$#,##0.00');
 

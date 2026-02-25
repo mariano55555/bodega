@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Inventory;
+use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Warehouse;
@@ -121,8 +122,28 @@ new #[Layout('components.layouts.app')] class extends Component
             $query->where('available_quantity', '<=', 0);
         }
 
-        return $query->orderBy('updated_at', 'desc')
+        $results = $query->orderBy('updated_at', 'desc')
             ->paginate(15);
+
+        // Enrich items with zero unit_cost using the last movement cost
+        foreach ($results as $item) {
+            if ((float) $item->unit_cost <= 0) {
+                $lastCostMovement = InventoryMovement::where('product_id', $item->product_id)
+                    ->where('warehouse_id', $item->warehouse_id)
+                    ->whereNotNull('balance_quantity')
+                    ->where('unit_cost', '>', 0)
+                    ->orderByDesc('movement_date')
+                    ->orderByDesc('id')
+                    ->first();
+
+                if ($lastCostMovement) {
+                    $item->unit_cost = $lastCostMovement->unit_cost;
+                    $item->total_value = $item->quantity * $lastCostMovement->unit_cost;
+                }
+            }
+        }
+
+        return $results;
     }
 
     #[Computed]
@@ -186,7 +207,28 @@ new #[Layout('components.layouts.app')] class extends Component
                 $q->whereRaw('inventory.available_quantity <= products.minimum_stock');
             })->count();
         $expiringItems = (clone $query)->expiringSoon(30)->count();
-        $totalValue = (clone $query)->sum('total_value');
+
+        // Sum total_value for items that already have a cost
+        $totalValue = (clone $query)->where('unit_cost', '>', 0)->sum('total_value');
+
+        // For items with zero cost, calculate from movement history
+        $zeroCostItems = (clone $query)->where('unit_cost', '<=', 0)
+            ->select(['product_id', 'warehouse_id', 'quantity'])
+            ->get();
+
+        foreach ($zeroCostItems as $item) {
+            $lastCostMovement = InventoryMovement::where('product_id', $item->product_id)
+                ->where('warehouse_id', $item->warehouse_id)
+                ->whereNotNull('balance_quantity')
+                ->where('unit_cost', '>', 0)
+                ->orderByDesc('movement_date')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($lastCostMovement) {
+                $totalValue += $item->quantity * (float) $lastCostMovement->unit_cost;
+            }
+        }
 
         return [
             'total_items' => $totalItems,

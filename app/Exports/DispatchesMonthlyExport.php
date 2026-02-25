@@ -39,7 +39,7 @@ class DispatchesMonthlyExport implements FromCollection, ShouldAutoSize, WithCol
             ->select([
                 'dispatch_details.*',
                 'dispatches.document_date',
-                'dispatches.dispatch_number',
+                'dispatches.physical_document_number',
                 'dispatches.warehouse_id',
                 'dispatches.area_id',
                 'products.name as product_name',
@@ -92,7 +92,7 @@ class DispatchesMonthlyExport implements FromCollection, ShouldAutoSize, WithCol
             [],
             [
                 'Fecha Despacho',
-                'N° Despacho',
+                'N° Documento',
                 'Bodega',
                 'Área Solicitante',
                 'Línea Presupuestaria',
@@ -109,7 +109,7 @@ class DispatchesMonthlyExport implements FromCollection, ShouldAutoSize, WithCol
     {
         return [
             \Carbon\Carbon::parse($row->document_date)->format('d/m/Y'),
-            $row->dispatch_number,
+            $row->physical_document_number ?? '-',
             $row->warehouse_name,
             $row->area_name ?? '-',
             $row->parent_category_name ?? $row->category_name ?? '-',

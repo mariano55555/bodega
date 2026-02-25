@@ -462,7 +462,7 @@ new class extends Component
                                             </flux:table.cell>
 
                                             <flux:table.cell align="end" class="tabular-nums">
-                                                ${{ number_format($item->unit_cost, 2) }}
+                                                ${{ number_format($item->unit_cost, 5) }}
                                             </flux:table.cell>
 
                                             <flux:table.cell align="end" class="font-semibold tabular-nums">

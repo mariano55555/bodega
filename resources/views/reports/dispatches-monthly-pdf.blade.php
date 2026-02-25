@@ -90,7 +90,7 @@
                 </tr>
                 <tr class="columns-row">
                     <th style="width: 8%;">Fecha Despacho</th>
-                    <th style="width: 10%;">N° Despacho</th>
+                    <th style="width: 10%;">N° Documento</th>
                     <th style="width: 8%;">Bodega</th>
                     <th style="width: 12%;">Área Solicitante</th>
                     <th style="width: 12%;">Línea Presupuestaria</th>
@@ -109,7 +109,7 @@
                     @foreach ($group->items as $item)
                         <tr>
                             <td>{{ \Carbon\Carbon::parse($item->document_date)->format('d/m/Y') }}</td>
-                            <td>{{ $item->dispatch_number }}</td>
+                            <td>{{ $item->physical_document_number ?? '-' }}</td>
                             <td>{{ $item->warehouse_name }}</td>
                             <td>{{ $item->area_name ?? '-' }}</td>
                             <td>{{ $item->parent_category_name ?? $item->category_name ?? '-' }}</td>

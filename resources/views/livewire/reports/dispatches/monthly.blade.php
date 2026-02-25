@@ -82,7 +82,7 @@ new #[Layout('components.layouts.app')] class extends Component
             ->select([
                 'dispatch_details.*',
                 'dispatches.document_date',
-                'dispatches.dispatch_number',
+                'dispatches.physical_document_number',
                 'dispatches.warehouse_id',
                 'dispatches.area_id',
                 'products.name as product_name',
@@ -297,7 +297,7 @@ new #[Layout('components.layouts.app')] class extends Component
                     <flux:table>
                         <flux:table.columns>
                             <flux:table.column>Fecha</flux:table.column>
-                            <flux:table.column>N° Despacho</flux:table.column>
+                            <flux:table.column>N° Documento</flux:table.column>
                             <flux:table.column>Área Solicitante</flux:table.column>
                             <flux:table.column>Línea Presup.</flux:table.column>
                             <flux:table.column>Específico</flux:table.column>
@@ -315,7 +315,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                     </flux:table.cell>
 
                                     <flux:table.cell>
-                                        <flux:badge>{{ $item->dispatch_number }}</flux:badge>
+                                        <flux:badge>{{ $item->physical_document_number ?? '-' }}</flux:badge>
                                     </flux:table.cell>
 
                                     <flux:table.cell>

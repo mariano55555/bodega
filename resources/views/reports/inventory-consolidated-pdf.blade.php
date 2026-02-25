@@ -130,7 +130,7 @@
                                 <td class="right">{{ number_format($item->entries, 2) }}</td>
                                 <td class="right">{{ number_format($item->exits, 2) }}</td>
                                 <td class="right" style="font-weight: bold;">{{ number_format($item->current_stock, 2) }}</td>
-                                <td class="right">${{ number_format($item->unit_cost, 2) }}</td>
+                                <td class="right">${{ number_format($item->unit_cost, 5) }}</td>
                                 <td class="right" style="font-weight: bold;">${{ number_format($item->total_cost, 2) }}</td>
                             </tr>
                         @endforeach

@@ -338,7 +338,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 <div class="overflow-x-auto">
                     <flux:table>
                         <flux:table.columns>
-                            <flux:table.column>No. Traslado</flux:table.column>
+                            <flux:table.column>No. Documento</flux:table.column>
                             <flux:table.column>Fecha</flux:table.column>
                             <flux:table.column>Origen</flux:table.column>
                             <flux:table.column>Destino</flux:table.column>
@@ -352,7 +352,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                 <flux:table.row>
                                     <flux:table.cell>
                                         <a href="{{ route('transfers.show', $transfer) }}" class="font-mono text-sm text-blue-600 hover:underline dark:text-blue-400">
-                                            {{ $transfer->transfer_number }}
+                                            {{ $transfer->physical_document_number ?? $transfer->transfer_number }}
                                         </a>
                                     </flux:table.cell>
 

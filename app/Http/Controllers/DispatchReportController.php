@@ -200,7 +200,7 @@ class DispatchReportController extends Controller
             ->select([
                 'dispatch_details.*',
                 'dispatches.document_date',
-                'dispatches.dispatch_number',
+                'dispatches.physical_document_number',
                 'dispatches.warehouse_id',
                 'dispatches.area_id',
                 'products.name as product_name',
