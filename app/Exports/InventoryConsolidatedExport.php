@@ -144,7 +144,7 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
                 'unit_cost' => $unitCost,
                 'total_cost' => $totalCost,
             ];
-        });
+        })->filter(fn ($item) => $item->current_stock != 0);
 
         $this->groupedData = $results->groupBy('parent_name')->map(function ($items, $parentName) {
             $firstItem = $items->first();

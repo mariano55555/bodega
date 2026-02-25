@@ -212,7 +212,7 @@ class InventoryReportController extends Controller
                 'unit_cost' => $unitCost,
                 'total_cost' => $totalCost,
             ];
-        });
+        })->filter(fn ($item) => $item->current_stock != 0);
 
         // Group by parent category, then by subcategory within each parent
         $groupedByCategory = $results->groupBy('parent_name')->map(function ($items, $parentName) {

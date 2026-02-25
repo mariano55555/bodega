@@ -294,7 +294,9 @@ document.addEventListener('alpine:init', () => {
         notes: config.notes,
 
         init() {
-            // Nothing to emit for transfers (no totals)
+            this.$nextTick(() => {
+                this.emitTotal();
+            });
         },
 
         get productInfo() {
@@ -317,15 +319,23 @@ document.addEventListener('alpine:init', () => {
             return (parseFloat(this.quantity) || 0) * unitCost;
         },
 
+        emitTotal() {
+            window.dispatchEvent(new CustomEvent('transfer-row-total-updated', {
+                detail: { index: this.index, total: this.total }
+            }));
+        },
+
         selectProduct(id) {
             this.productId = id;
             // Cap quantity if it exceeds new product's available stock
             this.capQuantityToStock();
+            this.emitTotal();
             this.syncToLivewire();
         },
 
         updateQuantity() {
             this.capQuantityToStock();
+            this.emitTotal();
             this.syncToLivewire();
         },
 
@@ -344,6 +354,7 @@ document.addEventListener('alpine:init', () => {
             this.quantity = 1;
             this.notes = '';
             this.expanded = false;
+            this.emitTotal();
             // Sync cleared state to Livewire in background (deferred)
             this.syncToLivewire();
         },

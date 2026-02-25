@@ -399,6 +399,12 @@ new #[Layout('components.layouts.app')] class extends Component {
                  x-init="
                     Alpine.store('transferProducts', @js($this->productsData));
                     Alpine.store('transferAvailableStock', @js($this->availableStockData));
+                    Alpine.store('transferRowTotals', {});
+                    Alpine.store('transferGrandTotal', 0);
+                 "
+                 x-on:transfer-row-total-updated.window="
+                    $store.transferRowTotals[$event.detail.index] = $event.detail.total;
+                    $store.transferGrandTotal = Object.values($store.transferRowTotals).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
                  ">
                 <flux:table>
                     <flux:table.columns>
@@ -569,6 +575,16 @@ new #[Layout('components.layouts.app')] class extends Component {
                     <span wire:loading.remove wire:target="addMoreRows">+5 filas</span>
                     <span wire:loading wire:target="addMoreRows">Agregando...</span>
                 </flux:button>
+            </div>
+
+            <!-- Grand Total (calculated with Alpine.js for real-time updates) -->
+            <div class="mt-4 flex justify-end" x-data>
+                <div class="bg-zinc-100 dark:bg-zinc-800 px-6 py-3 rounded-lg">
+                    <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">Total General</flux:text>
+                    <flux:heading size="lg">
+                        $<span x-text="($store.transferGrandTotal || 0).toFixed(5)">0.00000</span>
+                    </flux:heading>
+                </div>
             </div>
 
             <flux:error name="products" class="mt-2" />
