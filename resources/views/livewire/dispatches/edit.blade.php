@@ -277,14 +277,18 @@ new #[Layout('components.layouts.app')] class extends Component
             $newDetails = [];
             foreach ($this->details as $detail) {
                 if (isset($detail['id']) && $detail['id']) {
-                    // Update existing
-                    DispatchDetail::where('id', $detail['id'])->update([
-                        'product_id' => $detail['product_id'],
-                        'quantity' => $detail['quantity'],
-                        'unit_of_measure_id' => $detail['unit_of_measure_id'],
-                        'unit_price' => $detail['unit_price'] ?? 0,
-                        'notes' => $detail['notes'] ?? null,
-                    ]);
+                    // Update existing (use Eloquent save to trigger saving event that recalculates subtotal/total)
+                    $existingDetail = DispatchDetail::find($detail['id']);
+                    if ($existingDetail) {
+                        $existingDetail->fill([
+                            'product_id' => $detail['product_id'],
+                            'quantity' => $detail['quantity'],
+                            'unit_of_measure_id' => $detail['unit_of_measure_id'],
+                            'unit_price' => $detail['unit_price'] ?? 0,
+                            'notes' => $detail['notes'] ?? null,
+                        ]);
+                        $existingDetail->save();
+                    }
                 } else {
                     // Create new
                     $newDetail = DispatchDetail::create([
@@ -304,6 +308,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 $this->processInventoryForNewDetails($newDetails);
             }
 
+            $this->dispatch->load('details');
             $this->dispatch->calculateTotals();
 
             \DB::commit();
