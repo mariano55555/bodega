@@ -291,6 +291,9 @@ class InventoryAdjustment extends Model
 
         \DB::beginTransaction();
         try {
+            // Validate period is not closed
+            InventoryClosure::validatePeriodOpen($this->company_id, $this->warehouse_id, now());
+
             // Get current stock for this product in this warehouse
             $currentStock = InventoryMovement::where('warehouse_id', $this->warehouse_id)
                 ->where('product_id', $this->product_id)

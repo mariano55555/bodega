@@ -264,6 +264,9 @@ class InternalProduction extends Model
 
         \DB::beginTransaction();
         try {
+            // Validate period is not closed
+            InventoryClosure::validatePeriodOpen($this->company_id, $this->warehouse_id, $this->document_date ?? now());
+
             $movementReason = MovementReason::where('code', 'PRODUCTION_IN')->first();
 
             if (! $movementReason) {

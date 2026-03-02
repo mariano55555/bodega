@@ -514,6 +514,27 @@ class InventoryClosure extends Model
         return true;
     }
 
+    /**
+     * Validate that the period is open for the given warehouse and date.
+     * Throws an exception if the period is closed.
+     */
+    public static function validatePeriodOpen(int $companyId, int $warehouseId, $date): void
+    {
+        $date = \Carbon\Carbon::parse($date);
+
+        $closure = static::where('company_id', $companyId)
+            ->where('warehouse_id', $warehouseId)
+            ->where('year', $date->year)
+            ->where('month', $date->month)
+            ->where('status', 'cerrado')
+            ->first();
+
+        if ($closure) {
+            $monthName = $date->translatedFormat('F Y');
+            throw new \Exception("No se pueden registrar movimientos en el período {$monthName} porque el cierre mensual ya fue realizado. Si necesita registrar movimientos en este período, debe reabrir el cierre primero.");
+        }
+    }
+
     // Permission Helper Methods
 
     public function canBeApproved(): bool

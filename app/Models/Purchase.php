@@ -281,6 +281,9 @@ class Purchase extends Model
         // Use database transaction to ensure consistency
         \DB::beginTransaction();
         try {
+            // Validate period is not closed
+            InventoryClosure::validatePeriodOpen($this->company_id, $this->warehouse_id, $this->document_date ?? now());
+
             // Update purchase status
             $this->status = 'recibido';
             $this->received_by = $userId;

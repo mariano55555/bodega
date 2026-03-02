@@ -30,12 +30,21 @@ return new class extends Migration
         });
 
         // Populate company_id and branch_id from warehouse
-        DB::statement('
-            UPDATE storage_locations sl
-            INNER JOIN warehouses w ON sl.warehouse_id = w.id
-            SET sl.company_id = w.company_id,
-                sl.branch_id = w.branch_id
-        ');
+        $driver = Schema::getConnection()->getDriverName();
+        if ($driver === 'sqlite') {
+            DB::statement('
+                UPDATE storage_locations
+                SET company_id = (SELECT w.company_id FROM warehouses w WHERE w.id = storage_locations.warehouse_id),
+                    branch_id = (SELECT w.branch_id FROM warehouses w WHERE w.id = storage_locations.warehouse_id)
+            ');
+        } else {
+            DB::statement('
+                UPDATE storage_locations sl
+                INNER JOIN warehouses w ON sl.warehouse_id = w.id
+                SET sl.company_id = w.company_id,
+                    sl.branch_id = w.branch_id
+            ');
+        }
 
         // Now make company_id NOT NULL and add foreign keys
         Schema::table('storage_locations', function (Blueprint $table) {

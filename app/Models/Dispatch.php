@@ -312,6 +312,9 @@ class Dispatch extends Model
         // Use database transaction to ensure consistency
         \DB::beginTransaction();
         try {
+            // Validate period is not closed
+            InventoryClosure::validatePeriodOpen($this->company_id, $this->warehouse_id, $this->document_date ?? now());
+
             // Reserve stock and update dispatch status
             foreach ($this->details as $detail) {
                 $detail->is_reserved = true;

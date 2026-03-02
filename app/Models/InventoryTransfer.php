@@ -228,6 +228,9 @@ class InventoryTransfer extends Model
 
         \DB::beginTransaction();
         try {
+            // Validate origin warehouse period is not closed
+            InventoryClosure::validatePeriodOpen($this->company_id, $this->from_warehouse_id, $this->document_date ?? now());
+
             // Update transfer status
             $this->status = 'in_transit';
             $this->shipped_by = $userId;
@@ -334,6 +337,9 @@ class InventoryTransfer extends Model
 
         \DB::beginTransaction();
         try {
+            // Validate destination warehouse period is not closed
+            InventoryClosure::validatePeriodOpen($this->company_id, $this->to_warehouse_id, $this->document_date ?? now());
+
             // Update transfer status
             $this->status = 'received';
             $this->received_by = $userId;
