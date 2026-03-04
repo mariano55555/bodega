@@ -382,7 +382,6 @@ class InventoryAdjustment extends Model
                 $inventory->available_quantity = ($inventory->available_quantity ?? 0) - $absoluteQuantity;
             }
 
-            $inventory->company_id = $inventory->company_id ?? $this->company_id;
             $inventory->unit_cost = $this->unit_cost ?? $inventory->unit_cost;
             $inventory->is_active = true;
             $inventory->active_at = $inventory->active_at ?? now();
