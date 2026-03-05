@@ -262,15 +262,16 @@ class Dispatch extends Model
         // Extract the numeric part from warehouse code (e.g., "BOD-001" -> "001")
         $warehouseCodeSuffix = substr($warehouse->code, -3);
 
-        // Get the last dispatch number for this warehouse
-        $lastDispatch = self::where('warehouse_id', $warehouseId)
-            ->where('dispatch_number', 'like', "BOD-{$warehouseCodeSuffix}-D-%")
-            ->orderByRaw('CAST(SUBSTRING(dispatch_number, -2) AS UNSIGNED) DESC')
+        // Get the last dispatch number for this warehouse (including soft-deleted to avoid unique constraint conflicts)
+        $prefix = "BOD-{$warehouseCodeSuffix}-D-";
+        $lastDispatch = self::withTrashed()
+            ->where('dispatch_number', 'like', "{$prefix}%")
+            ->orderByRaw('CAST(SUBSTRING_INDEX(dispatch_number, \'-\', -1) AS UNSIGNED) DESC')
             ->first();
 
         if ($lastDispatch) {
-            // Extract the sequential number and increment
-            $lastNumber = (int) substr($lastDispatch->dispatch_number, -2);
+            // Extract the sequential number after the last hyphen and increment
+            $lastNumber = (int) Str::afterLast($lastDispatch->dispatch_number, '-');
             $nextNumber = $lastNumber + 1;
         } else {
             $nextNumber = 1;
