@@ -33,6 +33,12 @@ class DteImportService
 
             $data = json_decode($content, true);
 
+            // If JSON fails, try to fix common DTE JSON issues
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $content = $this->fixDteJson($content);
+                $data = json_decode($content, true);
+            }
+
             if (json_last_error() !== JSON_ERROR_NONE) {
                 return [
                     'success' => false,
@@ -61,6 +67,121 @@ class DteImportService
                 'error' => 'Error procesando el archivo: '.$e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * Attempt to fix common JSON issues in DTE files from Ministerio de Hacienda.
+     *
+     * Known issues:
+     * 1. Unescaped quotes in descriptions (inch marks like 14" or 5.5")
+     * 2. Premature closing brace before "firma"/"sello" fields
+     */
+    private function fixDteJson(string $json): string
+    {
+        $json = $this->fixUnescapedQuotes($json);
+        $json = $this->fixPrematureClosingBrace($json);
+
+        return $json;
+    }
+
+    /**
+     * Fix premature closing brace that excludes "firma" and "sello" from the root object.
+     *
+     * Some DTE files have the structure: {...}, "firma": "...", "sello": "..."
+     * instead of the correct: {..., "firma": "...", "sello": "..."}
+     */
+    private function fixPrematureClosingBrace(string $json): string
+    {
+        $len = strlen($json);
+        $braceCount = 0;
+        $inString = false;
+
+        for ($i = 0; $i < $len; $i++) {
+            if ($json[$i] === '\\' && $inString) {
+                $i++;
+
+                continue;
+            }
+
+            if ($json[$i] === '"') {
+                $inString = ! $inString;
+
+                continue;
+            }
+
+            if ($inString) {
+                continue;
+            }
+
+            if ($json[$i] === '{') {
+                $braceCount++;
+            } elseif ($json[$i] === '}') {
+                $braceCount--;
+                if ($braceCount === 0 && $i < $len - 1) {
+                    // Root object closed but content remains - remove this brace and add one at the end
+                    $json = substr($json, 0, $i).substr($json, $i + 1).'}';
+
+                    break;
+                }
+            }
+        }
+
+        return $json;
+    }
+
+    /**
+     * Fix unescaped quotes inside JSON string values (e.g. inch marks like 14" or 5.5").
+     *
+     * Walks through the JSON character by character, detecting quotes that appear
+     * mid-string (not followed by a JSON structural character) and escaping them.
+     */
+    private function fixUnescapedQuotes(string $json): string
+    {
+        $len = strlen($json);
+        $result = '';
+        $inString = false;
+        $i = 0;
+
+        while ($i < $len) {
+            $char = $json[$i];
+
+            if ($char === '\\' && $inString) {
+                // Escaped character - copy both chars as-is
+                $result .= $json[$i].($json[$i + 1] ?? '');
+                $i += 2;
+
+                continue;
+            }
+
+            if ($char === '"') {
+                if (! $inString) {
+                    $inString = true;
+                    $result .= $char;
+                } else {
+                    // Check what comes after this quote (skip whitespace)
+                    $j = $i + 1;
+                    while ($j < $len && ($json[$j] === ' ' || $json[$j] === "\t" || $json[$j] === "\r" || $json[$j] === "\n")) {
+                        $j++;
+                    }
+                    $next = $j < $len ? $json[$j] : '';
+
+                    // A real closing quote is followed by : , } ] or end of string
+                    if ($next === '' || $next === ':' || $next === ',' || $next === '}' || $next === ']') {
+                        $inString = false;
+                        $result .= $char;
+                    } else {
+                        // This is an unescaped quote inside a string value - escape it
+                        $result .= '\\"';
+                    }
+                }
+            } else {
+                $result .= $char;
+            }
+
+            $i++;
+        }
+
+        return $result;
     }
 
     /**
