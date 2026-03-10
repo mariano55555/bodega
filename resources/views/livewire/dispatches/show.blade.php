@@ -9,7 +9,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function mount(Dispatch $dispatch): void
     {
-        $this->dispatch = $dispatch->load(['employee', 'warehouse', 'details.product', 'details.unitOfMeasure', 'approver', 'dispatcher', 'deliverer', 'creator']);
+        $this->dispatch = $dispatch->load(['employee', 'warehouse', 'details.product', 'details.unitOfMeasure', 'approver', 'dispatcher', 'deliverer', 'creator', 'fuelDetail']);
     }
 
     public function submit(): void
@@ -96,6 +96,12 @@ new #[Layout('components.layouts.app')] class extends Component {
             @if ($dispatch->status === 'entregado')
                 <flux:button variant="primary" href="{{ route('dispatches.create') }}" wire:navigate icon="plus">
                     Nuevo Despacho
+                </flux:button>
+            @endif
+
+            @if ($dispatch->dispatch_type === 'combustible')
+                <flux:button variant="outline" icon="document-arrow-down" href="{{ route('dispatches.fuel-pdf', $dispatch) }}" target="_blank">
+                    PDF Combustible
                 </flux:button>
             @endif
 
@@ -262,6 +268,81 @@ new #[Layout('components.layouts.app')] class extends Component {
                     </div>
                 @endif
             </flux:card>
+
+            {{-- Fuel Details --}}
+            @if ($dispatch->dispatch_type === 'combustible' && $dispatch->fuelDetail)
+                <flux:card>
+                    <flux:heading size="lg" class="mb-4">Descripción del Equipo o Vehículo</flux:heading>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                        @if ($dispatch->fuelDetail->vehicle_class)
+                            <div>
+                                <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Clase</flux:text>
+                                <flux:text class="mt-1">{{ $dispatch->fuelDetail->vehicle_class }}</flux:text>
+                            </div>
+                        @endif
+                        @if ($dispatch->fuelDetail->vehicle_brand)
+                            <div>
+                                <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Marca</flux:text>
+                                <flux:text class="mt-1">{{ $dispatch->fuelDetail->vehicle_brand }}</flux:text>
+                            </div>
+                        @endif
+                        @if ($dispatch->fuelDetail->vehicle_model)
+                            <div>
+                                <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Modelo</flux:text>
+                                <flux:text class="mt-1">{{ $dispatch->fuelDetail->vehicle_model }}</flux:text>
+                            </div>
+                        @endif
+                        @if ($dispatch->fuelDetail->vehicle_plate)
+                            <div>
+                                <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Placa</flux:text>
+                                <flux:text class="mt-1 font-mono">{{ $dispatch->fuelDetail->vehicle_plate }}</flux:text>
+                            </div>
+                        @endif
+                        @if ($dispatch->fuelDetail->odometer_reading)
+                            <div>
+                                <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Lectura del Odómetro</flux:text>
+                                <flux:text class="mt-1">{{ number_format($dispatch->fuelDetail->odometer_reading, 2) }} km</flux:text>
+                            </div>
+                        @endif
+                        @if ($dispatch->fuelDetail->horometer_reading)
+                            <div>
+                                <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Lectura del Horómetro</flux:text>
+                                <flux:text class="mt-1">{{ number_format($dispatch->fuelDetail->horometer_reading, 2) }} Hr</flux:text>
+                            </div>
+                        @endif
+                    </div>
+                </flux:card>
+
+                <flux:card>
+                    <flux:heading size="lg" class="mb-4">Descripción de la Justificación</flux:heading>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        @if ($dispatch->fuelDetail->place_to_visit)
+                            <div>
+                                <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Lugar a Visitar</flux:text>
+                                <flux:text class="mt-1">{{ $dispatch->fuelDetail->place_to_visit }}</flux:text>
+                            </div>
+                        @endif
+                        @if ($dispatch->employee)
+                            <div>
+                                <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Responsable de la Misión</flux:text>
+                                <flux:text class="mt-1">{{ $dispatch->employee->name }}</flux:text>
+                            </div>
+                        @endif
+                        @if ($dispatch->fuelDetail->mission_description)
+                            <div class="sm:col-span-2">
+                                <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Misión a Realizar</flux:text>
+                                <flux:text class="mt-1">{{ $dispatch->fuelDetail->mission_description }}</flux:text>
+                            </div>
+                        @endif
+                        @if ($dispatch->fuelDetail->kilometers_to_travel)
+                            <div>
+                                <flux:text size="sm" class="font-medium text-gray-500 dark:text-gray-400">Kilómetros a Recorrer</flux:text>
+                                <flux:text class="mt-1">{{ number_format($dispatch->fuelDetail->kilometers_to_travel, 2) }} km</flux:text>
+                            </div>
+                        @endif
+                    </div>
+                </flux:card>
+            @endif
 
             {{-- Products --}}
             <flux:card>

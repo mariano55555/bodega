@@ -6,6 +6,7 @@ use App\Exports\DispatchesMonthlyExport;
 use App\Exports\DispatchesSummaryByLineExport;
 use App\Exports\DispatchesSummaryByLineQuantityExport;
 use App\Exports\StockMovementsExport;
+use App\Models\Dispatch;
 use App\Models\DispatchDetail;
 use App\Models\InventoryMovement;
 use App\Models\Warehouse;
@@ -568,5 +569,27 @@ class DispatchReportController extends Controller
             'groupedByCategory' => $groupedByCategory,
             'totals' => $totals,
         ];
+    }
+
+    /**
+     * Export a single fuel dispatch as PDF.
+     */
+    public function exportFuelDispatchPdf(Dispatch $dispatch)
+    {
+        if ($dispatch->dispatch_type !== 'combustible') {
+            return back()->with('error', 'Este despacho no es de tipo combustible.');
+        }
+
+        $dispatch->load(['company', 'warehouse', 'area', 'employee', 'details.product', 'details.unitOfMeasure', 'fuelDetail', 'creator', 'approver']);
+
+        $pdf = Pdf::loadView('reports.dispatch-fuel-pdf', [
+            'dispatch' => $dispatch,
+        ]);
+
+        $pdf->setPaper('letter', 'portrait');
+
+        $filename = 'despacho-combustible-'.$dispatch->dispatch_number.'.pdf';
+
+        return $pdf->download($filename);
     }
 }

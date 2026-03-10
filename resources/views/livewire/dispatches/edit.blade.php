@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\DispatchFuelDetail;
 use App\Models\Employee;
 use App\Models\Dispatch;
 use App\Models\DispatchDetail;
@@ -43,6 +44,25 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public $status = 'borrador';
 
+    // Fuel dispatch fields
+    public $vehicle_class = '';
+
+    public $vehicle_brand = '';
+
+    public $vehicle_model = '';
+
+    public $vehicle_plate = '';
+
+    public $odometer_reading = '';
+
+    public $horometer_reading = '';
+
+    public $place_to_visit = '';
+
+    public $mission_description = '';
+
+    public $kilometers_to_travel = '';
+
     public array $details = [];
 
     public function mount(Dispatch $dispatch): void
@@ -68,6 +88,20 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->document_date = $dispatch->document_date?->format('Y-m-d') ?? now()->format('Y-m-d');
         $this->notes = $dispatch->notes;
         $this->status = $dispatch->status;
+
+        // Load fuel detail if exists
+        if ($dispatch->dispatch_type === 'combustible' && $dispatch->fuelDetail) {
+            $fuel = $dispatch->fuelDetail;
+            $this->vehicle_class = $fuel->vehicle_class ?? '';
+            $this->vehicle_brand = $fuel->vehicle_brand ?? '';
+            $this->vehicle_model = $fuel->vehicle_model ?? '';
+            $this->vehicle_plate = $fuel->vehicle_plate ?? '';
+            $this->odometer_reading = $fuel->odometer_reading ?? '';
+            $this->horometer_reading = $fuel->horometer_reading ?? '';
+            $this->place_to_visit = $fuel->place_to_visit ?? '';
+            $this->mission_description = $fuel->mission_description ?? '';
+            $this->kilometers_to_travel = $fuel->kilometers_to_travel ?? '';
+        }
 
         // Load existing details - cast IDs to strings for Livewire select binding
         foreach ($dispatch->details as $detail) {
@@ -196,16 +230,31 @@ new #[Layout('components.layouts.app')] class extends Component
         // Re-index the array
         $this->details = array_values($filledDetails);
 
-        $this->validate([
+        $rules = [
             'warehouse_id' => 'required|exists:warehouses,id',
-            'dispatch_type' => 'required|in:venta,interno,externo,donacion',
+            'dispatch_type' => 'required|in:venta,interno,externo,donacion,combustible',
             'physical_document_number' => 'required|string|max:100|unique:dispatches,physical_document_number,'.$this->dispatch->id,
             'document_date' => 'required|date',
             'details' => 'required|array|min:1',
             'details.*.product_id' => 'required|exists:products,id',
             'details.*.quantity' => 'required|numeric|min:0.0001',
             'details.*.unit_of_measure_id' => 'required|exists:units_of_measure,id',
-        ]);
+        ];
+
+        // Add fuel-specific validation rules
+        if ($this->dispatch_type === 'combustible') {
+            $rules['vehicle_class'] = 'required|string|max:255';
+            $rules['vehicle_brand'] = 'required|string|max:255';
+            $rules['vehicle_model'] = 'nullable|string|max:255';
+            $rules['vehicle_plate'] = 'required|string|max:100';
+            $rules['odometer_reading'] = 'nullable|numeric|min:0';
+            $rules['horometer_reading'] = 'nullable|numeric|min:0';
+            $rules['place_to_visit'] = 'required|string|max:500';
+            $rules['mission_description'] = 'required|string|max:1000';
+            $rules['kilometers_to_travel'] = 'nullable|numeric|min:0';
+        }
+
+        $this->validate($rules);
 
         \DB::beginTransaction();
         try {
@@ -308,6 +357,27 @@ new #[Layout('components.layouts.app')] class extends Component
                 $this->processInventoryForNewDetails($newDetails);
             }
 
+            // Handle fuel detail
+            if ($this->dispatch_type === 'combustible') {
+                DispatchFuelDetail::updateOrCreate(
+                    ['dispatch_id' => $this->dispatch->id],
+                    [
+                        'vehicle_class' => $this->vehicle_class,
+                        'vehicle_brand' => $this->vehicle_brand,
+                        'vehicle_model' => $this->vehicle_model ?: null,
+                        'vehicle_plate' => $this->vehicle_plate,
+                        'odometer_reading' => $this->odometer_reading ?: null,
+                        'horometer_reading' => $this->horometer_reading ?: null,
+                        'place_to_visit' => $this->place_to_visit,
+                        'mission_description' => $this->mission_description,
+                        'kilometers_to_travel' => $this->kilometers_to_travel ?: null,
+                    ]
+                );
+            } elseif ($this->dispatch->fuelDetail) {
+                // Remove fuel detail if type changed from combustible
+                $this->dispatch->fuelDetail->delete();
+            }
+
             $this->dispatch->load('details');
             $this->dispatch->calculateTotals();
 
@@ -344,6 +414,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'interno' => 'transfer_out',
             'externo' => 'transfer_out',
             'donacion' => 'sale',
+            'combustible' => 'transfer_out',
             default => 'sale',
         };
 
@@ -497,9 +568,10 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label>Tipo de Despacho *</flux:label>
-                    <flux:select wire:model="dispatch_type" required>
-                        <option value="venta">Venta</option>
+                    <flux:select wire:model.live="dispatch_type" required>
                         <option value="interno">Interno</option>
+                        <option value="combustible">Combustibles y Lubricantes</option>
+                        <option value="venta">Venta</option>
                         <option value="externo">Externo</option>
                         <option value="donacion">Donación</option>
                     </flux:select>
@@ -574,6 +646,69 @@ new #[Layout('components.layouts.app')] class extends Component
                 </flux:field>
             </div>
         </flux:card>
+
+        {{-- Fuel Dispatch Fields --}}
+        @if($dispatch_type === 'combustible')
+            <flux:card>
+                <flux:heading size="lg" class="mb-6">Descripción del Equipo o Vehículo</flux:heading>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <flux:field>
+                        <flux:label badge="Requerido">Clase</flux:label>
+                        <flux:input wire:model="vehicle_class" placeholder="Ej: Camioneta, Tractor, etc." />
+                        <flux:error name="vehicle_class" />
+                    </flux:field>
+                    <flux:field>
+                        <flux:label badge="Requerido">Marca</flux:label>
+                        <flux:input wire:model="vehicle_brand" placeholder="Ej: Toyota, John Deere" />
+                        <flux:error name="vehicle_brand" />
+                    </flux:field>
+                    <flux:field>
+                        <flux:label>Modelo</flux:label>
+                        <flux:input wire:model="vehicle_model" placeholder="Ej: Hilux 2020" />
+                        <flux:error name="vehicle_model" />
+                    </flux:field>
+                    <flux:field>
+                        <flux:label badge="Requerido">Placa</flux:label>
+                        <flux:input wire:model="vehicle_plate" placeholder="Ej: P-123-456" />
+                        <flux:error name="vehicle_plate" />
+                    </flux:field>
+                    <flux:field>
+                        <flux:label>Lectura del Odómetro (km)</flux:label>
+                        <flux:input type="number" step="0.01" wire:model="odometer_reading" placeholder="0.00" />
+                        <flux:error name="odometer_reading" />
+                    </flux:field>
+                    <flux:field>
+                        <flux:label>Lectura del Horómetro (Hr)</flux:label>
+                        <flux:input type="number" step="0.01" wire:model="horometer_reading" placeholder="0.00" />
+                        <flux:error name="horometer_reading" />
+                    </flux:field>
+                </div>
+            </flux:card>
+
+            <flux:card>
+                <flux:heading size="lg" class="mb-6">Descripción de la Justificación</flux:heading>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <flux:field>
+                        <flux:label badge="Requerido">Lugar a Visitar</flux:label>
+                        <flux:input wire:model="place_to_visit" placeholder="Ingrese el lugar a visitar" />
+                        <flux:error name="place_to_visit" />
+                    </flux:field>
+                    <flux:field>
+                        <flux:label>Kilómetros a Recorrer</flux:label>
+                        <flux:input type="number" step="0.01" wire:model="kilometers_to_travel" placeholder="0.00" />
+                        <flux:error name="kilometers_to_travel" />
+                    </flux:field>
+                    <flux:field class="md:col-span-2">
+                        <flux:label badge="Requerido">Misión a Realizar</flux:label>
+                        <flux:textarea wire:model="mission_description" rows="3" placeholder="Describa la misión a realizar" />
+                        <flux:error name="mission_description" />
+                    </flux:field>
+                </div>
+                <flux:text class="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
+                    El responsable de la misión es la persona solicitante seleccionada arriba.
+                </flux:text>
+            </flux:card>
+        @endif
 
         <flux:card wire:key="products-card-{{ count($details) }}">
             <div class="flex items-center justify-between mb-4">

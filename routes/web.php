@@ -113,6 +113,7 @@ Route::middleware(['auth'])->group(function () {
         Volt::route('create', 'dispatches.create')->name('create');
         Volt::route('{dispatch:slug}', 'dispatches.show')->name('show');
         Volt::route('{dispatch:slug}/edit', 'dispatches.edit')->name('edit');
+        Route::get('{dispatch:slug}/fuel-pdf', [\App\Http\Controllers\DispatchReportController::class, 'exportFuelDispatchPdf'])->name('fuel-pdf');
     });
 
     // Internal Production Management Routes

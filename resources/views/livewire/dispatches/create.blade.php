@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\DispatchFuelDetail;
 use App\Models\Employee;
 use App\Models\Dispatch;
 use App\Models\DispatchDetail;
@@ -40,6 +41,25 @@ new #[Layout('components.layouts.app')] class extends Component
     public $notes = '';
 
     public $status = 'borrador';
+
+    // Fuel dispatch fields
+    public $vehicle_class = '';
+
+    public $vehicle_brand = '';
+
+    public $vehicle_model = '';
+
+    public $vehicle_plate = '';
+
+    public $odometer_reading = '';
+
+    public $horometer_reading = '';
+
+    public $place_to_visit = '';
+
+    public $mission_description = '';
+
+    public $kilometers_to_travel = '';
 
     public array $details = [];
 
@@ -320,7 +340,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
         $rules = [
             'warehouse_id' => 'required|exists:warehouses,id',
-            'dispatch_type' => 'required|in:venta,interno,externo,donacion',
+            'dispatch_type' => 'required|in:venta,interno,externo,donacion,combustible',
             'physical_document_number' => 'required|string|max:100|unique:dispatches,physical_document_number',
             'document_date' => 'required|date',
             'details' => 'required|array|min:1',
@@ -329,6 +349,19 @@ new #[Layout('components.layouts.app')] class extends Component
             'details.*.unit_of_measure_id' => 'required|exists:units_of_measure,id',
             'details.*.unit_price' => 'required|numeric|min:0.00001',
         ];
+
+        // Add fuel-specific validation rules
+        if ($this->dispatch_type === 'combustible') {
+            $rules['vehicle_class'] = 'required|string|max:255';
+            $rules['vehicle_brand'] = 'required|string|max:255';
+            $rules['vehicle_model'] = 'nullable|string|max:255';
+            $rules['vehicle_plate'] = 'required|string|max:100';
+            $rules['odometer_reading'] = 'nullable|numeric|min:0';
+            $rules['horometer_reading'] = 'nullable|numeric|min:0';
+            $rules['place_to_visit'] = 'required|string|max:500';
+            $rules['mission_description'] = 'required|string|max:1000';
+            $rules['kilometers_to_travel'] = 'nullable|numeric|min:0';
+        }
 
         // Add company_id validation for super admins
         if ($this->isSuperAdmin()) {
@@ -345,6 +378,15 @@ new #[Layout('components.layouts.app')] class extends Component
             'details.*.quantity' => 'cantidad',
             'details.*.unit_of_measure_id' => 'unidad de medida',
             'details.*.unit_price' => 'precio unitario',
+            'vehicle_class' => 'clase del vehículo',
+            'vehicle_brand' => 'marca del vehículo',
+            'vehicle_model' => 'modelo del vehículo',
+            'vehicle_plate' => 'placa del vehículo',
+            'odometer_reading' => 'lectura del odómetro',
+            'horometer_reading' => 'lectura del horómetro',
+            'place_to_visit' => 'lugar a visitar',
+            'mission_description' => 'misión a realizar',
+            'kilometers_to_travel' => 'kilómetros a recorrer',
         ];
 
         $this->validate($rules, [], $customAttributes);
@@ -403,6 +445,22 @@ new #[Layout('components.layouts.app')] class extends Component
             }
 
             $dispatch->calculateTotals();
+
+            // Create fuel detail if dispatch type is combustible
+            if ($this->dispatch_type === 'combustible') {
+                DispatchFuelDetail::create([
+                    'dispatch_id' => $dispatch->id,
+                    'vehicle_class' => $this->vehicle_class,
+                    'vehicle_brand' => $this->vehicle_brand,
+                    'vehicle_model' => $this->vehicle_model ?: null,
+                    'vehicle_plate' => $this->vehicle_plate,
+                    'odometer_reading' => $this->odometer_reading ?: null,
+                    'horometer_reading' => $this->horometer_reading ?: null,
+                    'place_to_visit' => $this->place_to_visit,
+                    'mission_description' => $this->mission_description,
+                    'kilometers_to_travel' => $this->kilometers_to_travel ?: null,
+                ]);
+            }
 
             session()->flash('success', 'Despacho creado exitosamente.');
             $this->redirect(route('dispatches.show', $dispatch), navigate: true);
@@ -586,8 +644,13 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label badge="Requerido">Tipo de Despacho</flux:label>
-                    <flux:input value="Interno" disabled />
-                    <flux:description>Los despachos siempre son internos</flux:description>
+                    <flux:select wire:model.live="dispatch_type">
+                        <option value="interno">Interno</option>
+                        <option value="combustible">Combustibles y Lubricantes</option>
+                        <option value="venta">Venta</option>
+                        <option value="externo">Externo</option>
+                        <option value="donacion">Donación</option>
+                    </flux:select>
                     <flux:error name="dispatch_type" />
                 </flux:field>
 
@@ -665,6 +728,69 @@ new #[Layout('components.layouts.app')] class extends Component
                 </flux:field>
             </div>
         </flux:card>
+
+        {{-- Fuel Dispatch Fields --}}
+        @if($dispatch_type === 'combustible')
+            <flux:card>
+                <flux:heading size="lg" class="mb-6">Descripción del Equipo o Vehículo</flux:heading>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <flux:field>
+                        <flux:label badge="Requerido">Clase</flux:label>
+                        <flux:input wire:model="vehicle_class" placeholder="Ej: Camioneta, Tractor, etc." />
+                        <flux:error name="vehicle_class" />
+                    </flux:field>
+                    <flux:field>
+                        <flux:label badge="Requerido">Marca</flux:label>
+                        <flux:input wire:model="vehicle_brand" placeholder="Ej: Toyota, John Deere" />
+                        <flux:error name="vehicle_brand" />
+                    </flux:field>
+                    <flux:field>
+                        <flux:label>Modelo</flux:label>
+                        <flux:input wire:model="vehicle_model" placeholder="Ej: Hilux 2020" />
+                        <flux:error name="vehicle_model" />
+                    </flux:field>
+                    <flux:field>
+                        <flux:label badge="Requerido">Placa</flux:label>
+                        <flux:input wire:model="vehicle_plate" placeholder="Ej: P-123-456" />
+                        <flux:error name="vehicle_plate" />
+                    </flux:field>
+                    <flux:field>
+                        <flux:label>Lectura del Odómetro (km)</flux:label>
+                        <flux:input type="number" step="0.01" wire:model="odometer_reading" placeholder="0.00" />
+                        <flux:error name="odometer_reading" />
+                    </flux:field>
+                    <flux:field>
+                        <flux:label>Lectura del Horómetro (Hr)</flux:label>
+                        <flux:input type="number" step="0.01" wire:model="horometer_reading" placeholder="0.00" />
+                        <flux:error name="horometer_reading" />
+                    </flux:field>
+                </div>
+            </flux:card>
+
+            <flux:card>
+                <flux:heading size="lg" class="mb-6">Descripción de la Justificación</flux:heading>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <flux:field>
+                        <flux:label badge="Requerido">Lugar a Visitar</flux:label>
+                        <flux:input wire:model="place_to_visit" placeholder="Ingrese el lugar a visitar" />
+                        <flux:error name="place_to_visit" />
+                    </flux:field>
+                    <flux:field>
+                        <flux:label>Kilómetros a Recorrer</flux:label>
+                        <flux:input type="number" step="0.01" wire:model="kilometers_to_travel" placeholder="0.00" />
+                        <flux:error name="kilometers_to_travel" />
+                    </flux:field>
+                    <flux:field class="md:col-span-2">
+                        <flux:label badge="Requerido">Misión a Realizar</flux:label>
+                        <flux:textarea wire:model="mission_description" rows="3" placeholder="Describa la misión a realizar" />
+                        <flux:error name="mission_description" />
+                    </flux:field>
+                </div>
+                <flux:text class="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
+                    El responsable de la misión es la persona solicitante seleccionada arriba.
+                </flux:text>
+            </flux:card>
+        @endif
 
         {{-- Load from Purchase Section --}}
         <flux:card>

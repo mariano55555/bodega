@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\LogOptions;
@@ -117,6 +118,11 @@ class Dispatch extends Model
                 $dispatch->save();
             }
 
+            // Soft delete related fuel detail
+            if ($dispatch->fuelDetail) {
+                $dispatch->fuelDetail->delete();
+            }
+
             // Soft delete related inventory movements
             $dispatch->inventoryMovements()->each(function ($movement) {
                 $movement->delete();
@@ -189,6 +195,11 @@ class Dispatch extends Model
     public function deleter(): BelongsTo
     {
         return $this->belongsTo(User::class, 'deleted_by');
+    }
+
+    public function fuelDetail(): HasOne
+    {
+        return $this->hasOne(DispatchFuelDetail::class);
     }
 
     public function inventoryMovements(): HasMany
@@ -352,6 +363,7 @@ class Dispatch extends Model
                 'interno' => 'transfer_out',
                 'externo' => 'transfer_out',
                 'donacion' => 'sale', // Donations treated as outbound sales for inventory purposes
+                'combustible' => 'transfer_out', // Fuel dispatches treated as internal transfer out
                 default => 'sale',
             };
 
@@ -497,6 +509,7 @@ class Dispatch extends Model
             'interno' => 'Interno',
             'externo' => 'Externo',
             'donacion' => 'Donación',
+            'combustible' => 'Combustibles y Lubricantes',
         ];
 
         return $types[$this->dispatch_type] ?? $this->dispatch_type;

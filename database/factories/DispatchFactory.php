@@ -20,7 +20,7 @@ class DispatchFactory extends Factory
             'company_id' => 1,
             'warehouse_id' => 1,
             'customer_id' => fake()->optional()->numberBetween(1, 10),
-            'dispatch_type' => fake()->randomElement(['venta', 'interno', 'externo', 'donacion']),
+            'dispatch_type' => fake()->randomElement(['venta', 'interno', 'externo', 'donacion', 'combustible']),
             'destination_unit' => fake()->optional()->company(),
             'recipient_name' => fake()->name(),
             'recipient_phone' => fake()->phoneNumber(),

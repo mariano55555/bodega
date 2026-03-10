@@ -333,7 +333,7 @@ new #[Layout('components.layouts.app')] class extends Component
     {
         $this->validate([
             'warehouse_id' => 'required|exists:warehouses,id',
-            'dispatch_type' => 'required|in:venta,interno,externo,donacion',
+            'dispatch_type' => 'required|in:venta,interno,externo,donacion,combustible',
             'physical_document_number' => 'required|string|max:100',
             'document_date' => 'required|date',
             'quickItems' => 'required|array|min:1',
@@ -443,6 +443,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 'interno' => 'transfer_out',
                 'externo' => 'transfer_out',
                 'donacion' => 'sale',
+                'combustible' => 'transfer_out',
                 default => 'sale',
             };
 
@@ -651,6 +652,7 @@ new #[Layout('components.layouts.app')] class extends Component
             <option value="interno">Interno</option>
             <option value="externo">Externo</option>
             <option value="donacion">Donación</option>
+            <option value="combustible">Combustibles</option>
         </flux:select>
     </div>
 
@@ -728,6 +730,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                     'interno' => 'sky',
                                     'externo' => 'amber',
                                     'donacion' => 'pink',
+                                    'combustible' => 'orange',
                                     default => 'zinc'
                                 }"
                                 :icon="match($dispatch->dispatch_type) {
@@ -735,6 +738,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                     'interno' => 'arrow-path',
                                     'externo' => 'arrow-up-right',
                                     'donacion' => 'gift',
+                                    'combustible' => 'fire',
                                     default => 'cube'
                                 }"
                             >

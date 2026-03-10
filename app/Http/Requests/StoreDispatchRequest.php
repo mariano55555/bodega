@@ -17,7 +17,7 @@ class StoreDispatchRequest extends FormRequest
             'warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
             'area_id' => ['required', 'integer', 'exists:areas,id'],
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
-            'dispatch_type' => ['required', 'string', 'in:venta,interno,externo,donacion'],
+            'dispatch_type' => ['required', 'string', 'in:venta,interno,externo,donacion,combustible'],
             'destination_unit' => ['nullable', 'string', 'max:255'],
             'recipient_name' => ['nullable', 'string', 'max:255'],
             'recipient_phone' => ['nullable', 'string', 'max:50'],
@@ -34,6 +34,17 @@ class StoreDispatchRequest extends FormRequest
             'project_code' => ['nullable', 'string', 'max:100'],
             'cost_center' => ['nullable', 'string', 'max:100'],
             'status' => ['nullable', 'string', 'in:borrador,pendiente'],
+
+            // Fuel dispatch fields
+            'vehicle_class' => ['nullable', 'required_if:dispatch_type,combustible', 'string', 'max:255'],
+            'vehicle_brand' => ['nullable', 'required_if:dispatch_type,combustible', 'string', 'max:255'],
+            'vehicle_model' => ['nullable', 'string', 'max:255'],
+            'vehicle_plate' => ['nullable', 'required_if:dispatch_type,combustible', 'string', 'max:100'],
+            'odometer_reading' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99'],
+            'horometer_reading' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99'],
+            'place_to_visit' => ['nullable', 'required_if:dispatch_type,combustible', 'string', 'max:500'],
+            'mission_description' => ['nullable', 'required_if:dispatch_type,combustible', 'string', 'max:1000'],
+            'kilometers_to_travel' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
 
             // Dispatch details
             'details' => ['required', 'array', 'min:1'],
@@ -60,7 +71,7 @@ class StoreDispatchRequest extends FormRequest
             'area_id.exists' => 'La unidad solicitante seleccionada no existe.',
             'customer_id.exists' => 'El cliente seleccionado no existe.',
             'dispatch_type.required' => 'El tipo de despacho es requerido.',
-            'dispatch_type.in' => 'El tipo de despacho debe ser venta, interno, externo o donación.',
+            'dispatch_type.in' => 'El tipo de despacho debe ser venta, interno, externo, donación o combustible.',
             'destination_unit.max' => 'La unidad destino no puede exceder 255 caracteres.',
             'recipient_name.max' => 'El nombre del receptor no puede exceder 255 caracteres.',
             'recipient_phone.max' => 'El teléfono del receptor no puede exceder 50 caracteres.',
@@ -83,6 +94,15 @@ class StoreDispatchRequest extends FormRequest
             'project_code.max' => 'El código de proyecto no puede exceder 100 caracteres.',
             'cost_center.max' => 'El centro de costos no puede exceder 100 caracteres.',
             'status.in' => 'El estado debe ser borrador o pendiente.',
+
+            'vehicle_class.required_if' => 'La clase del vehículo es requerida para despachos de combustible.',
+            'vehicle_brand.required_if' => 'La marca del vehículo es requerida para despachos de combustible.',
+            'vehicle_plate.required_if' => 'La placa del vehículo es requerida para despachos de combustible.',
+            'odometer_reading.numeric' => 'La lectura del odómetro debe ser un número.',
+            'horometer_reading.numeric' => 'La lectura del horómetro debe ser un número.',
+            'place_to_visit.required_if' => 'El lugar a visitar es requerido para despachos de combustible.',
+            'mission_description.required_if' => 'La misión a realizar es requerida para despachos de combustible.',
+            'kilometers_to_travel.numeric' => 'Los kilómetros a recorrer deben ser un número.',
 
             'details.required' => 'Debe agregar al menos un producto al despacho.',
             'details.min' => 'Debe agregar al menos un producto al despacho.',
