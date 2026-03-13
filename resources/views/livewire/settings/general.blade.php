@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\Company;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -152,6 +154,40 @@ new #[Layout('components.layouts.app')] class extends Component
             variant: 'success',
             heading: '¡Éxito!',
             text: 'Configuración de código de empleado actualizada para '.$company->name,
+        );
+    }
+
+    /**
+     * Get the current cache table size in MB.
+     */
+    #[Computed]
+    public function cacheSizeMb(): string
+    {
+        $bytes = DB::table('cache')->selectRaw('COALESCE(SUM(LENGTH(`value`)), 0) as total')->value('total');
+
+        return number_format($bytes / 1024 / 1024, 2);
+    }
+
+    /**
+     * Clear the application cache.
+     */
+    public function clearCache(): void
+    {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403);
+        }
+
+        Artisan::call('cache:clear');
+
+        // Optimizar la tabla para recuperar espacio en disco
+        DB::statement('OPTIMIZE TABLE cache');
+
+        unset($this->cacheSizeMb);
+
+        \Flux::toast(
+            variant: 'success',
+            heading: '¡Éxito!',
+            text: 'La caché ha sido limpiada exitosamente. Se regenerará automáticamente cuando sea necesario.',
         );
     }
 
@@ -361,6 +397,42 @@ new #[Layout('components.layouts.app')] class extends Component
                 </div>
                 @endif
             </flux:card>
+            @if($isSuperAdmin)
+            <!-- Maintenance Card -->
+            <flux:card>
+                <flux:heading size="lg" class="mb-6">Mantenimiento del Sistema</flux:heading>
+
+                <div class="space-y-4">
+                    <flux:text class="text-sm text-gray-600 dark:text-gray-400">
+                        Limpia los datos temporales almacenados en caché (consultas de productos, empleados, etc.).
+                        El sistema regenerará la caché automáticamente cuando sea necesario.
+                    </flux:text>
+
+                    <div class="flex items-center gap-4">
+                        <flux:button
+                            variant="danger"
+                            wire:click="clearCache"
+                            wire:confirm="¿Estás seguro de que deseas limpiar toda la caché? Los formularios pueden tardar un poco más en cargar la primera vez después de esto."
+                        >
+                            <span wire:loading.remove wire:target="clearCache">Limpiar Caché</span>
+                            <span wire:loading wire:target="clearCache">Limpiando...</span>
+                        </flux:button>
+
+                        <flux:text class="text-sm text-gray-500 dark:text-gray-400">
+                            Tamaño actual: <strong>{{ $this->cacheSizeMb }} MB</strong>
+                        </flux:text>
+                    </div>
+
+                    <div class="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 mt-4">
+                        <flux:text class="text-sm text-amber-700 dark:text-amber-300">
+                            <strong>Nota:</strong> La caché se limpia automáticamente cada hora. Use este botón solo si necesita liberar espacio inmediatamente.
+                            <br>
+                            <strong>Respaldos:</strong> Al exportar la base de datos, excluya las tablas <code>cache</code>, <code>cache_locks</code>, <code>sessions</code>, <code>jobs</code> y <code>job_batches</code> para reducir el tamaño del archivo.
+                        </flux:text>
+                    </div>
+                </div>
+            </flux:card>
+            @endif
         </div>
     </x-settings.layout>
 </section>

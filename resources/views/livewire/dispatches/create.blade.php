@@ -352,10 +352,10 @@ new #[Layout('components.layouts.app')] class extends Component
 
         // Add fuel-specific validation rules
         if ($this->dispatch_type === 'combustible') {
-            $rules['vehicle_class'] = 'required|string|max:255';
-            $rules['vehicle_brand'] = 'required|string|max:255';
+            $rules['vehicle_class'] = 'nullable|string|max:255';
+            $rules['vehicle_brand'] = 'nullable|string|max:255';
             $rules['vehicle_model'] = 'nullable|string|max:255';
-            $rules['vehicle_plate'] = 'required|string|max:100';
+            $rules['vehicle_plate'] = 'nullable|string|max:100';
             $rules['odometer_reading'] = 'nullable|numeric|min:0';
             $rules['horometer_reading'] = 'nullable|numeric|min:0';
             $rules['place_to_visit'] = 'required|string|max:500';
@@ -735,12 +735,12 @@ new #[Layout('components.layouts.app')] class extends Component
                 <flux:heading size="lg" class="mb-6">Descripción del Equipo o Vehículo</flux:heading>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <flux:field>
-                        <flux:label badge="Requerido">Clase</flux:label>
+                        <flux:label>Clase</flux:label>
                         <flux:input wire:model="vehicle_class" placeholder="Ej: Camioneta, Tractor, etc." />
                         <flux:error name="vehicle_class" />
                     </flux:field>
                     <flux:field>
-                        <flux:label badge="Requerido">Marca</flux:label>
+                        <flux:label>Marca</flux:label>
                         <flux:input wire:model="vehicle_brand" placeholder="Ej: Toyota, John Deere" />
                         <flux:error name="vehicle_brand" />
                     </flux:field>
@@ -750,7 +750,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         <flux:error name="vehicle_model" />
                     </flux:field>
                     <flux:field>
-                        <flux:label badge="Requerido">Placa</flux:label>
+                        <flux:label>Placa</flux:label>
                         <flux:input wire:model="vehicle_plate" placeholder="Ej: P-123-456" />
                         <flux:error name="vehicle_plate" />
                     </flux:field>

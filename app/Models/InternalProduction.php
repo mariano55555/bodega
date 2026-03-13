@@ -209,19 +209,19 @@ class InternalProduction extends Model
 
         $warehouseCodeSuffix = substr($warehouse->code, -3);
 
-        $lastProduction = self::where('warehouse_id', $warehouseId)
+        $lastProduction = self::withTrashed()
+            ->where('warehouse_id', $warehouseId)
             ->where('production_number', 'like', "PI-%-BOD-{$warehouseCodeSuffix}")
-            ->orderByRaw('CAST(SUBSTRING(production_number, 4, 2) AS UNSIGNED) DESC')
+            ->orderByRaw("CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(production_number, '-', 2), '-', -1) AS UNSIGNED) DESC")
             ->first();
 
-        if ($lastProduction) {
-            $lastNumber = (int) substr($lastProduction->production_number, 3, 2);
-            $nextNumber = $lastNumber + 1;
+        if ($lastProduction && preg_match('/^PI-(\d+)-BOD-/', $lastProduction->production_number, $matches)) {
+            $nextNumber = (int) $matches[1] + 1;
         } else {
             $nextNumber = 1;
         }
 
-        return sprintf('PI-%02d-BOD-%s', $nextNumber, $warehouseCodeSuffix);
+        return sprintf('PI-%d-BOD-%s', $nextNumber, $warehouseCodeSuffix);
     }
 
     public function calculateTotals(): void

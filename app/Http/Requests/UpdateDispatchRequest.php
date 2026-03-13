@@ -35,10 +35,10 @@ class UpdateDispatchRequest extends FormRequest
             'cost_center' => ['nullable', 'string', 'max:100'],
 
             // Fuel dispatch fields
-            'vehicle_class' => ['nullable', 'required_if:dispatch_type,combustible', 'string', 'max:255'],
-            'vehicle_brand' => ['nullable', 'required_if:dispatch_type,combustible', 'string', 'max:255'],
+            'vehicle_class' => ['nullable', 'string', 'max:255'],
+            'vehicle_brand' => ['nullable', 'string', 'max:255'],
             'vehicle_model' => ['nullable', 'string', 'max:255'],
-            'vehicle_plate' => ['nullable', 'required_if:dispatch_type,combustible', 'string', 'max:100'],
+            'vehicle_plate' => ['nullable', 'string', 'max:100'],
             'odometer_reading' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99'],
             'horometer_reading' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99'],
             'place_to_visit' => ['nullable', 'required_if:dispatch_type,combustible', 'string', 'max:500'],
@@ -93,9 +93,6 @@ class UpdateDispatchRequest extends FormRequest
             'project_code.max' => 'El código de proyecto no puede exceder 100 caracteres.',
             'cost_center.max' => 'El centro de costos no puede exceder 100 caracteres.',
 
-            'vehicle_class.required_if' => 'La clase del vehículo es requerida para despachos de combustible.',
-            'vehicle_brand.required_if' => 'La marca del vehículo es requerida para despachos de combustible.',
-            'vehicle_plate.required_if' => 'La placa del vehículo es requerida para despachos de combustible.',
             'odometer_reading.numeric' => 'La lectura del odómetro debe ser un número.',
             'horometer_reading.numeric' => 'La lectura del horómetro debe ser un número.',
             'place_to_visit.required_if' => 'El lugar a visitar es requerido para despachos de combustible.',
