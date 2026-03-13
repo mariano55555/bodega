@@ -44,25 +44,27 @@ class InventoryReportController extends Controller
             return back()->with('error', 'Debe seleccionar una empresa');
         }
 
-        $warehouseId = $request->get('bodega');
-        if (! $warehouseId) {
+        $warehouseParam = $request->get('bodega');
+        if (! $warehouseParam) {
             return back()->with('error', 'Debe seleccionar una bodega');
         }
 
+        $isAllWarehouses = $warehouseParam === 'all';
+        $warehouseId = $isAllWarehouses ? null : (int) $warehouseParam;
+        $warehouseName = $isAllWarehouses ? 'TODAS LAS BODEGAS' : (Warehouse::find($warehouseId)?->name ?? 'N/A');
+
         $startDate = $request->get('inicio', now()->startOfMonth()->format('Y-m-d'));
         $endDate = $request->get('fin', now()->endOfMonth()->format('Y-m-d'));
-
-        $warehouse = Warehouse::find($warehouseId);
 
         $filename = 'inventario-consolidado-'.now()->format('Y-m-d').'.xlsx';
 
         return Excel::download(
             new InventoryConsolidatedExport(
                 (int) $companyId,
-                (int) $warehouseId,
+                $warehouseId,
                 $startDate,
                 $endDate,
-                $warehouse?->name ?? 'N/A'
+                $warehouseName
             ),
             $filename
         );
@@ -79,23 +81,26 @@ class InventoryReportController extends Controller
             return back()->with('error', 'Debe seleccionar una empresa');
         }
 
-        $warehouseId = $request->get('bodega');
-        if (! $warehouseId) {
+        $warehouseParam = $request->get('bodega');
+        if (! $warehouseParam) {
             return back()->with('error', 'Debe seleccionar una bodega');
         }
+
+        $isAllWarehouses = $warehouseParam === 'all';
+        $warehouseId = $isAllWarehouses ? null : (int) $warehouseParam;
+        $warehouseName = $isAllWarehouses ? 'TODAS LAS BODEGAS' : (Warehouse::find($warehouseId)?->name ?? 'N/A');
 
         $startDate = $request->get('inicio', now()->startOfMonth()->format('Y-m-d'));
         $endDate = $request->get('fin', now()->endOfMonth()->format('Y-m-d'));
 
-        $warehouse = Warehouse::find($warehouseId);
-        $data = $this->getConsolidatedData((int) $companyId, (int) $warehouseId, $startDate, $endDate);
+        $data = $this->getConsolidatedData((int) $companyId, $warehouseId, $startDate, $endDate);
 
         $pdf = Pdf::loadView('reports.inventory-consolidated-pdf', [
             'groupedByCategory' => $data['groupedByCategory'],
             'totals' => $data['totals'],
             'startDate' => $startDate,
             'endDate' => $endDate,
-            'warehouseName' => $warehouse?->name ?? 'N/A',
+            'warehouseName' => $warehouseName,
         ]);
 
         $pdf->setPaper('letter', 'landscape');
@@ -107,9 +112,12 @@ class InventoryReportController extends Controller
 
     /**
      * Get consolidated inventory data grouped by budget line.
+     * Pass warehouseId = null for all warehouses.
      */
-    public function getConsolidatedData(int $companyId, int $warehouseId, string $startDate, string $endDate): array
+    public function getConsolidatedData(int $companyId, ?int $warehouseId, string $startDate, string $endDate): array
     {
+        $isAllWarehouses = is_null($warehouseId);
+
         $query = DB::table('inventory_movements as im')
             ->select([
                 'products.id as product_id',
@@ -130,7 +138,7 @@ class InventoryReportController extends Controller
             ->leftJoin('product_categories', 'products.category_id', '=', 'product_categories.id')
             ->leftJoin('product_categories as parent_categories', 'product_categories.parent_id', '=', 'parent_categories.id')
             ->where('im.company_id', $companyId)
-            ->where('im.warehouse_id', $warehouseId)
+            ->when(! $isAllWarehouses, fn ($q) => $q->where('im.warehouse_id', $warehouseId))
             ->whereNotNull('im.balance_quantity')
             ->where(function ($q) use ($startDate, $endDate) {
                 $q->whereBetween('im.movement_date', [$startDate, $endDate])
@@ -152,38 +160,57 @@ class InventoryReportController extends Controller
             ])
             ->get();
 
-        $results = $query->map(function ($product) use ($companyId, $warehouseId, $startDate, $endDate) {
-            $initialMovement = InventoryMovement::where('company_id', $companyId)
-                ->where('product_id', $product->product_id)
-                ->where('warehouse_id', $warehouseId)
-                ->where('movement_date', '<', $startDate)
-                ->whereNotNull('balance_quantity')
-                ->orderByDesc('movement_date')
-                ->orderByDesc('id')
-                ->first();
+        $warehouseIds = $isAllWarehouses
+            ? Warehouse::where('company_id', $companyId)->where('is_active', true)->pluck('id')
+            : null;
 
-            $initialStock = $initialMovement?->balance_quantity ?? 0;
+        $results = $query->map(function ($product) use ($companyId, $warehouseId, $isAllWarehouses, $warehouseIds, $startDate, $endDate) {
+            if ($isAllWarehouses) {
+                // Sum initial stock across all warehouses
+                $initialStock = 0;
+                foreach ($warehouseIds as $whId) {
+                    $movement = InventoryMovement::where('company_id', $companyId)
+                        ->where('product_id', $product->product_id)
+                        ->where('warehouse_id', $whId)
+                        ->where('movement_date', '<', $startDate)
+                        ->whereNotNull('balance_quantity')
+                        ->orderByDesc('movement_date')
+                        ->orderByDesc('id')
+                        ->first();
+                    $initialStock += (float) ($movement?->balance_quantity ?? 0);
+                }
+            } else {
+                $initialMovement = InventoryMovement::where('company_id', $companyId)
+                    ->where('product_id', $product->product_id)
+                    ->where('warehouse_id', $warehouseId)
+                    ->where('movement_date', '<', $startDate)
+                    ->whereNotNull('balance_quantity')
+                    ->orderByDesc('movement_date')
+                    ->orderByDesc('id')
+                    ->first();
+                $initialStock = $initialMovement?->balance_quantity ?? 0;
+            }
 
             $entries = InventoryMovement::where('company_id', $companyId)
                 ->where('product_id', $product->product_id)
-                ->where('warehouse_id', $warehouseId)
+                ->when(! $isAllWarehouses, fn ($q) => $q->where('warehouse_id', $warehouseId))
                 ->whereBetween('movement_date', [$startDate, $endDate])
                 ->whereNotNull('balance_quantity')
                 ->sum('quantity_in');
 
             $exits = InventoryMovement::where('company_id', $companyId)
                 ->where('product_id', $product->product_id)
-                ->where('warehouse_id', $warehouseId)
+                ->when(! $isAllWarehouses, fn ($q) => $q->where('warehouse_id', $warehouseId))
                 ->whereBetween('movement_date', [$startDate, $endDate])
                 ->whereNotNull('balance_quantity')
                 ->sum('quantity_out');
 
             $currentStock = (float) $initialStock + (float) $entries - (float) $exits;
 
-            // Get warehouse-specific unit cost from the most recent movement
+            // Get unit cost from the most recent movement
             $lastCostMovement = InventoryMovement::where('company_id', $companyId)
                 ->where('product_id', $product->product_id)
-                ->where('warehouse_id', $warehouseId)
+                ->when(! $isAllWarehouses, fn ($q) => $q->where('warehouse_id', $warehouseId))
                 ->where('movement_date', '<=', $endDate)
                 ->whereNotNull('balance_quantity')
                 ->where('unit_cost', '>', 0)

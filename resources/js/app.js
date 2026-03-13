@@ -294,9 +294,15 @@ document.addEventListener('alpine:init', () => {
         notes: config.notes,
 
         init() {
-            this.$nextTick(() => {
-                this.emitTotal();
-            });
+            this.emitTotal();
+            this._recalcHandler = () => this.emitTotal();
+            window.addEventListener('transfer-recalculate-totals', this._recalcHandler);
+        },
+
+        destroy() {
+            if (this._recalcHandler) {
+                window.removeEventListener('transfer-recalculate-totals', this._recalcHandler);
+            }
         },
 
         get productInfo() {

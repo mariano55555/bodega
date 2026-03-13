@@ -80,6 +80,7 @@ new class extends Component
 
         $companyId = $this->effectiveCompanyId;
         $warehouseId = $this->warehouse_id;
+        $isAllWarehouses = $warehouseId === 'all';
 
         // Get products with movements
         $query = DB::table('inventory_movements as im')
@@ -102,7 +103,7 @@ new class extends Component
             ->leftJoin('product_categories', 'products.category_id', '=', 'product_categories.id')
             ->leftJoin('product_categories as parent_categories', 'product_categories.parent_id', '=', 'parent_categories.id')
             ->where('im.company_id', $companyId)
-            ->where('im.warehouse_id', $warehouseId)
+            ->when(! $isAllWarehouses, fn ($q) => $q->where('im.warehouse_id', $warehouseId))
             ->whereNotNull('im.balance_quantity')
             ->where(function ($q) {
                 $q->whereBetween('im.movement_date', [$this->start_date, $this->end_date])
@@ -124,23 +125,41 @@ new class extends Component
             ])
             ->get();
 
-        return $query->map(function ($product) use ($companyId, $warehouseId) {
-            // Get initial stock (balance just before start_date)
-            $initialMovement = InventoryMovement::where('company_id', $companyId)
-                ->where('product_id', $product->product_id)
-                ->where('warehouse_id', $warehouseId)
-                ->where('movement_date', '<', $this->start_date)
-                ->whereNotNull('balance_quantity')
-                ->orderByDesc('movement_date')
-                ->orderByDesc('id')
-                ->first();
+        return $query->map(function ($product) use ($companyId, $warehouseId, $isAllWarehouses) {
+            if ($isAllWarehouses) {
+                // Sum initial stock across all warehouses
+                $warehouseIds = Warehouse::where('company_id', $companyId)
+                    ->where('is_active', true)
+                    ->pluck('id');
 
-            $initialStock = $initialMovement?->balance_quantity ?? 0;
+                $initialStock = 0;
+                foreach ($warehouseIds as $whId) {
+                    $movement = InventoryMovement::where('company_id', $companyId)
+                        ->where('product_id', $product->product_id)
+                        ->where('warehouse_id', $whId)
+                        ->where('movement_date', '<', $this->start_date)
+                        ->whereNotNull('balance_quantity')
+                        ->orderByDesc('movement_date')
+                        ->orderByDesc('id')
+                        ->first();
+                    $initialStock += (float) ($movement?->balance_quantity ?? 0);
+                }
+            } else {
+                $initialMovement = InventoryMovement::where('company_id', $companyId)
+                    ->where('product_id', $product->product_id)
+                    ->where('warehouse_id', $warehouseId)
+                    ->where('movement_date', '<', $this->start_date)
+                    ->whereNotNull('balance_quantity')
+                    ->orderByDesc('movement_date')
+                    ->orderByDesc('id')
+                    ->first();
+                $initialStock = $initialMovement?->balance_quantity ?? 0;
+            }
 
             // Get entries during period
             $entries = InventoryMovement::where('company_id', $companyId)
                 ->where('product_id', $product->product_id)
-                ->where('warehouse_id', $warehouseId)
+                ->when(! $isAllWarehouses, fn ($q) => $q->where('warehouse_id', $warehouseId))
                 ->whereBetween('movement_date', [$this->start_date, $this->end_date])
                 ->whereNotNull('balance_quantity')
                 ->sum('quantity_in');
@@ -148,17 +167,17 @@ new class extends Component
             // Get exits during period
             $exits = InventoryMovement::where('company_id', $companyId)
                 ->where('product_id', $product->product_id)
-                ->where('warehouse_id', $warehouseId)
+                ->when(! $isAllWarehouses, fn ($q) => $q->where('warehouse_id', $warehouseId))
                 ->whereBetween('movement_date', [$this->start_date, $this->end_date])
                 ->whereNotNull('balance_quantity')
                 ->sum('quantity_out');
 
             $currentStock = (float) $initialStock + (float) $entries - (float) $exits;
 
-            // Get warehouse-specific unit cost from the most recent movement
+            // Get unit cost from the most recent movement
             $lastCostMovement = InventoryMovement::where('company_id', $companyId)
                 ->where('product_id', $product->product_id)
-                ->where('warehouse_id', $warehouseId)
+                ->when(! $isAllWarehouses, fn ($q) => $q->where('warehouse_id', $warehouseId))
                 ->where('movement_date', '<=', $this->end_date)
                 ->whereNotNull('balance_quantity')
                 ->where('unit_cost', '>', 0)
@@ -303,6 +322,7 @@ new class extends Component
                 <flux:label>Bodega</flux:label>
                 <flux:select wire:model.live="warehouse_id">
                     <flux:select.option value="">-- Seleccione --</flux:select.option>
+                    <flux:select.option value="all">Todas las bodegas</flux:select.option>
                     @foreach ($this->warehouses as $warehouse)
                         <flux:select.option value="{{ $warehouse->id }}">{{ $warehouse->name }}</flux:select.option>
                     @endforeach
@@ -340,7 +360,7 @@ new class extends Component
                 </flux:text>
             </div>
         </flux:card>
-    @elseif (! $this->warehouse_id)
+    @elseif ($this->warehouse_id === '')
         <flux:card>
             <div class="py-12 text-center">
                 <flux:icon.building-storefront class="mx-auto size-12 text-zinc-400 dark:text-zinc-600" />

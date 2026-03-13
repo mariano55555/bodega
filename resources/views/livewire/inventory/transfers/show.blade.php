@@ -347,17 +347,15 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 @endforeach
                             </flux:table.rows>
 
-                            @if ($transfer->details->count() > 1)
-                                <flux:table.rows>
-                                    <flux:table.row>
-                                        <flux:table.cell colspan="3" class="text-right font-semibold">Total</flux:table.cell>
-                                        <flux:table.cell class="tabular-nums">
-                                            <span class="font-bold">{{ number_format($transfer->details->sum(fn ($d) => $d->quantity * ($d->unit_cost ?? $d->product->cost ?? 0)), 5) }}</span>
-                                        </flux:table.cell>
-                                        <flux:table.cell></flux:table.cell>
-                                    </flux:table.row>
-                                </flux:table.rows>
-                            @endif
+                            <flux:table.rows>
+                                <flux:table.row class="bg-zinc-50 dark:bg-zinc-800/50">
+                                    <flux:table.cell colspan="3" class="text-right font-semibold">Total</flux:table.cell>
+                                    <flux:table.cell class="tabular-nums">
+                                        <span class="font-bold">${{ number_format($transfer->details->sum(fn ($d) => $d->quantity * ($d->unit_cost ?? $d->product->cost ?? 0)), 5) }}</span>
+                                    </flux:table.cell>
+                                    <flux:table.cell></flux:table.cell>
+                                </flux:table.row>
+                            </flux:table.rows>
                         </flux:table>
                     </div>
                 @else

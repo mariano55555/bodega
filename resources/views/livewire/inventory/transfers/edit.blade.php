@@ -401,6 +401,9 @@ new #[Layout('components.layouts.app')] class extends Component {
                     Alpine.store('transferAvailableStock', @js($this->availableStockData));
                     Alpine.store('transferRowTotals', {});
                     Alpine.store('transferGrandTotal', 0);
+                    $nextTick(() => {
+                        window.dispatchEvent(new CustomEvent('transfer-recalculate-totals'));
+                    });
                  "
                  x-on:transfer-row-total-updated.window="
                     $store.transferRowTotals[$event.detail.index] = $event.detail.total;

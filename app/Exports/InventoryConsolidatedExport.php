@@ -25,18 +25,23 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
 
     protected string $warehouseName = '';
 
+    protected bool $isAllWarehouses = false;
+
     public function __construct(
         protected int $companyId,
-        protected int $warehouseId,
+        protected ?int $warehouseId,
         protected ?string $startDate = null,
         protected ?string $endDate = null,
         ?string $warehouseName = null
     ) {
         $this->startDate = $startDate ?? now()->startOfMonth()->format('Y-m-d');
         $this->endDate = $endDate ?? now()->endOfMonth()->format('Y-m-d');
+        $this->isAllWarehouses = is_null($this->warehouseId);
 
         if ($warehouseName) {
             $this->warehouseName = $warehouseName;
+        } elseif ($this->isAllWarehouses) {
+            $this->warehouseName = 'TODAS LAS BODEGAS';
         } else {
             $warehouse = Warehouse::find($this->warehouseId);
             $this->warehouseName = $warehouse?->name ?? 'N/A';
@@ -65,7 +70,7 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
             ->leftJoin('product_categories', 'products.category_id', '=', 'product_categories.id')
             ->leftJoin('product_categories as parent_categories', 'product_categories.parent_id', '=', 'parent_categories.id')
             ->where('im.company_id', $this->companyId)
-            ->where('im.warehouse_id', $this->warehouseId)
+            ->when(! $this->isAllWarehouses, fn ($q) => $q->where('im.warehouse_id', $this->warehouseId))
             ->whereNotNull('im.balance_quantity')
             ->where(function ($q) {
                 $q->whereBetween('im.movement_date', [$this->startDate, $this->endDate])
@@ -87,38 +92,57 @@ class InventoryConsolidatedExport implements FromCollection, ShouldAutoSize, Wit
             ])
             ->get();
 
-        $results = $query->map(function ($product) {
-            $initialMovement = InventoryMovement::where('company_id', $this->companyId)
-                ->where('product_id', $product->product_id)
-                ->where('warehouse_id', $this->warehouseId)
-                ->where('movement_date', '<', $this->startDate)
-                ->whereNotNull('balance_quantity')
-                ->orderByDesc('movement_date')
-                ->orderByDesc('id')
-                ->first();
+        $warehouseIds = $this->isAllWarehouses
+            ? Warehouse::where('company_id', $this->companyId)->where('is_active', true)->pluck('id')
+            : null;
 
-            $initialStock = $initialMovement?->balance_quantity ?? 0;
+        $results = $query->map(function ($product) use ($warehouseIds) {
+            if ($this->isAllWarehouses) {
+                // Sum initial stock across all warehouses
+                $initialStock = 0;
+                foreach ($warehouseIds as $whId) {
+                    $movement = InventoryMovement::where('company_id', $this->companyId)
+                        ->where('product_id', $product->product_id)
+                        ->where('warehouse_id', $whId)
+                        ->where('movement_date', '<', $this->startDate)
+                        ->whereNotNull('balance_quantity')
+                        ->orderByDesc('movement_date')
+                        ->orderByDesc('id')
+                        ->first();
+                    $initialStock += (float) ($movement?->balance_quantity ?? 0);
+                }
+            } else {
+                $initialMovement = InventoryMovement::where('company_id', $this->companyId)
+                    ->where('product_id', $product->product_id)
+                    ->where('warehouse_id', $this->warehouseId)
+                    ->where('movement_date', '<', $this->startDate)
+                    ->whereNotNull('balance_quantity')
+                    ->orderByDesc('movement_date')
+                    ->orderByDesc('id')
+                    ->first();
+                $initialStock = $initialMovement?->balance_quantity ?? 0;
+            }
 
             $entries = InventoryMovement::where('company_id', $this->companyId)
                 ->where('product_id', $product->product_id)
-                ->where('warehouse_id', $this->warehouseId)
+                ->when(! $this->isAllWarehouses, fn ($q) => $q->where('warehouse_id', $this->warehouseId))
                 ->whereBetween('movement_date', [$this->startDate, $this->endDate])
                 ->whereNotNull('balance_quantity')
                 ->sum('quantity_in');
 
             $exits = InventoryMovement::where('company_id', $this->companyId)
                 ->where('product_id', $product->product_id)
-                ->where('warehouse_id', $this->warehouseId)
+                ->when(! $this->isAllWarehouses, fn ($q) => $q->where('warehouse_id', $this->warehouseId))
                 ->whereBetween('movement_date', [$this->startDate, $this->endDate])
                 ->whereNotNull('balance_quantity')
                 ->sum('quantity_out');
 
             $currentStock = (float) $initialStock + (float) $entries - (float) $exits;
 
-            // Get warehouse-specific unit cost from the most recent movement
+            // Get unit cost from the most recent movement
             $lastCostMovement = InventoryMovement::where('company_id', $this->companyId)
                 ->where('product_id', $product->product_id)
-                ->where('warehouse_id', $this->warehouseId)
+                ->when(! $this->isAllWarehouses, fn ($q) => $q->where('warehouse_id', $this->warehouseId))
                 ->where('movement_date', '<=', $this->endDate)
                 ->whereNotNull('balance_quantity')
                 ->where('unit_cost', '>', 0)
