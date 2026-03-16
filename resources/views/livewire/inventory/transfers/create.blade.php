@@ -457,7 +457,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 InventoryTransferDetail::create([
                     'transfer_id' => $transfer->id,
                     'product_id' => $product['product_id'],
-                    'quantity' => $product['quantity'],
+                    'quantity' => round((float) $product['quantity'], 5),
                     'unit_cost' => $inventoryRecord?->unit_cost ?? 0,
                     'notes' => $product['notes'] ?? null,
                 ]);

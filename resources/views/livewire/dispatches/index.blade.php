@@ -458,10 +458,10 @@ new #[Layout('components.layouts.app')] class extends Component
                 DispatchDetail::create([
                     'dispatch_id' => $dispatch->id,
                     'product_id' => $item['product_id'],
-                    'quantity' => $item['quantity'],
+                    'quantity' => round((float) $item['quantity'], 5),
                     'unit_of_measure_id' => $item['unit_of_measure_id'],
                     'unit_price' => $item['unit_price'],
-                    'quantity_dispatched' => $item['quantity'],
+                    'quantity_dispatched' => round((float) $item['quantity'], 5),
                     'is_reserved' => true,
                     'reserved_by' => auth()->id(),
                     'reserved_at' => now(),

@@ -437,7 +437,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 DispatchDetail::create([
                     'dispatch_id' => $dispatch->id,
                     'product_id' => $detail['product_id'],
-                    'quantity' => $detail['quantity'],
+                    'quantity' => round((float) $detail['quantity'], 5),
                     'unit_of_measure_id' => $detail['unit_of_measure_id'],
                     'unit_price' => $detail['unit_price'] ?? 0,
                     'notes' => $detail['notes'] ?? null,

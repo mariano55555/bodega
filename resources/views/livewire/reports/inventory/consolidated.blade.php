@@ -206,7 +206,7 @@ new class extends Component
                 'unit_cost' => $unitCost,
                 'total_cost' => $totalCost,
             ];
-        })->filter(fn ($item) => $item->current_stock != 0);
+        })->filter(fn ($item) => abs($item->current_stock) >= 0.001);
     }
 
     #[Computed]
