@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\KardexService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -294,17 +295,6 @@ class InventoryAdjustment extends Model
             // Validate period is not closed
             InventoryClosure::validatePeriodOpen($this->company_id, $this->warehouse_id, now());
 
-            // Get current stock for this product in this warehouse
-            $currentStock = InventoryMovement::where('warehouse_id', $this->warehouse_id)
-                ->where('product_id', $this->product_id)
-                ->whereNotNull('balance_quantity')
-                ->orderBy('movement_date', 'desc')
-                ->orderBy('id', 'desc')
-                ->first();
-
-            $previousBalance = $currentStock ? $currentStock->balance_quantity : 0;
-            $newBalance = $previousBalance + $this->quantity; // Can be positive or negative
-
             // Get movement reason for adjustments
             // First try to get it from admin_notes (if user selected one)
             $movementReasonCode = null;
@@ -313,8 +303,8 @@ class InventoryAdjustment extends Model
             }
 
             // If no code in admin_notes, fallback to default based on quantity direction
+            $isPositiveAdjustment = $this->isPositiveAdjustment();
             if (! $movementReasonCode) {
-                $isPositiveAdjustment = $this->isPositiveAdjustment();
                 $movementReasonCode = $isPositiveAdjustment ? 'ADJ_POS' : 'ADJ_NEG';
             }
 
@@ -344,8 +334,9 @@ class InventoryAdjustment extends Model
             $isInbound = $this->quantity >= 0;
             $absoluteQuantity = abs($this->quantity);
 
-            // Create inventory movement
-            $movement = InventoryMovement::create([
+            // Create inventory movement with automatic balance recalculation
+            $kardexService = app(KardexService::class);
+            $movement = $kardexService->createMovement([
                 'company_id' => $this->company_id,
                 'warehouse_id' => $this->warehouse_id,
                 'product_id' => $this->product_id,
@@ -355,9 +346,6 @@ class InventoryAdjustment extends Model
                 'quantity' => $absoluteQuantity,
                 'quantity_in' => $isInbound ? $absoluteQuantity : 0,
                 'quantity_out' => $isInbound ? 0 : $absoluteQuantity,
-                'balance_quantity' => $newBalance,
-                'previous_quantity' => $previousBalance,
-                'new_quantity' => $newBalance,
                 'unit_cost' => $this->unit_cost,
                 'total_cost' => $this->total_value,
                 'document_type' => 'adjustment',

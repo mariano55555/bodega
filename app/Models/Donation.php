@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\KardexService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -264,20 +265,12 @@ class Donation extends Model
             // Get the donation movement reason
             $movementReason = MovementReason::where('code', 'DONATION_IN')->firstOrFail();
 
+            $kardexService = app(KardexService::class);
+
             // Create inventory movements for each donation detail
             foreach ($this->details as $detail) {
-                // Get current stock for this product in this warehouse
-                $currentStock = InventoryMovement::where('warehouse_id', $this->warehouse_id)
-                    ->where('product_id', $detail->product_id)
-                    ->orderBy('movement_date', 'desc')
-                    ->orderBy('id', 'desc')
-                    ->first();
-
-                $previousBalance = $currentStock ? $currentStock->balance_quantity : 0;
-                $newBalance = $previousBalance + $detail->quantity;
-
-                // Create the inventory movement
-                InventoryMovement::create([
+                // Create the inventory movement with automatic balance recalculation
+                $kardexService->createMovement([
                     'company_id' => $this->company_id,
                     'warehouse_id' => $this->warehouse_id,
                     'product_id' => $detail->product_id,
@@ -288,7 +281,6 @@ class Donation extends Model
                     'quantity' => $detail->quantity,
                     'quantity_in' => $detail->quantity,
                     'quantity_out' => 0,
-                    'balance_quantity' => $newBalance,
                     'unit_cost' => $detail->estimated_unit_value,
                     'total_cost' => $detail->estimated_total_value,
                     'lot_number' => $detail->lot_number,

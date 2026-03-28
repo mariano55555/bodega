@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Jobs\UpdateInventoryLevels;
+use App\Services\KardexService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -269,27 +270,18 @@ class InventoryTransfer extends Model
                 throw new \Exception('Stock insuficiente en bodega origen. '.implode('; ', $stockErrors));
             }
 
+            $kardexService = app(KardexService::class);
+
             // Create outbound inventory movements from transfer details
             foreach ($this->details as $detail) {
-                // Get current stock at origin warehouse
-                $currentStock = InventoryMovement::where('warehouse_id', $this->from_warehouse_id)
-                    ->where('product_id', $detail->product_id)
-                    ->whereNotNull('balance_quantity')
-                    ->orderBy('movement_date', 'desc')
-                    ->orderBy('id', 'desc')
-                    ->first();
-
-                $previousBalance = $currentStock ? $currentStock->balance_quantity : 0;
-                $newBalance = $previousBalance - $detail->quantity;
-
                 // Get unit cost from inventory
                 $inventory = Inventory::where('product_id', $detail->product_id)
                     ->where('warehouse_id', $this->from_warehouse_id)
                     ->first();
                 $unitCost = $inventory->unit_cost ?? 0;
 
-                // Create outbound movement (subtract from origin)
-                $movement = InventoryMovement::create([
+                // Create outbound movement (subtract from origin) with automatic balance recalculation
+                $movement = $kardexService->createMovement([
                     'company_id' => $this->fromWarehouse->company_id,
                     'warehouse_id' => $this->from_warehouse_id,
                     'product_id' => $detail->product_id,
@@ -300,7 +292,6 @@ class InventoryTransfer extends Model
                     'quantity' => -$detail->quantity,
                     'quantity_in' => 0,
                     'quantity_out' => $detail->quantity,
-                    'balance_quantity' => $newBalance,
                     'unit_cost' => $unitCost,
                     'total_cost' => $unitCost * $detail->quantity,
                     'notes' => $detail->notes ?? "Envío de traslado {$this->transfer_number}",
@@ -358,21 +349,13 @@ class InventoryTransfer extends Model
             }
 
             if ($movementReason) {
+                $kardexService = app(KardexService::class);
+
                 foreach ($this->inventoryMovements()->where('movement_type', 'transfer_out')->get() as $outboundMovement) {
-                    // Get current stock at destination
-                    $currentStock = InventoryMovement::where('warehouse_id', $this->to_warehouse_id)
-                        ->where('product_id', $outboundMovement->product_id)
-                        ->whereNotNull('balance_quantity')
-                        ->orderBy('movement_date', 'desc')
-                        ->orderBy('id', 'desc')
-                        ->first();
-
-                    $previousBalance = $currentStock ? $currentStock->balance_quantity : 0;
                     $receivedQuantity = $outboundMovement->quantity_out; // Use the shipped quantity
-                    $newBalance = $previousBalance + $receivedQuantity;
 
-                    // Create inbound movement at destination
-                    $movement = InventoryMovement::create([
+                    // Create inbound movement at destination with automatic balance recalculation
+                    $movement = $kardexService->createMovement([
                         'company_id' => $outboundMovement->company_id,
                         'warehouse_id' => $this->to_warehouse_id,
                         'product_id' => $outboundMovement->product_id,
@@ -383,7 +366,6 @@ class InventoryTransfer extends Model
                         'quantity' => $receivedQuantity,
                         'quantity_in' => $receivedQuantity,
                         'quantity_out' => 0,
-                        'balance_quantity' => $newBalance,
                         'unit_cost' => $outboundMovement->unit_cost,
                         'total_cost' => $outboundMovement->unit_cost * $receivedQuantity,
                         'lot_number' => $outboundMovement->lot_number,

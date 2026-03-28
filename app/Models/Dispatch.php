@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\KardexService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -385,21 +386,12 @@ class Dispatch extends Model
                 throw new \Exception('Stock insuficiente en bodega. '.implode('; ', $stockErrors));
             }
 
+            $kardexService = app(KardexService::class);
+
             // Create inventory movements for each dispatch detail
             foreach ($this->details as $detail) {
-                // Get current stock for this product in this warehouse
-                $currentStock = InventoryMovement::where('warehouse_id', $this->warehouse_id)
-                    ->where('product_id', $detail->product_id)
-                    ->whereNotNull('balance_quantity')
-                    ->orderBy('movement_date', 'desc')
-                    ->orderBy('id', 'desc')
-                    ->first();
-
-                $previousBalance = $currentStock ? $currentStock->balance_quantity : 0;
-                $newBalance = $previousBalance - $detail->quantity_dispatched;
-
-                // Create the inventory movement (outbound)
-                InventoryMovement::create([
+                // Create the inventory movement (outbound) with automatic balance recalculation
+                $kardexService->createMovement([
                     'company_id' => $this->company_id,
                     'warehouse_id' => $this->warehouse_id,
                     'product_id' => $detail->product_id,
@@ -410,9 +402,6 @@ class Dispatch extends Model
                     'quantity' => $detail->quantity_dispatched,
                     'quantity_in' => 0,
                     'quantity_out' => $detail->quantity_dispatched,
-                    'balance_quantity' => $newBalance,
-                    'previous_quantity' => $previousBalance,
-                    'new_quantity' => $newBalance,
                     'unit_cost' => $detail->unit_price,
                     'total_cost' => $detail->quantity_dispatched * $detail->unit_price,
                     'document_type' => $this->document_type,

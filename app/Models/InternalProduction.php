@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\KardexService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -277,18 +278,10 @@ class InternalProduction extends Model
                 throw new \Exception('Movement reason for production not found');
             }
 
+            $kardexService = app(KardexService::class);
+
             foreach ($this->details as $detail) {
-                $currentStock = InventoryMovement::where('warehouse_id', $this->warehouse_id)
-                    ->where('product_id', $detail->product_id)
-                    ->whereNotNull('balance_quantity')
-                    ->orderBy('movement_date', 'desc')
-                    ->orderBy('id', 'desc')
-                    ->first();
-
-                $previousBalance = $currentStock ? $currentStock->balance_quantity : 0;
-                $newBalance = $previousBalance + $detail->quantity;
-
-                InventoryMovement::create([
+                $kardexService->createMovement([
                     'company_id' => $this->company_id,
                     'warehouse_id' => $this->warehouse_id,
                     'product_id' => $detail->product_id,
@@ -299,9 +292,6 @@ class InternalProduction extends Model
                     'quantity' => $detail->quantity,
                     'quantity_in' => $detail->quantity,
                     'quantity_out' => 0,
-                    'balance_quantity' => $newBalance,
-                    'previous_quantity' => $previousBalance,
-                    'new_quantity' => $newBalance,
                     'unit_cost' => $detail->unit_price,
                     'total_cost' => $detail->quantity * $detail->unit_price,
                     'document_type' => 'production',
