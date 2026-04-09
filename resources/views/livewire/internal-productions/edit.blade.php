@@ -184,7 +184,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
             foreach ($this->details as $detail) {
                 if (! empty($detail['id'])) {
-                    InternalProductionDetail::where('id', $detail['id'])->update([
+                    $existingDetail = InternalProductionDetail::find($detail['id']);
+                    $existingDetail->fill([
                         'product_id' => $detail['product_id'],
                         'description' => $detail['description'] ?? null,
                         'quantity' => $detail['quantity'],
@@ -192,6 +193,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         'unit_price' => $detail['unit_price'] ?? 0,
                         'notes' => $detail['notes'] ?? null,
                     ]);
+                    $existingDetail->save();
                 } else {
                     InternalProductionDetail::create([
                         'internal_production_id' => $this->internalProduction->id,
