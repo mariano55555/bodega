@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Dispatch;
+use Flux\Flux;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 
@@ -15,20 +16,20 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function submit(): void
     {
         if ($this->dispatch->submit()) {
-            session()->flash('success', 'Despacho enviado para aprobación.');
+            Flux::toast(heading: 'Despacho enviado', text: 'El despacho fue enviado para aprobación.', variant: 'success');
             $this->dispatch->refresh();
         } else {
-            session()->flash('error', 'No se pudo enviar el despacho.');
+            Flux::toast(heading: 'Error', text: 'No se pudo enviar el despacho.', variant: 'danger');
         }
     }
 
     public function approve(): void
     {
         if ($this->dispatch->approve(auth()->id())) {
-            session()->flash('success', 'Despacho aprobado exitosamente.');
+            Flux::toast(heading: 'Despacho aprobado', text: 'El despacho fue aprobado exitosamente.', variant: 'success');
             $this->dispatch->refresh();
         } else {
-            session()->flash('error', 'No se pudo aprobar el despacho.');
+            Flux::toast(heading: 'Error', text: 'No se pudo aprobar el despacho.', variant: 'danger');
         }
     }
 
@@ -36,33 +37,33 @@ new #[Layout('components.layouts.app')] class extends Component {
     {
         try {
             if ($this->dispatch->dispatch(auth()->id())) {
-                session()->flash('success', 'Despacho procesado exitosamente. Stock actualizado.');
+                Flux::toast(heading: 'Despacho procesado', text: 'El despacho fue procesado exitosamente. Stock actualizado.', variant: 'success');
                 $this->dispatch->refresh();
             } else {
-                session()->flash('error', 'No se pudo procesar el despacho.');
+                Flux::toast(heading: 'Error', text: 'No se pudo procesar el despacho.', variant: 'danger');
             }
         } catch (\Exception $e) {
-            session()->flash('error', $e->getMessage());
+            Flux::toast(heading: 'Stock insuficiente', text: $e->getMessage(), variant: 'danger', duration: 0);
         }
     }
 
     public function deliver(): void
     {
         if ($this->dispatch->deliver(auth()->id(), auth()->user()->name)) {
-            session()->flash('success', 'Despacho marcado como entregado.');
+            Flux::toast(heading: 'Despacho entregado', text: 'El despacho fue marcado como entregado.', variant: 'success');
             $this->dispatch->refresh();
         } else {
-            session()->flash('error', 'No se pudo marcar como entregado.');
+            Flux::toast(heading: 'Error', text: 'No se pudo marcar como entregado.', variant: 'danger');
         }
     }
 
     public function cancel(): void
     {
         if ($this->dispatch->cancel()) {
-            session()->flash('success', 'Despacho anulado exitosamente.');
+            Flux::toast(heading: 'Despacho anulado', text: 'El despacho fue anulado exitosamente.', variant: 'success');
             $this->dispatch->refresh();
         } else {
-            session()->flash('error', 'No se pudo anular el despacho.');
+            Flux::toast(heading: 'Error', text: 'No se pudo anular el despacho.', variant: 'danger');
         }
     }
 }; ?>
@@ -112,19 +113,6 @@ new #[Layout('components.layouts.app')] class extends Component {
             @endif
         </div>
     </div>
-
-    {{-- Alerts --}}
-    @if (session('success'))
-        <flux:callout variant="success" icon="check-circle">
-            {{ session('success') }}
-        </flux:callout>
-    @endif
-
-    @if (session('error'))
-        <flux:callout variant="danger" icon="x-circle">
-            {{ session('error') }}
-        </flux:callout>
-    @endif
 
     {{-- Workflow Progress --}}
     @if ($dispatch->status !== 'cancelado')
