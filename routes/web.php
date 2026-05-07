@@ -225,6 +225,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('purchases-by-supplier/excel', [\App\Http\Controllers\PurchaseReportController::class, 'exportBySupplierExcel'])->name('purchases-by-supplier.excel');
         Volt::route('self-consumption', 'reports.self-consumption')->name('self-consumption');
         Volt::route('donations-consolidated', 'reports.donations-consolidated')->name('donations-consolidated');
+        Route::get('donations-consolidated/pdf', [\App\Http\Controllers\DonationReportController::class, 'exportConsolidatedPdf'])->name('donations-consolidated.pdf');
+        Route::get('donations-consolidated/excel', [\App\Http\Controllers\DonationReportController::class, 'exportConsolidatedExcel'])->name('donations-consolidated.excel');
         Volt::route('pre-closure-differences', 'reports.pre-closure-differences')->name('pre-closure-differences');
 
         // Purchase Reports Hub

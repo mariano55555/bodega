@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Company;
 use App\Models\Donation;
 use App\Models\Donor;
 use App\Models\ProductCategory;
@@ -20,20 +21,68 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public $warehouse_id = '';
 
+    public $company_id = '';
+
     public function mount(): void
     {
         // Default to current year
         $this->start_date = now()->startOfYear()->format('Y-m-d');
         $this->end_date = now()->endOfYear()->format('Y-m-d');
+
+        // Auto-set company_id for non-super admins
+        if (! auth()->user()->isSuperAdmin()) {
+            $this->company_id = (string) auth()->user()->company_id;
+        }
+    }
+
+    public function updatedCompanyId(): void
+    {
+        $this->warehouse_id = '';
+        $this->donor_id = '';
+        $this->category_id = '';
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return auth()->user()->isSuperAdmin();
+    }
+
+    public function getEffectiveCompanyId()
+    {
+        return $this->isSuperAdmin() ? $this->company_id : auth()->user()->company_id;
     }
 
     public function with(): array
     {
+        $effectiveCompanyId = $this->getEffectiveCompanyId();
+
+        // If super admin hasn't selected a company yet, return empty data
+        if (! $effectiveCompanyId) {
+            return [
+                'donorData' => collect(),
+                'categoryData' => collect(),
+                'monthlyTrend' => collect(),
+                'totals' => [
+                    'total_donations' => 0,
+                    'total_donors' => 0,
+                    'total_value' => 0,
+                    'average_donation' => 0,
+                ],
+                'donors' => collect(),
+                'warehouses' => collect(),
+                'categories' => collect(),
+                'companies' => $this->isSuperAdmin()
+                    ? Company::where('is_active', true)->orderBy('name')->get()
+                    : collect(),
+                'isSuperAdmin' => $this->isSuperAdmin(),
+            ];
+        }
+
         // Get donations with details
         $query = Donation::query()
-            ->where('company_id', auth()->user()->company_id)
+            ->where('company_id', $effectiveCompanyId)
             ->whereIn('status', ['aprobado', 'recibido'])
-            ->with(['donor:id,name,document_number', 'warehouse:id,name', 'details.product.category']);
+            ->with(['donor:id,name,tax_id', 'warehouse:id,name', 'details.product.category']);
 
         // Apply filters
         if ($this->start_date) {
@@ -55,19 +104,19 @@ new #[Layout('components.layouts.app')] class extends Component
         $donations = $query->latest('document_date')->get();
 
         // Group by donor
-        $donorData = collect();
+        $donorData = [];
         foreach ($donations as $donation) {
             $donorKey = $donation->donor_id ?? 'anonymous';
             $donorName = $donation->donor ? $donation->donor->name : $donation->donor_name;
 
-            if (! $donorData->has($donorKey)) {
+            if (! isset($donorData[$donorKey])) {
                 $donorData[$donorKey] = [
                     'donor' => $donation->donor,
                     'donor_name' => $donorName,
                     'donation_count' => 0,
                     'total_value' => 0,
-                    'products' => collect(),
-                    'categories' => collect(),
+                    'products' => [],
+                    'categories' => [],
                 ];
             }
 
@@ -82,7 +131,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 }
 
                 $productKey = $detail->product_id;
-                if (! $donorData[$donorKey]['products']->has($productKey)) {
+                if (! isset($donorData[$donorKey]['products'][$productKey])) {
                     $donorData[$donorKey]['products'][$productKey] = [
                         'product' => $detail->product,
                         'quantity' => 0,
@@ -91,19 +140,25 @@ new #[Layout('components.layouts.app')] class extends Component
                 }
 
                 $donorData[$donorKey]['products'][$productKey]['quantity'] += $detail->quantity;
-                $donorData[$donorKey]['products'][$productKey]['value'] += $detail->total ?? 0;
+                $donorData[$donorKey]['products'][$productKey]['value'] += $detail->estimated_total_value ?? 0;
 
                 // Track categories
                 if ($detail->product->category) {
-                    $donorData[$donorKey]['categories']->push($detail->product->category->name);
+                    $donorData[$donorKey]['categories'][] = $detail->product->category->name;
                 }
             }
         }
 
-        $donorData = $donorData->sortByDesc('total_value');
+        // Convert nested arrays to collections for the view, then sort
+        $donorData = collect($donorData)->map(function ($item) {
+            $item['products'] = collect($item['products']);
+            $item['categories'] = collect($item['categories']);
+
+            return $item;
+        })->sortByDesc('total_value');
 
         // Group by category
-        $categoryData = collect();
+        $categoryData = [];
         foreach ($donations as $donation) {
             foreach ($donation->details as $detail) {
                 // Apply category filter if set
@@ -114,7 +169,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 $categoryKey = $detail->product->category_id ?? 'uncategorized';
                 $categoryName = $detail->product->category->name ?? 'Sin categoría';
 
-                if (! $categoryData->has($categoryKey)) {
+                if (! isset($categoryData[$categoryKey])) {
                     $categoryData[$categoryKey] = [
                         'name' => $categoryName,
                         'total_value' => 0,
@@ -122,14 +177,16 @@ new #[Layout('components.layouts.app')] class extends Component
                     ];
                 }
 
-                $categoryData[$categoryKey]['total_value'] += $detail->total ?? 0;
+                $categoryData[$categoryKey]['total_value'] += $detail->estimated_total_value ?? 0;
                 $categoryData[$categoryKey]['total_quantity'] += $detail->quantity;
             }
         }
 
+        $categoryData = collect($categoryData);
+
         // Monthly trend (last 12 months)
         $monthlyTrend = Donation::query()
-            ->where('company_id', auth()->user()->company_id)
+            ->where('company_id', $effectiveCompanyId)
             ->whereIn('status', ['aprobado', 'recibido'])
             ->where('document_date', '>=', now()->subMonths(12)->startOfMonth())
             ->select([
@@ -154,29 +211,57 @@ new #[Layout('components.layouts.app')] class extends Component
             'categoryData' => $categoryData->sortByDesc('total_value'),
             'monthlyTrend' => $monthlyTrend,
             'totals' => $totals,
-            'donors' => Donor::where('company_id', auth()->user()->company_id)
+            'donors' => Donor::where('company_id', $effectiveCompanyId)
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(),
-            'warehouses' => Warehouse::where('company_id', auth()->user()->company_id)
+            'warehouses' => Warehouse::where('company_id', $effectiveCompanyId)
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(),
-            'categories' => ProductCategory::where('company_id', auth()->user()->company_id)
+            'categories' => ProductCategory::where('company_id', $effectiveCompanyId)
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(),
+            'companies' => $this->isSuperAdmin()
+                ? Company::where('is_active', true)->orderBy('name')->get()
+                : collect(),
+            'isSuperAdmin' => $this->isSuperAdmin(),
         ];
     }
 
-    public function exportPdf(): void
+    public function exportPdf()
     {
-        session()->flash('info', 'Exportación a PDF - próximamente disponible');
+        if (! $this->getEffectiveCompanyId()) {
+            \Flux\Flux::toast(text: 'Debe seleccionar una empresa.', variant: 'danger');
+
+            return null;
+        }
+
+        return redirect()->route('reports.donations-consolidated.pdf', $this->buildExportQueryParams());
     }
 
-    public function exportExcel(): void
+    public function exportExcel()
     {
-        session()->flash('info', 'Exportación a Excel - próximamente disponible');
+        if (! $this->getEffectiveCompanyId()) {
+            \Flux\Flux::toast(text: 'Debe seleccionar una empresa.', variant: 'danger');
+
+            return null;
+        }
+
+        return redirect()->route('reports.donations-consolidated.excel', $this->buildExportQueryParams());
+    }
+
+    protected function buildExportQueryParams(): array
+    {
+        return array_filter([
+            'empresa' => $this->isSuperAdmin() ? $this->company_id : null,
+            'inicio' => $this->start_date ?: null,
+            'fin' => $this->end_date ?: null,
+            'donante' => $this->donor_id ?: null,
+            'bodega' => $this->warehouse_id ?: null,
+            'categoria' => $this->category_id ?: null,
+        ]);
     }
 }; ?>
 
@@ -195,36 +280,36 @@ new #[Layout('components.layouts.app')] class extends Component
         </div>
     </div>
 
-    @if (session('success'))
-        <flux:callout variant="success" icon="check-circle">
-            {{ session('success') }}
-        </flux:callout>
-    @endif
-
-    @if (session('info'))
-        <flux:callout variant="info" icon="information-circle">
-            {{ session('info') }}
-        </flux:callout>
-    @endif
-
     {{-- Filters --}}
     <flux:card>
         <flux:heading size="lg" class="mb-4">Filtros</flux:heading>
 
         <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
+            @if ($isSuperAdmin)
+                <flux:field>
+                    <flux:label>Empresa</flux:label>
+                    <flux:select wire:model.live="company_id" placeholder="Seleccione una empresa">
+                        <option value="">Seleccione una empresa</option>
+                        @foreach ($companies as $company)
+                            <option value="{{ $company->id }}">{{ $company->name }}</option>
+                        @endforeach
+                    </flux:select>
+                </flux:field>
+            @endif
+
             <flux:field>
                 <flux:label>Fecha Inicio</flux:label>
-                <flux:input type="date" wire:model.live="start_date" />
+                <flux:input type="date" wire:model.live="start_date" :disabled="!$this->getEffectiveCompanyId()" />
             </flux:field>
 
             <flux:field>
                 <flux:label>Fecha Fin</flux:label>
-                <flux:input type="date" wire:model.live="end_date" />
+                <flux:input type="date" wire:model.live="end_date" :disabled="!$this->getEffectiveCompanyId()" />
             </flux:field>
 
             <flux:field>
                 <flux:label>Donante</flux:label>
-                <flux:select wire:model.live="donor_id" placeholder="Todos los donantes">
+                <flux:select wire:model.live="donor_id" placeholder="Todos los donantes" :disabled="!$this->getEffectiveCompanyId()">
                     <option value="">Todos</option>
                     @foreach ($donors as $donor)
                         <option value="{{ $donor->id }}">{{ $donor->name }}</option>
@@ -234,7 +319,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
             <flux:field>
                 <flux:label>Bodega</flux:label>
-                <flux:select wire:model.live="warehouse_id" placeholder="Todas las bodegas">
+                <flux:select wire:model.live="warehouse_id" placeholder="Todas las bodegas" :disabled="!$this->getEffectiveCompanyId()">
                     <option value="">Todas</option>
                     @foreach ($warehouses as $warehouse)
                         <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
@@ -244,7 +329,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
             <flux:field>
                 <flux:label>Categoría</flux:label>
-                <flux:select wire:model.live="category_id" placeholder="Todas las categorías">
+                <flux:select wire:model.live="category_id" placeholder="Todas las categorías" :disabled="!$this->getEffectiveCompanyId()">
                     <option value="">Todas</option>
                     @foreach ($categories as $category)
                         <option value="{{ $category->id }}">{{ $category->name }}</option>
@@ -253,15 +338,21 @@ new #[Layout('components.layouts.app')] class extends Component
             </flux:field>
 
             <div class="flex items-end gap-2">
-                <flux:button wire:click="exportPdf" variant="ghost" icon="document-arrow-down" size="sm">
+                <flux:button wire:click="exportPdf" variant="ghost" icon="document-arrow-down" size="sm" :disabled="!$this->getEffectiveCompanyId()">
                     PDF
                 </flux:button>
-                <flux:button wire:click="exportExcel" variant="ghost" icon="document-arrow-down" size="sm">
+                <flux:button wire:click="exportExcel" variant="ghost" icon="document-arrow-down" size="sm" :disabled="!$this->getEffectiveCompanyId()">
                     Excel
                 </flux:button>
             </div>
         </div>
     </flux:card>
+
+    @if ($isSuperAdmin && ! $this->getEffectiveCompanyId())
+        <flux:callout variant="warning" icon="information-circle">
+            Por favor seleccione una empresa para visualizar el reporte.
+        </flux:callout>
+    @endif
 
     {{-- Summary Cards --}}
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -322,7 +413,7 @@ new #[Layout('components.layouts.app')] class extends Component
             <div class="space-y-3">
                 @foreach ($monthlyTrend as $month)
                     @php
-                        $monthLabel = \Carbon\Carbon::parse($month->month.'-01')->format('M Y');
+                        $monthLabel = ucfirst(\Carbon\Carbon::parse($month->month.'-01')->locale('es')->isoFormat('MMM YYYY'));
                         $percentage = $monthlyTrend->max('total_value') > 0
                             ? ($month->total_value / $monthlyTrend->max('total_value')) * 100
                             : 0;
@@ -419,7 +510,7 @@ new #[Layout('components.layouts.app')] class extends Component
                             <flux:table.cell>
                                 <div class="font-medium">{{ $data['donor_name'] }}</div>
                                 @if ($data['donor'])
-                                    <div class="text-sm text-gray-500">{{ $data['donor']->document_number ?? '' }}</div>
+                                    <div class="text-sm text-gray-500">{{ $data['donor']->tax_id ?? '' }}</div>
                                 @endif
                             </flux:table.cell>
 
