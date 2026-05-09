@@ -83,6 +83,9 @@ new #[Layout('components.layouts.app')] class extends Component
                         <flux:button variant="ghost" size="sm" :href="route('reports.donations-consolidated')" wire:navigate class="w-full justify-start">
                             {{ __('Donaciones Consolidadas') }}
                         </flux:button>
+                        <flux:button variant="ghost" size="sm" :href="route('reports.digitized-data')" wire:navigate class="w-full justify-start">
+                            {{ __('Datos Digitados') }}
+                        </flux:button>
                     </div>
                 </div>
             </div>

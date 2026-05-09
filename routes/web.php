@@ -229,6 +229,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('donations-consolidated/excel', [\App\Http\Controllers\DonationReportController::class, 'exportConsolidatedExcel'])->name('donations-consolidated.excel');
         Volt::route('pre-closure-differences', 'reports.pre-closure-differences')->name('pre-closure-differences');
 
+        // Digitized Data Report (Datos Digitados)
+        Volt::route('digitized-data', 'reports.digitized-data')->name('digitized-data');
+        Route::get('digitized-data/pdf', [\App\Http\Controllers\DigitizedDataReportController::class, 'exportPdf'])->name('digitized-data.pdf');
+        Route::get('digitized-data/excel', [\App\Http\Controllers\DigitizedDataReportController::class, 'exportExcel'])->name('digitized-data.excel');
+
         // Purchase Reports Hub
         Route::prefix('purchases')->name('purchases.')->group(function () {
             Volt::route('/', 'reports.purchases.hub')->name('hub');
