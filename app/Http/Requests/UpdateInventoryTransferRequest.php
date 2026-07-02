@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\DocumentDateNotTooOld;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -43,7 +44,7 @@ class UpdateInventoryTransferRequest extends FormRequest
                 }),
                 'different:from_warehouse_id',
             ],
-            'document_date' => ['required', 'date'],
+            'document_date' => ['required', 'date', new DocumentDateNotTooOld($this->integer('company_id') ?: null)],
             'physical_document_number' => [
                 'required',
                 'string',

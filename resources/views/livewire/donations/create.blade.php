@@ -152,7 +152,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             'donor_id' => 'nullable|exists:donors,id',
             'donor_type' => 'required|in:individual,organization,government,ngo,international',
             'document_type' => 'required|in:acta,carta,convenio,otro',
-            'document_date' => 'required|date',
+            'document_date' => ['required', 'date', new \App\Rules\DocumentDateNotTooOld],
             'reception_date' => 'required|date',
             'details' => 'required|array|min:1',
             'details.*.product_id' => 'required|exists:products,id',

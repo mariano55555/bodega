@@ -187,6 +187,36 @@ class Company extends Model
     }
 
     /**
+     * Get the configured minimum allowed age (in years back) for document dates.
+     * Returns null when the company has no restriction configured.
+     */
+    public function documentDateMinYearsBack(): ?int
+    {
+        $value = $this->settings['document_date_min_years_back'] ?? null;
+
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return max(0, (int) $value);
+    }
+
+    /**
+     * Get the earliest allowed document date based on the company configuration.
+     * Returns null when no restriction is configured.
+     */
+    public function minDocumentDate(): ?\Carbon\CarbonImmutable
+    {
+        $yearsBack = $this->documentDateMinYearsBack();
+
+        if ($yearsBack === null) {
+            return null;
+        }
+
+        return \Carbon\CarbonImmutable::now()->startOfYear()->subYears($yearsBack);
+    }
+
+    /**
      * Get the full address formatted as a string.
      */
     public function getFullAddressAttribute(): string

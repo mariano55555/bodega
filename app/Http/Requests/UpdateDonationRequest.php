@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\DocumentDateNotTooOld;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateDonationRequest extends FormRequest
@@ -26,7 +27,7 @@ class UpdateDonationRequest extends FormRequest
             // Document Information
             'document_type' => ['sometimes', 'required', 'string', 'in:acta,carta,convenio,otro'],
             'document_number' => ['nullable', 'string', 'max:100'],
-            'document_date' => ['sometimes', 'required', 'date'],
+            'document_date' => ['sometimes', 'required', 'date', new DocumentDateNotTooOld($this->integer('company_id') ?: null)],
             'reception_date' => ['sometimes', 'required', 'date', 'after_or_equal:document_date'],
 
             // Purpose and Project

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\DocumentDateNotTooOld;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StorePurchaseRequest extends FormRequest
@@ -18,7 +19,7 @@ class StorePurchaseRequest extends FormRequest
             'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
             'document_type' => ['required', 'string', 'in:factura,ccf,ticket,otro'],
             'document_number' => ['nullable', 'string', 'max:100'],
-            'document_date' => ['required', 'date'],
+            'document_date' => ['required', 'date', new DocumentDateNotTooOld($this->integer('company_id') ?: null)],
             'due_date' => ['nullable', 'date', 'after_or_equal:document_date'],
             'purchase_type' => ['required', 'string', 'in:contado,credito'],
             'payment_method' => ['nullable', 'string', 'max:100'], // Comentado en UI por petición del cliente

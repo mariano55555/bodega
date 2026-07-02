@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\DocumentDateNotTooOld;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreDispatchRequest extends FormRequest
@@ -26,7 +27,7 @@ class StoreDispatchRequest extends FormRequest
             'document_type' => ['nullable', 'string', 'max:100'],
             'document_number' => ['nullable', 'string', 'max:100'],
             'physical_document_number' => ['required', 'string', 'max:100'],
-            'document_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'document_date' => ['nullable', 'date', 'before_or_equal:today', new DocumentDateNotTooOld($this->integer('company_id') ?: null)],
             'shipping_cost' => ['nullable', 'numeric', 'min:0', 'max:999999999.99999'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'admin_notes' => ['nullable', 'string', 'max:1000'],

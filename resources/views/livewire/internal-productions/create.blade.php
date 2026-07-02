@@ -140,7 +140,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'warehouse_id' => 'required|exists:warehouses,id',
             'area_id' => 'required|exists:areas,id',
             'physical_document_number' => 'required|string|max:100|unique:internal_productions,physical_document_number',
-            'document_date' => 'required|date',
+            'document_date' => ['required', 'date', new \App\Rules\DocumentDateNotTooOld],
             'details' => 'required|array|min:1',
             'details.*.product_id' => 'required|exists:products,id',
             'details.*.quantity' => 'required|numeric|min:0.00001',

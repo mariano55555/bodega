@@ -305,7 +305,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 }),
                 'different:from_warehouse_id',
             ],
-            'document_date' => ['required', 'date'],
+            'document_date' => ['required', 'date', new \App\Rules\DocumentDateNotTooOld],
             'physical_document_number' => ['required', 'string', 'max:100', 'unique:inventory_transfers,physical_document_number'],
             'reason' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:1000'],

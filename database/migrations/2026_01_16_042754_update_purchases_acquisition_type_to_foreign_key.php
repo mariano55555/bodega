@@ -11,10 +11,23 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Simply add the foreign key constraint
-        // The column already exists from a previous migration
+        // On databases migrated incrementally the acquisition_type_id column
+        // already exists, so we only add the foreign key. On a fresh database
+        // the column was never created, so we add it together with the key.
+        if (Schema::hasColumn('purchases', 'acquisition_type_id')) {
+            Schema::table('purchases', function (Blueprint $table) {
+                $table->foreign('acquisition_type_id')->references('id')->on('acquisition_types');
+            });
+
+            return;
+        }
+
         Schema::table('purchases', function (Blueprint $table) {
-            $table->foreign('acquisition_type_id')->references('id')->on('acquisition_types');
+            $table->foreignId('acquisition_type_id')
+                ->nullable()
+                ->after('acquisition_type')
+                ->constrained('acquisition_types')
+                ->nullOnDelete();
         });
     }
 

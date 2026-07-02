@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\DocumentDateNotTooOld;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateInternalProductionRequest extends FormRequest
@@ -18,7 +19,7 @@ class UpdateInternalProductionRequest extends FormRequest
             'warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
             'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
             'physical_document_number' => ['required', 'string', 'max:100'],
-            'document_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'document_date' => ['nullable', 'date', 'before_or_equal:today', new DocumentDateNotTooOld($this->integer('company_id') ?: null)],
             'notes' => ['nullable', 'string', 'max:1000'],
             'admin_notes' => ['nullable', 'string', 'max:1000'],
             'status' => ['nullable', 'string', 'in:borrador,pendiente'],

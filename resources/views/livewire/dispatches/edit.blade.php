@@ -234,7 +234,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'warehouse_id' => 'required|exists:warehouses,id',
             'dispatch_type' => 'required|in:venta,interno,externo,donacion,combustible',
             'physical_document_number' => 'required|string|max:100|unique:dispatches,physical_document_number,'.$this->dispatch->id,
-            'document_date' => 'required|date',
+            'document_date' => ['required', 'date', new \App\Rules\DocumentDateNotTooOld],
             'details' => 'required|array|min:1',
             'details.*.product_id' => 'required|exists:products,id',
             'details.*.quantity' => 'required|numeric|min:0.0001',

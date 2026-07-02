@@ -13,6 +13,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public array $company_employee_code_settings = [];
 
+    public array $company_document_date_years_back = [];
+
     public bool $isSuperAdmin = false;
 
     /**
@@ -29,6 +31,7 @@ new #[Layout('components.layouts.app')] class extends Component
             foreach ($companies as $company) {
                 $this->company_settings[$company->id] = $company->settings['auto_generate_sku'] ?? false;
                 $this->company_employee_code_settings[$company->id] = $company->settings['auto_generate_employee_code'] ?? false;
+                $this->company_document_date_years_back[$company->id] = $company->settings['document_date_min_years_back'] ?? '';
             }
         } else {
             // Si es company admin, solo puede ver y modificar su empresa
@@ -48,6 +51,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
             $this->company_settings[$user->company_id] = $company->settings['auto_generate_sku'] ?? false;
             $this->company_employee_code_settings[$user->company_id] = $company->settings['auto_generate_employee_code'] ?? false;
+            $this->company_document_date_years_back[$user->company_id] = $company->settings['document_date_min_years_back'] ?? '';
         }
     }
 
@@ -154,6 +158,60 @@ new #[Layout('components.layouts.app')] class extends Component
             variant: 'success',
             heading: '¡Éxito!',
             text: 'Configuración de código de empleado actualizada para '.$company->name,
+        );
+    }
+
+    /**
+     * Update the minimum allowed document date age (years back) for a company.
+     * An empty value removes the restriction.
+     */
+    public function updateDocumentDateYearsBack(int $companyId, mixed $value): void
+    {
+        $user = auth()->user();
+
+        // Si no es super admin, validar que solo modifique su empresa
+        if (! $this->isSuperAdmin) {
+            if (! $user->hasRole('company-admin')) {
+                abort(403, 'No tienes autorización para modificar estas configuraciones.');
+            }
+
+            if ($companyId !== $user->company_id) {
+                abort(403, 'Solo puedes modificar la configuración de tu empresa.');
+            }
+        }
+
+        $company = Company::find($companyId);
+
+        if (! $company) {
+            \Flux::toast(
+                variant: 'danger',
+                heading: 'Error',
+                text: 'Empresa no encontrada.',
+            );
+
+            return;
+        }
+
+        $normalized = ($value === '' || $value === null) ? null : max(0, (int) $value);
+
+        $settings = $company->settings ?? [];
+
+        if ($normalized === null) {
+            unset($settings['document_date_min_years_back']);
+        } else {
+            $settings['document_date_min_years_back'] = $normalized;
+        }
+
+        $company->update(['settings' => $settings]);
+
+        $this->company_document_date_years_back[$companyId] = $normalized ?? '';
+
+        \Flux::toast(
+            variant: 'success',
+            heading: '¡Éxito!',
+            text: $normalized === null
+                ? 'Restricción de fecha de documento desactivada para '.$company->name
+                : 'Restricción de fecha de documento actualizada para '.$company->name,
         );
     }
 
@@ -397,6 +455,76 @@ new #[Layout('components.layouts.app')] class extends Component
                 </div>
                 @endif
             </flux:card>
+            <!-- Document Date Restriction Card -->
+            <flux:card>
+                <flux:heading size="lg" class="mb-6">Antigüedad Máxima de Fecha de Documento</flux:heading>
+
+                @if($isSuperAdmin)
+                <div class="space-y-4">
+                    <flux:text class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Define cuántos años hacia atrás se permite en la fecha de documento físico (despachos, traslados,
+                        compras, donaciones y producciones internas). <strong>0</strong> = solo el año actual ({{ now()->year }}),
+                        <strong>1</strong> = desde {{ now()->year - 1 }}, y así sucesivamente. Déjalo vacío para no aplicar restricción.
+                    </flux:text>
+
+                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-800">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Empresa
+                                    </th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Años hacia atrás
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                                @foreach($this->companies as $company)
+                                <tr wire:key="doc-date-{{ $company->id }}">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                            {{ $company->name }}
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                                        <div class="flex justify-end">
+                                            <flux:input
+                                                type="number"
+                                                min="0"
+                                                class="max-w-32"
+                                                placeholder="Sin límite"
+                                                wire:model="company_document_date_years_back.{{ $company->id }}"
+                                                wire:change="updateDocumentDateYearsBack({{ $company->id }}, $event.target.value)" />
+                                        </div>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                @else
+                <div class="space-y-4">
+                    @foreach($this->companies as $company)
+                    <flux:field wire:key="doc-date-{{ $company->id }}">
+                        <flux:label>Años hacia atrás permitidos</flux:label>
+                        <flux:input
+                            type="number"
+                            min="0"
+                            class="max-w-40"
+                            placeholder="Sin límite"
+                            wire:model="company_document_date_years_back.{{ $company->id }}"
+                            wire:change="updateDocumentDateYearsBack({{ $company->id }}, $event.target.value)" />
+                        <flux:description>
+                            0 = solo el año actual ({{ now()->year }}), 1 = desde {{ now()->year - 1 }}. Vacío = sin restricción.
+                        </flux:description>
+                    </flux:field>
+                    @endforeach
+                </div>
+                @endif
+            </flux:card>
+
             @if($isSuperAdmin)
             <!-- Maintenance Card -->
             <flux:card>
