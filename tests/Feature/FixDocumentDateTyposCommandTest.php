@@ -14,34 +14,55 @@ beforeEach(function () {
     $this->product = Product::factory()->create(['company_id' => $this->company->id]);
 });
 
+/**
+ * Create an inventory movement without relying on the (partially broken) factory.
+ */
+function makeMovement(array $attributes): InventoryMovement
+{
+    $movement = new InventoryMovement;
+    $movement->forceFill(array_merge([
+        'quantity' => 0,
+        'quantity_in' => 0,
+        'quantity_out' => 0,
+        'is_active' => true,
+    ], $attributes));
+    $movement->save();
+
+    return $movement;
+}
+
 test('command fixes a document date year typo and recalculates balances', function () {
     // Inbound movement earlier in the timeline.
-    $inbound = InventoryMovement::factory()->create([
+    $inbound = makeMovement([
         'company_id' => $this->company->id,
         'warehouse_id' => $this->warehouse->id,
         'product_id' => $this->product->id,
         'movement_type' => 'purchase',
         'movement_date' => '2026-01-01',
+        'quantity' => 10,
         'quantity_in' => 10,
         'quantity_out' => 0,
-        'dispatch_id' => null,
     ]);
 
     // Dispatch with a year typo (0026 instead of 2026).
-    $dispatch = Dispatch::factory()->create([
+    $dispatch = new Dispatch;
+    $dispatch->forceFill([
         'company_id' => $this->company->id,
         'warehouse_id' => $this->warehouse->id,
+        'dispatch_type' => 'interno',
         'document_date' => '0026-06-24',
         'status' => 'entregado',
     ]);
+    $dispatch->save();
 
     // Outbound movement pinned to the bad year via the dispatch.
-    $outbound = InventoryMovement::factory()->create([
+    $outbound = makeMovement([
         'company_id' => $this->company->id,
         'warehouse_id' => $this->warehouse->id,
         'product_id' => $this->product->id,
         'movement_type' => 'transfer_out',
         'movement_date' => '0026-06-24',
+        'quantity' => 3,
         'quantity_in' => 0,
         'quantity_out' => 3,
         'dispatch_id' => $dispatch->id,
@@ -65,11 +86,15 @@ test('command fixes a document date year typo and recalculates balances', functi
 });
 
 test('command reports nothing to fix when all dates are valid', function () {
-    Dispatch::factory()->create([
+    $dispatch = new Dispatch;
+    $dispatch->forceFill([
         'company_id' => $this->company->id,
         'warehouse_id' => $this->warehouse->id,
+        'dispatch_type' => 'interno',
         'document_date' => '2026-06-24',
+        'status' => 'entregado',
     ]);
+    $dispatch->save();
 
     $this->artisan('inventory:fix-document-date-typos --dry-run')
         ->expectsOutputToContain('No hay fechas que corregir')

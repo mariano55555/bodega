@@ -210,8 +210,10 @@ class InternalProduction extends Model
 
         $warehouseCodeSuffix = substr($warehouse->code, -3);
 
+        // Look across all warehouses that share this code suffix, because
+        // production_number is globally unique. A warehouse-scoped query can
+        // miss numbers assigned elsewhere and produce a duplicate.
         $lastProduction = self::withTrashed()
-            ->where('warehouse_id', $warehouseId)
             ->where('production_number', 'like', "PI-%-BOD-{$warehouseCodeSuffix}")
             ->orderByRaw("CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(production_number, '-', 2), '-', -1) AS UNSIGNED) DESC")
             ->first();
@@ -222,7 +224,14 @@ class InternalProduction extends Model
             $nextNumber = 1;
         }
 
-        return sprintf('PI-%d-BOD-%s', $nextNumber, $warehouseCodeSuffix);
+        // Guard against any stray or concurrently created number by advancing
+        // until we find one that is free globally (including soft-deleted).
+        do {
+            $candidate = sprintf('PI-%d-BOD-%s', $nextNumber, $warehouseCodeSuffix);
+            $nextNumber++;
+        } while (self::withTrashed()->where('production_number', $candidate)->exists());
+
+        return $candidate;
     }
 
     public function calculateTotals(): void

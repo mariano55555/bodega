@@ -199,14 +199,22 @@ class InventoryClosure extends Model
     public static function generateClosureNumber(int $year, int $month): string
     {
         $yearMonth = sprintf('%04d%02d', $year, $month);
-        $lastClosure = static::where('year', $year)
+        $lastClosure = static::withTrashed()
+            ->where('year', $year)
             ->where('month', $month)
             ->latest('id')
             ->first();
 
         $sequence = $lastClosure ? (int) substr($lastClosure->closure_number, -4) + 1 : 1;
 
-        return sprintf('CLS-%s-%04d', $yearMonth, $sequence);
+        // Advance until the number is free globally (including soft-deleted)
+        // so a deleted closure's number is never reused.
+        do {
+            $candidate = sprintf('CLS-%s-%04d', $yearMonth, $sequence);
+            $sequence++;
+        } while (static::withTrashed()->where('closure_number', $candidate)->exists());
+
+        return $candidate;
     }
 
     /**

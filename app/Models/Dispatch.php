@@ -290,7 +290,14 @@ class Dispatch extends Model
         }
 
         // Format: BOD-XXX-D-YY (e.g., BOD-001-D-01)
-        return sprintf('BOD-%s-D-%02d', $warehouseCodeSuffix, $nextNumber);
+        // Advance until the number is free globally (including soft-deleted)
+        // to guard against stray numbers or concurrent inserts.
+        do {
+            $candidate = sprintf('BOD-%s-D-%02d', $warehouseCodeSuffix, $nextNumber);
+            $nextNumber++;
+        } while (self::withTrashed()->where('dispatch_number', $candidate)->exists());
+
+        return $candidate;
     }
 
     public function calculateTotals(): void
