@@ -18,7 +18,6 @@ class Role extends SpatieRole
         'slug',
         'description',
         'company_id',
-        'permissions',
         'level',
         'guard_name',
         'is_active',
@@ -30,7 +29,6 @@ class Role extends SpatieRole
     protected function casts(): array
     {
         return [
-            'permissions' => 'array',
             'level' => 'integer',
             'is_active' => 'boolean',
             'active_at' => 'datetime',

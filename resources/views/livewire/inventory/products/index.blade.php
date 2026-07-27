@@ -342,9 +342,11 @@ new #[Layout('components.layouts.app')] class extends Component
                 <flux:button variant="outline" icon="document-arrow-down" wire:click="exportExcel">
                     {{ __('ui.export') }}
                 </flux:button>
+                @can('products.create')
                 <flux:button variant="primary" icon="plus" href="{{ route('inventory.products.create') }}" wire:navigate>
                     {{ __('inventory.new_product') }}
                 </flux:button>
+                @endcan
             </div>
         </div>
     </div>
@@ -617,9 +619,11 @@ new #[Layout('components.layouts.app')] class extends Component
                                 <flux:dropdown>
                                     <flux:button variant="ghost" size="sm" icon="ellipsis-horizontal" />
                                     <flux:menu>
+                                        @can('products.edit')
                                         <flux:menu.item icon="pencil-square" href="{{ route('inventory.products.edit', $item->product) }}" wire:navigate>
                                             {{ __('ui.edit') }}
                                         </flux:menu.item>
+                                        @endcan
                                         <flux:menu.item icon="clock" wire:click="viewMovementHistory({{ $item->id }})">
                                             {{ __('inventory.movement_history') }}
                                         </flux:menu.item>

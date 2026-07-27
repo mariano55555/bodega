@@ -35,6 +35,7 @@ class DatabaseSeeder extends Seeder
         // Step 2: Authentication system - Roles & Permissions
         $this->command->info('🔐 Paso 2: Configurando roles y permisos...');
         $this->call(RolesAndPermissionsSeeder::class);
+        $this->call(VisorWarehouseAccessSeeder::class);
         $this->command->line('');
 
         // Step 3: ENA Company & Branch

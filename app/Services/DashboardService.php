@@ -16,15 +16,16 @@ class DashboardService
     // Cache TTL in seconds (5 minutes for dashboard data)
     protected const CACHE_TTL = 300;
 
-    public function __construct(protected User $user) {}
+    public function __construct(protected ?User $user = null) {}
 
     /**
      * Get comprehensive dashboard metrics based on user role
      */
     public function getMetrics(int $days = 30): array
     {
-        $companyId = $this->user->isSuperAdmin() ? null : $this->user->company_id;
-        $cacheKey = "dashboard_metrics_{$this->user->id}_{$days}";
+        $companyId = $this->user?->company_id;
+        $companyScope = $companyId ? "company_{$companyId}" : 'all';
+        $cacheKey = "dashboard_metrics_{$companyScope}_{$days}";
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($companyId, $days) {
             return [
@@ -40,15 +41,27 @@ class DashboardService
     }
 
     /**
-     * Clear cached metrics for a user
+     * Clear cached metrics for a company or user
      */
-    public static function clearCache(?int $userId = null): void
+    public static function clearCache(?int $companyId = null, ?int $userId = null): void
     {
+        if ($companyId) {
+            foreach ([7, 30, 90] as $days) {
+                Cache::forget("dashboard_metrics_company_{$companyId}_{$days}");
+                Cache::forget("dashboard_chart_movements_company_{$companyId}_{$days}");
+                Cache::forget("dashboard_chart_value_company_{$companyId}_{$days}");
+            }
+        }
+
         if ($userId) {
-            Cache::forget("dashboard_metrics_{$userId}_30");
-            Cache::forget("dashboard_chart_movements_{$userId}_30");
-            Cache::forget("dashboard_chart_value_{$userId}_30");
-        } else {
+            foreach ([7, 30, 90] as $days) {
+                Cache::forget("dashboard_metrics_{$userId}_{$days}");
+                Cache::forget("dashboard_chart_movements_{$userId}_{$days}");
+                Cache::forget("dashboard_chart_value_{$userId}_{$days}");
+            }
+        }
+
+        if (! $companyId && ! $userId) {
             // Clear all dashboard caches (for admin operations)
             Cache::flush();
         }
@@ -243,10 +256,21 @@ class DashboardService
             $query->where('company_id', $companyId);
         }
 
-        return $query->get()->map(function ($warehouse) {
-            // Calculate current usage from inventory quantities
-            $currentUsage = Inventory::where('warehouse_id', $warehouse->id)
-                ->sum('quantity') ?? 0;
+        $warehouses = $query->get();
+
+        if ($warehouses->isEmpty()) {
+            return [];
+        }
+
+        // Batch fetch current usages to avoid N+1 query problem
+        $warehouseIds = $warehouses->pluck('id');
+        $usages = Inventory::select('warehouse_id', DB::raw('SUM(quantity) as current_usage'))
+            ->whereIn('warehouse_id', $warehouseIds)
+            ->groupBy('warehouse_id')
+            ->pluck('current_usage', 'warehouse_id');
+
+        return $warehouses->map(function ($warehouse) use ($usages) {
+            $currentUsage = (float) ($usages->get($warehouse->id) ?? 0);
 
             $utilization = $warehouse->total_capacity > 0
                 ? round(($currentUsage / $warehouse->total_capacity) * 100, 1)
@@ -267,8 +291,9 @@ class DashboardService
      */
     public function getMovementChartData(int $days = 30): array
     {
-        $companyId = $this->user->isSuperAdmin() ? null : $this->user->company_id;
-        $cacheKey = "dashboard_chart_movements_{$this->user->id}_{$days}";
+        $companyId = $this->user?->company_id;
+        $companyScope = $companyId ? "company_{$companyId}" : 'all';
+        $cacheKey = "dashboard_chart_movements_{$companyScope}_{$days}";
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($companyId, $days) {
             return $this->buildMovementChartData($companyId, $days);
@@ -318,8 +343,9 @@ class DashboardService
      */
     public function getInventoryValueChartData(int $days = 30): array
     {
-        $companyId = $this->user->isSuperAdmin() ? null : $this->user->company_id;
-        $cacheKey = "dashboard_chart_value_{$this->user->id}_{$days}";
+        $companyId = $this->user?->company_id;
+        $companyScope = $companyId ? "company_{$companyId}" : 'all';
+        $cacheKey = "dashboard_chart_value_{$companyScope}_{$days}";
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($companyId, $days) {
             return $this->buildInventoryValueChartData($companyId, $days);
@@ -363,7 +389,7 @@ class DashboardService
      */
     public function getRecentActivities(int $limit = 10): array
     {
-        $companyId = $this->user->isSuperAdmin() ? null : $this->user->company_id;
+        $companyId = $this->user?->company_id;
 
         $query = InventoryMovement::with(['product:id,name,sku', 'warehouse:id,name', 'creator:id,name'])
             ->latest()

@@ -22,11 +22,11 @@ Route::view('dashboard', 'dashboard')
 
 Route::middleware(['auth'])->group(function () {
     // Warehouse Management Routes - Dashboard and Hierarchy
-    Volt::route('warehouse', 'warehouse.dashboard')->name('warehouse.dashboard');
-    Volt::route('warehouse/hierarchy', 'warehouse.hierarchy.index')->name('warehouse.hierarchy.index');
+    Volt::route('warehouse', 'warehouse.dashboard')->name('warehouse.dashboard')->middleware('permission:warehouse-management.access');
+    Volt::route('warehouse/hierarchy', 'warehouse.hierarchy.index')->name('warehouse.hierarchy.index')->middleware('permission:warehouse-management.access');
 
     // Branch Management Routes
-    Route::prefix('warehouse/branches')->name('warehouse.branches.')->group(function () {
+    Route::prefix('warehouse/branches')->name('warehouse.branches.')->middleware('permission:warehouse-management.access')->group(function () {
         Volt::route('/', 'warehouse.branches.index')->name('index');
         Volt::route('create', 'warehouse.branches.create')->name('create');
         Route::post('/', [BranchController::class, 'store'])->name('store');
@@ -41,7 +41,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // Warehouse Management Routes
-    Route::prefix('warehouse/warehouses')->name('warehouse.warehouses.')->group(function () {
+    Route::prefix('warehouse/warehouses')->name('warehouse.warehouses.')->middleware('permission:warehouse-management.access')->group(function () {
         Volt::route('/', 'warehouse.warehouses.index')->name('index');
         Volt::route('create', 'warehouse.warehouses.create')->name('create');
         Route::post('/', [WarehouseController::class, 'store'])->name('store');
@@ -58,42 +58,46 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // Company Management Routes (keeping Volt for now but could be converted)
-    Volt::route('warehouse/companies', 'warehouse.companies.index')->name('warehouse.companies.index');
-    Volt::route('warehouse/companies/create', 'warehouse.companies.create')->name('warehouse.companies.create');
-    Volt::route('warehouse/companies/{company}/edit', 'warehouse.companies.edit')->name('warehouse.companies.edit');
-    Volt::route('warehouse/capacity', 'warehouse.capacity.index')->name('warehouse.capacity.index');
+    Route::middleware('permission:warehouse-management.access')->group(function () {
+        Volt::route('warehouse/companies', 'warehouse.companies.index')->name('warehouse.companies.index');
+        Volt::route('warehouse/companies/create', 'warehouse.companies.create')->name('warehouse.companies.create');
+        Volt::route('warehouse/companies/{company}/edit', 'warehouse.companies.edit')->name('warehouse.companies.edit');
+        Volt::route('warehouse/capacity', 'warehouse.capacity.index')->name('warehouse.capacity.index');
+    });
 
     // Product Catalog Routes (master list)
     Volt::route('products/catalog', 'products.index')->name('products.catalog');
 
     // Inventory Management Routes
-    Volt::route('inventory', 'inventory.dashboard')->name('inventory.dashboard');
+    Volt::route('inventory', 'inventory.dashboard')->name('inventory.dashboard')->middleware('permission:inventory-queries.access');
 
     // Product Management Routes
     Route::prefix('inventory/products')->name('inventory.products.')->group(function () {
         Volt::route('/', 'inventory.products.index')->name('index');
         Route::get('export', [InventoryReportController::class, 'exportProducts'])->name('export');
-        Volt::route('create', 'inventory.products.create')->name('create');
+        Volt::route('create', 'inventory.products.create')->name('create')->middleware('permission:products.create');
         Volt::route('{product:slug}', 'inventory.products.show')->name('show');
-        Volt::route('{product:slug}/edit', 'inventory.products.edit')->name('edit');
+        Volt::route('{product:slug}/edit', 'inventory.products.edit')->name('edit')->middleware('permission:products.edit');
     });
 
-    Volt::route('inventory/scanner', 'inventory.scanner')->name('inventory.scanner');
-    Volt::route('inventory/stock-query', 'inventory.stock-query')->name('inventory.stock.query');
-    Volt::route('inventory/movements', 'inventory.movements.index')->name('inventory.movements.index');
-    Volt::route('inventory/alerts', 'inventory.alerts.index')->name('inventory.alerts.index');
-    Volt::route('inventory/alerts/resolved', 'inventory.alerts.resolved')->name('inventory.alerts.resolved');
+    Route::middleware('permission:inventory-queries.access')->group(function () {
+        Volt::route('inventory/scanner', 'inventory.scanner')->name('inventory.scanner');
+        Volt::route('inventory/stock-query', 'inventory.stock-query')->name('inventory.stock.query');
+        Volt::route('inventory/movements', 'inventory.movements.index')->name('inventory.movements.index');
+        Volt::route('inventory/alerts', 'inventory.alerts.index')->name('inventory.alerts.index');
+        Volt::route('inventory/alerts/resolved', 'inventory.alerts.resolved')->name('inventory.alerts.resolved');
+    });
 
     // Transfer Management Routes
     Route::prefix('inventory/transfers')->name('transfers.')->group(function () {
         Volt::route('/', 'inventory.transfers.index')->name('index');
-        Volt::route('create', 'inventory.transfers.create')->name('create');
+        Volt::route('create', 'inventory.transfers.create')->name('create')->middleware('permission:transfers.create');
         Volt::route('{transfer}', 'inventory.transfers.show')->name('show');
-        Volt::route('{transfer}/edit', 'inventory.transfers.edit')->name('edit');
+        Volt::route('{transfer}/edit', 'inventory.transfers.edit')->name('edit')->middleware('permission:transfers.edit');
     });
 
     // Supplier Management Routes (must be before Purchase routes to avoid route collision)
-    Route::prefix('purchases/suppliers')->name('purchases.suppliers.')->group(function () {
+    Route::prefix('purchases/suppliers')->name('purchases.suppliers.')->middleware('permission:suppliers.view')->group(function () {
         Volt::route('/', 'purchases.suppliers.index')->name('index');
         Volt::route('create', 'purchases.suppliers.create')->name('create');
         Volt::route('{supplier:slug}/edit', 'purchases.suppliers.edit')->name('edit');
@@ -110,37 +114,37 @@ Route::middleware(['auth'])->group(function () {
     // Dispatch Management Routes
     Route::prefix('dispatches')->name('dispatches.')->group(function () {
         Volt::route('/', 'dispatches.index')->name('index');
-        Volt::route('create', 'dispatches.create')->name('create');
+        Volt::route('create', 'dispatches.create')->name('create')->middleware('permission:dispatches.create');
         Volt::route('{dispatch:slug}', 'dispatches.show')->name('show');
-        Volt::route('{dispatch:slug}/edit', 'dispatches.edit')->name('edit');
+        Volt::route('{dispatch:slug}/edit', 'dispatches.edit')->name('edit')->middleware('permission:dispatches.edit');
         Route::get('{dispatch:slug}/fuel-pdf', [\App\Http\Controllers\DispatchReportController::class, 'exportFuelDispatchPdf'])->name('fuel-pdf');
     });
 
     // Internal Production Management Routes
     Route::prefix('internal-productions')->name('internal-productions.')->group(function () {
         Volt::route('/', 'internal-productions.index')->name('index');
-        Volt::route('create', 'internal-productions.create')->name('create');
+        Volt::route('create', 'internal-productions.create')->name('create')->middleware('permission:internal-productions.create');
         Volt::route('{internalProduction:slug}', 'internal-productions.show')->name('show');
-        Volt::route('{internalProduction:slug}/edit', 'internal-productions.edit')->name('edit');
+        Volt::route('{internalProduction:slug}/edit', 'internal-productions.edit')->name('edit')->middleware('permission:internal-productions.edit');
     });
 
     // Donation Management Routes
     Route::prefix('donations')->name('donations.')->group(function () {
         Volt::route('/', 'donations.index')->name('index');
-        Volt::route('create', 'donations.create')->name('create');
+        Volt::route('create', 'donations.create')->name('create')->middleware('permission:donations.create');
         Volt::route('{donation:slug}', 'donations.show')->name('show');
-        Volt::route('{donation:slug}/edit', 'donations.edit')->name('edit');
+        Volt::route('{donation:slug}/edit', 'donations.edit')->name('edit')->middleware('permission:donations.edit');
     });
 
     // Employee Management Routes
-    Route::prefix('employees')->name('employees.')->group(function () {
+    Route::prefix('employees')->name('employees.')->middleware('permission:employees.view')->group(function () {
         Volt::route('/', 'employees.index')->name('index');
         Volt::route('create', 'employees.create')->name('create');
         Volt::route('{employee:slug}/edit', 'employees.edit')->name('edit');
     });
 
     // Donor Management Routes
-    Route::prefix('donors')->name('donors.')->group(function () {
+    Route::prefix('donors')->name('donors.')->middleware('permission:donors.view')->group(function () {
         Volt::route('/', 'donors.index')->name('index');
         Volt::route('create', 'donors.create')->name('create');
         Volt::route('{donor:slug}/edit', 'donors.edit')->name('edit');
@@ -149,15 +153,15 @@ Route::middleware(['auth'])->group(function () {
     // Inventory Adjustments Routes
     Route::prefix('adjustments')->name('adjustments.')->group(function () {
         Volt::route('/', 'adjustments.index')->name('index');
-        Volt::route('create', 'adjustments.create')->name('create');
+        Volt::route('create', 'adjustments.create')->name('create')->middleware('permission:adjustments.create');
         Volt::route('{inventoryAdjustment:slug}', 'adjustments.show')->name('show');
-        Volt::route('{inventoryAdjustment:slug}/edit', 'adjustments.edit')->name('edit');
+        Volt::route('{inventoryAdjustment:slug}/edit', 'adjustments.edit')->name('edit')->middleware('permission:adjustments.edit');
     });
 
     // Inventory Closures Routes
     Route::prefix('closures')->name('closures.')->group(function () {
         Volt::route('/', 'closures.index')->name('index');
-        Volt::route('create', 'closures.create')->name('create');
+        Volt::route('create', 'closures.create')->name('create')->middleware('permission:closures.create');
         Volt::route('{closure:slug}', 'closures.show')->name('show');
         Route::get('{closure:slug}/export', \App\Http\Controllers\InventoryClosureExportController::class)->name('export');
     });
@@ -166,7 +170,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('notifications', 'notifications.index')->name('notifications.index');
 
     // Storage Locations Routes
-    Route::prefix('storage-locations')->name('storage-locations.')->group(function () {
+    Route::prefix('storage-locations')->name('storage-locations.')->middleware('permission:warehouse-management.access')->group(function () {
         Volt::route('/', 'warehouse.storage-locations.index')->name('index');
         Volt::route('create', 'warehouse.storage-locations.create')->name('create');
         Volt::route('{location:slug}', 'warehouse.storage-locations.show')->name('show');
@@ -174,7 +178,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // Queries Routes
-    Route::prefix('queries')->name('queries.')->group(function () {
+    Route::prefix('queries')->name('queries.')->middleware('permission:inventory-queries.access')->group(function () {
         Volt::route('advanced-search', 'queries.advanced-search')->name('advanced-search');
         Volt::route('kardex', 'queries.kardex')->name('kardex');
         Volt::route('stock-realtime', 'queries.stock-realtime')->name('stock-realtime');
@@ -183,7 +187,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // Traceability Routes
-    Route::prefix('traceability')->name('traceability.')->group(function () {
+    Route::prefix('traceability')->name('traceability.')->middleware('permission:inventory-queries.access')->group(function () {
         Volt::route('product-timeline', 'traceability.product-timeline')->name('product-timeline');
         Volt::route('system-log', 'traceability.system-log')->name('system-log');
     });
@@ -270,12 +274,12 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // Import/Export Routes
-    Route::prefix('imports')->name('imports.')->group(function () {
+    Route::prefix('imports')->name('imports.')->middleware('permission:imports.access')->group(function () {
         Volt::route('/', 'imports.index')->name('index');
     });
 
     // DTE Import Routes
-    Route::prefix('dte-imports')->name('dte-imports.')->group(function () {
+    Route::prefix('dte-imports')->name('dte-imports.')->middleware('permission:dte.access')->group(function () {
         Volt::route('/', 'dte-imports.index')->name('index');
         Volt::route('{dteImport:slug}', 'dte-imports.review')->name('review');
     });
@@ -292,7 +296,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // User Management Routes
-    Route::prefix('admin/users')->name('admin.users.')->group(function () {
+    Route::prefix('admin/users')->name('admin.users.')->middleware('permission:user-management.access')->group(function () {
         Volt::route('/', 'admin.users.index')->name('index');
         Volt::route('create', 'admin.users.create')->name('create');
         Volt::route('{user}/edit', 'admin.users.edit')->name('edit');
@@ -300,47 +304,47 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // Role Management Routes
-    Route::prefix('admin/roles')->name('admin.roles.')->group(function () {
+    Route::prefix('admin/roles')->name('admin.roles.')->middleware('permission:user-management.access')->group(function () {
         Volt::route('/', 'admin.roles.index')->name('index');
         Volt::route('create', 'admin.roles.create')->name('create');
         Volt::route('{role}/edit', 'admin.roles.edit')->name('edit');
     });
 
     // Permission Management Routes
-    Route::prefix('admin/permissions')->name('admin.permissions.')->group(function () {
+    Route::prefix('admin/permissions')->name('admin.permissions.')->middleware('permission:user-management.access')->group(function () {
         Volt::route('/', 'admin.permissions.index')->name('index');
         Volt::route('create', 'admin.permissions.create')->name('create');
         Volt::route('{permission}/edit', 'admin.permissions.edit')->name('edit');
     });
 
     // Activity Logs Routes
-    Route::prefix('admin/activity-logs')->name('admin.activity-logs.')->group(function () {
+    Route::prefix('admin/activity-logs')->name('admin.activity-logs.')->middleware('permission:user-management.access')->group(function () {
         Volt::route('/', 'admin.activity-logs.index')->name('index');
     });
 
     // Product Categories Management Routes
     Route::prefix('admin/categories')->name('admin.categories.')->group(function () {
         Volt::route('/', 'admin.categories.index')->name('index');
-        Volt::route('create', 'admin.categories.create')->name('create');
-        Volt::route('{category:slug}/edit', 'admin.categories.edit')->name('edit');
+        Volt::route('create', 'admin.categories.create')->name('create')->middleware('permission:categories.create');
+        Volt::route('{category:slug}/edit', 'admin.categories.edit')->name('edit')->middleware('permission:categories.edit');
     });
 
     // Units of Measure Management Routes
-    Route::prefix('admin/units')->name('admin.units.')->group(function () {
+    Route::prefix('admin/units')->name('admin.units.')->middleware('permission:units.view')->group(function () {
         Volt::route('/', 'admin.units.index')->name('index');
         Volt::route('create', 'admin.units.create')->name('create');
         Volt::route('{unit:slug}/edit', 'admin.units.edit')->name('edit');
     });
 
     // Areas Management Routes
-    Route::prefix('admin/areas')->name('admin.areas.')->group(function () {
+    Route::prefix('admin/areas')->name('admin.areas.')->middleware('permission:warehouse-management.access')->group(function () {
         Volt::route('/', 'admin.areas.index')->name('index');
         Volt::route('create', 'admin.areas.create')->name('create');
         Volt::route('{area:slug}/edit', 'admin.areas.edit')->name('edit');
     });
 
     // Company User Management Routes
-    Route::prefix('admin/company-users')->name('admin.company-users.')->group(function () {
+    Route::prefix('admin/company-users')->name('admin.company-users.')->middleware('permission:user-management.access')->group(function () {
         Volt::route('/', 'admin.company-users.index')->name('index');
         Volt::route('{company}/users', 'admin.company-users.company')->name('company');
     });

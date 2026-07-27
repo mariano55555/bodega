@@ -123,6 +123,8 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function delete(): void
     {
+        abort_unless(auth()->user()->can('donations.delete'), 403);
+
         if (! $this->donationToDelete) {
             return;
         }
@@ -155,9 +157,11 @@ new #[Layout('components.layouts.app')] class extends Component {
             <flux:text class="mt-1">Gestión de donaciones recibidas</flux:text>
         </div>
 
-        <flux:button variant="primary" icon="plus" href="{{ route('donations.create') }}" wire:navigate>
-            Nueva Donación
-        </flux:button>
+        @can('donations.create')
+            <flux:button variant="primary" icon="plus" href="{{ route('donations.create') }}" wire:navigate>
+                Nueva Donación
+            </flux:button>
+        @endcan
     </div>
 
     <!-- Summary Cards -->
@@ -393,24 +397,28 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 </flux:button>
 
                                 @if (in_array($donation->status, ['borrador', 'pendiente']))
-                                    <flux:button
-                                        variant="ghost"
-                                        size="sm"
-                                        icon="pencil"
-                                        href="{{ route('donations.edit', $donation->slug) }}"
-                                        wire:navigate
-                                    >
-                                        Editar
-                                    </flux:button>
+                                    @can('donations.edit')
+                                        <flux:button
+                                            variant="ghost"
+                                            size="sm"
+                                            icon="pencil"
+                                            href="{{ route('donations.edit', $donation->slug) }}"
+                                            wire:navigate
+                                        >
+                                            Editar
+                                        </flux:button>
+                                    @endcan
 
-                                    <flux:button
-                                        variant="ghost"
-                                        size="sm"
-                                        icon="trash"
-                                        wire:click="confirmDelete({{ $donation->id }})"
-                                    >
-                                        Eliminar
-                                    </flux:button>
+                                    @can('donations.delete')
+                                        <flux:button
+                                            variant="ghost"
+                                            size="sm"
+                                            icon="trash"
+                                            wire:click="confirmDelete({{ $donation->id }})"
+                                        >
+                                            Eliminar
+                                        </flux:button>
+                                    @endcan
                                 @endif
                             </div>
                         </flux:table.cell>

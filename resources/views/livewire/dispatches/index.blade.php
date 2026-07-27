@@ -331,6 +331,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function createQuickDispatch(): void
     {
+        abort_unless(auth()->user()->can('dispatches.create'), 403);
+
         $this->validate([
             'warehouse_id' => 'required|exists:warehouses,id',
             'dispatch_type' => 'required|in:venta,interno,externo,donacion,combustible',
@@ -560,6 +562,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function delete(int $dispatchId): void
     {
+        abort_unless(auth()->user()->can('dispatches.delete'), 403);
+
         $dispatch = Dispatch::find($dispatchId);
 
         if (! $dispatch) {
@@ -585,12 +589,14 @@ new #[Layout('components.layouts.app')] class extends Component
         </div>
 
         <div class="flex items-center gap-2">
-            <flux:button variant="outline" icon="bolt" wire:click="showForm">
-                Despacho Rápido
-            </flux:button>
-            <flux:button variant="primary" icon="plus" href="{{ route('dispatches.create') }}" wire:navigate>
-                Nuevo Despacho
-            </flux:button>
+            @can('dispatches.create')
+                <flux:button variant="outline" icon="bolt" wire:click="showForm">
+                    Despacho Rápido
+                </flux:button>
+                <flux:button variant="primary" icon="plus" href="{{ route('dispatches.create') }}" wire:navigate>
+                    Nuevo Despacho
+                </flux:button>
+            @endcan
         </div>
     </div>
 
@@ -780,19 +786,23 @@ new #[Layout('components.layouts.app')] class extends Component
                             <div class="flex items-center gap-2">
                                 <flux:button size="sm" variant="ghost" icon="eye" href="{{ route('dispatches.show', $dispatch) }}" wire:navigate />
 
-                                @if ($dispatch->canBeEdited())
-                                    <flux:button size="sm" variant="ghost" icon="pencil" href="{{ route('dispatches.edit', $dispatch) }}" wire:navigate />
-                                @endif
+                                @can('dispatches.edit')
+                                    @if ($dispatch->canBeEdited())
+                                        <flux:button size="sm" variant="ghost" icon="pencil" href="{{ route('dispatches.edit', $dispatch) }}" wire:navigate />
+                                    @endif
+                                @endcan
 
-                                @if ($dispatch->status === 'cancelado')
-                                    <flux:button
-                                        size="sm"
-                                        variant="ghost"
-                                        icon="trash"
-                                        wire:click="delete({{ $dispatch->id }})"
-                                        wire:confirm="¿Está seguro de eliminar este despacho?"
-                                    />
-                                @endif
+                                @can('dispatches.delete')
+                                    @if ($dispatch->status === 'cancelado')
+                                        <flux:button
+                                            size="sm"
+                                            variant="ghost"
+                                            icon="trash"
+                                            wire:click="delete({{ $dispatch->id }})"
+                                            wire:confirm="¿Está seguro de eliminar este despacho?"
+                                        />
+                                    @endif
+                                @endcan
                             </div>
                         </flux:table.cell>
                     </flux:table.row>
@@ -1080,14 +1090,16 @@ new #[Layout('components.layouts.app')] class extends Component
     </flux:modal>
 
     {{-- Mobile Quick Action Button --}}
-    <div class="fixed bottom-6 right-6 lg:hidden">
-        <flux:button
-            variant="primary"
-            icon="bolt"
-            wire:click="showForm"
-            class="rounded-full p-4 shadow-lg"
-        >
-            <span class="sr-only">Despacho Rápido</span>
-        </flux:button>
-    </div>
+    @can('dispatches.create')
+        <div class="fixed bottom-6 right-6 lg:hidden">
+            <flux:button
+                variant="primary"
+                icon="bolt"
+                wire:click="showForm"
+                class="rounded-full p-4 shadow-lg"
+            >
+                <span class="sr-only">Despacho Rápido</span>
+            </flux:button>
+        </div>
+    @endcan
 </div>

@@ -1,3 +1,3 @@
 <x-layouts.app :title="__('Dashboard')">
-    @livewire('dashboard')
+    <livewire:dashboard lazy />
 </x-layouts.app>

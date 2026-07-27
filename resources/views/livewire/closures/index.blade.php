@@ -53,6 +53,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function delete(InventoryClosure $closure): void
     {
+        abort_unless(auth()->user()->can('closures.delete'), 403);
+
         if ($closure->status !== 'en_proceso') {
             session()->flash('error', 'Solo se pueden eliminar cierres en proceso.');
 
@@ -71,9 +73,11 @@ new #[Layout('components.layouts.app')] class extends Component
             <flux:text class="mt-1">Gestión de cierres mensuales</flux:text>
         </div>
 
-        <flux:button variant="primary" icon="plus" href="{{ route('closures.create') }}" wire:navigate>
-            Nuevo Cierre
-        </flux:button>
+        @can('closures.create')
+            <flux:button variant="primary" icon="plus" href="{{ route('closures.create') }}" wire:navigate>
+                Nuevo Cierre
+            </flux:button>
+        @endcan
     </div>
 
     @if (session('success'))
@@ -210,17 +214,19 @@ new #[Layout('components.layouts.app')] class extends Component
                                     Ver
                                 </flux:button>
 
-                                @if ($closure->status === 'en_proceso')
-                                    <flux:button
-                                        variant="ghost"
-                                        size="sm"
-                                        icon="trash"
-                                        wire:click="delete({{ $closure->id }})"
-                                        wire:confirm="¿Está seguro de eliminar este cierre?"
-                                    >
-                                        Eliminar
-                                    </flux:button>
-                                @endif
+                                @can('closures.delete')
+                                    @if ($closure->status === 'en_proceso')
+                                        <flux:button
+                                            variant="ghost"
+                                            size="sm"
+                                            icon="trash"
+                                            wire:click="delete({{ $closure->id }})"
+                                            wire:confirm="¿Está seguro de eliminar este cierre?"
+                                        >
+                                            Eliminar
+                                        </flux:button>
+                                    @endif
+                                @endcan
                             </div>
                         </flux:table.cell>
                     </flux:table.row>

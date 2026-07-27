@@ -27,6 +27,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function delete(ProductCategory $category): void
     {
+        abort_unless(auth()->user()->can('categories.delete'), 403);
+
         if ($category->products()->exists()) {
             session()->flash('error', 'No se puede eliminar la categoría porque tiene productos asociados.');
             return;
@@ -38,6 +40,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function toggleStatus(int $categoryId): void
     {
+        abort_unless(auth()->user()->can('categories.edit'), 403);
+
         $category = ProductCategory::find($categoryId);
 
         if (!$category) {
@@ -70,9 +74,11 @@ new #[Layout('components.layouts.app')] class extends Component
                 <flux:heading size="xl">Categorías de Productos</flux:heading>
                 <flux:text class="mt-2">Gestiona las categorías para organizar tus productos</flux:text>
             </div>
-            <flux:button variant="primary" icon="plus" href="{{ route('admin.categories.create') }}" wire:navigate>
-                Nueva Categoría
-            </flux:button>
+            @can('categories.create')
+                <flux:button variant="primary" icon="plus" href="{{ route('admin.categories.create') }}" wire:navigate>
+                    Nueva Categoría
+                </flux:button>
+            @endcan
         </div>
     </div>
 
@@ -143,17 +149,21 @@ new #[Layout('components.layouts.app')] class extends Component
                     </flux:table.cell>
                     <flux:table.cell>
                         <div class="flex items-center gap-1">
-                            <flux:button variant="ghost" size="sm" icon="pencil" href="{{ route('admin.categories.edit', $category->slug) }}" wire:navigate title="Editar" />
-                            <flux:button
-                                size="sm"
-                                variant="ghost"
-                                :icon="$category->is_active ? 'x-circle' : 'check-circle'"
-                                wire:click="toggleStatus({{ $category->id }})"
-                                :title="$category->is_active ? 'Desactivar' : 'Activar'"
-                            />
-                            @if($category->products_count === 0 && $category->children_count === 0)
-                                <flux:button variant="ghost" size="sm" icon="trash" wire:click="delete({{ $category->id }})" wire:confirm="¿Estás seguro de eliminar esta categoría?" title="Eliminar" class="text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400" />
-                            @endif
+                            @can('categories.edit')
+                                <flux:button variant="ghost" size="sm" icon="pencil" href="{{ route('admin.categories.edit', $category->slug) }}" wire:navigate title="Editar" />
+                                <flux:button
+                                    size="sm"
+                                    variant="ghost"
+                                    :icon="$category->is_active ? 'x-circle' : 'check-circle'"
+                                    wire:click="toggleStatus({{ $category->id }})"
+                                    :title="$category->is_active ? 'Desactivar' : 'Activar'"
+                                />
+                            @endcan
+                            @can('categories.delete')
+                                @if($category->products_count === 0 && $category->children_count === 0)
+                                    <flux:button variant="ghost" size="sm" icon="trash" wire:click="delete({{ $category->id }})" wire:confirm="¿Estás seguro de eliminar esta categoría?" title="Eliminar" class="text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400" />
+                                @endif
+                            @endcan
                         </div>
                     </flux:table.cell>
                 </flux:table.row>

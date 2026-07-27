@@ -160,9 +160,11 @@ new #[Layout('components.layouts.app')] class extends Component
             <flux:text class="mt-1">Listado maestro de todos los productos registrados</flux:text>
         </div>
 
+        @can('products.create')
         <flux:button variant="primary" icon="plus" href="{{ route('inventory.products.create') }}" wire:navigate>
             Nuevo Producto
         </flux:button>
+        @endcan
     </div>
 
     <!-- Filters -->
@@ -314,6 +316,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                         wire:navigate
                                         title="Ver detalle"
                                     />
+                                    @can('products.edit')
                                     <flux:button
                                         variant="ghost"
                                         size="sm"
@@ -322,6 +325,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                         wire:navigate
                                         title="Editar"
                                     />
+                                    @endcan
                                 </div>
                             </flux:table.cell>
                         </flux:table.row>

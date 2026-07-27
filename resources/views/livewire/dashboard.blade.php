@@ -48,6 +48,74 @@ new class extends Component {
     {
         unset($this->metrics, $this->movementChartData, $this->inventoryValueChartData);
     }
+
+    public function placeholder(): string
+    {
+        return <<<'HTML'
+        <div class="space-y-6">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <flux:skeleton.group animate="pulse" class="space-y-2">
+                    <flux:skeleton class="h-8 w-48" />
+                    <flux:skeleton class="h-4 w-64" />
+                </flux:skeleton.group>
+                <div class="flex items-center gap-3">
+                    <flux:skeleton class="h-9 w-32 rounded-lg" animate="pulse" />
+                    <flux:skeleton class="h-9 w-24 rounded-lg" animate="pulse" />
+                </div>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                @for ($i = 0; $i < 6; $i++)
+                    <flux:card class="overflow-hidden p-4">
+                        <div class="flex items-center justify-between">
+                            <flux:skeleton.group animate="pulse" class="flex-1 space-y-2">
+                                <flux:skeleton class="h-4 w-20" />
+                                <flux:skeleton class="h-8 w-24" />
+                                <flux:skeleton class="h-3 w-16" />
+                            </flux:skeleton.group>
+                            <flux:skeleton class="h-10 w-10 rounded-lg" animate="pulse" />
+                        </div>
+                    </flux:card>
+                @endfor
+            </div>
+
+            <div class="grid gap-6 lg:grid-cols-2">
+                <flux:card class="p-4 space-y-4">
+                    <flux:skeleton.group animate="pulse" class="space-y-2">
+                        <flux:skeleton class="h-5 w-40" />
+                        <flux:skeleton class="h-4 w-60" />
+                    </flux:skeleton.group>
+                    <flux:skeleton class="h-64 w-full rounded-xl" animate="pulse" />
+                </flux:card>
+                <flux:card class="p-4 space-y-4">
+                    <flux:skeleton.group animate="pulse" class="space-y-2">
+                        <flux:skeleton class="h-5 w-40" />
+                        <flux:skeleton class="h-4 w-60" />
+                    </flux:skeleton.group>
+                    <flux:skeleton class="h-64 w-full rounded-xl" animate="pulse" />
+                </flux:card>
+            </div>
+
+            <flux:card class="p-4 space-y-4">
+                <flux:skeleton class="h-5 w-48" animate="pulse" />
+                <flux:skeleton.group animate="pulse" class="space-y-3">
+                    @for ($i = 0; $i < 5; $i++)
+                        <div class="flex items-center justify-between py-2 border-b border-zinc-100 dark:border-zinc-800">
+                            <div class="flex items-center gap-3">
+                                <flux:skeleton class="h-8 w-8 rounded-full" />
+                                <div class="space-y-1">
+                                    <flux:skeleton class="h-4 w-40" />
+                                    <flux:skeleton class="h-3 w-24" />
+                                </div>
+                            </div>
+                            <flux:skeleton class="h-4 w-16" />
+                        </div>
+                    @endfor
+                </flux:skeleton.group>
+            </flux:card>
+        </div>
+        HTML;
+    }
 }; ?>
 
 <div class="space-y-6">
@@ -58,7 +126,7 @@ new class extends Component {
                 Panel de Control
             </flux:heading>
             <flux:text class="mt-1 text-zinc-600 dark:text-zinc-400">
-                Bienvenido, {{ auth()->user()->name }} • {{ auth()->user()->roles->first()?->name ?? 'Usuario' }}
+                Bienvenido, {{ auth()->user()?->name ?? 'Usuario' }} • {{ auth()->user()?->roles->first()?->name ?? 'Usuario' }}
             </flux:text>
         </div>
 
@@ -453,9 +521,9 @@ new class extends Component {
                         @foreach($this->recentActivities as $activity)
                             <div class="flex items-start gap-3 rounded-lg border border-zinc-200 p-3 transition-all hover:border-zinc-300 dark:border-zinc-700 dark:hover:border-zinc-600">
                                 <div class="mt-0.5 rounded-full bg-zinc-100 p-2 dark:bg-zinc-800">
-                                    @if(str_contains($activity['type'], 'entry') || str_contains($activity['type'], 'purchase'))
+                                    @if(in_array($activity['type'], ['in', 'entry', 'receipt', 'purchase', 'transfer_in', 'production', 'return_customer']))
                                         <flux:icon name="arrow-down" class="h-4 w-4 text-green-600 dark:text-green-400" />
-                                    @elseif(str_contains($activity['type'], 'exit') || str_contains($activity['type'], 'dispatch'))
+                                    @elseif(in_array($activity['type'], ['out', 'exit', 'sale', 'shipment', 'dispatch', 'transfer_out', 'return_supplier']))
                                         <flux:icon name="arrow-up" class="h-4 w-4 text-red-600 dark:text-red-400" />
                                     @else
                                         <flux:icon name="arrow-path" class="h-4 w-4 text-blue-600 dark:text-blue-400" />

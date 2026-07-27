@@ -187,6 +187,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function createTransfer(): void
     {
+        abort_unless(auth()->user()->can('transfers.create'), 403);
+
         $this->validate([
             'selectedProductId' => 'required|exists:products,id',
             'fromWarehouseId' => 'required|exists:warehouses,id',
@@ -303,22 +305,24 @@ new #[Layout('components.layouts.app')] class extends Component
 
     <!-- Action Buttons -->
     <div class="flex flex-wrap gap-4">
-        <flux:button
-            variant="primary"
-            icon="plus"
-            :href="route('transfers.create')"
-            wire:navigate
-        >
-            Nuevo Traslado
-        </flux:button>
+        @can('transfers.create')
+            <flux:button
+                variant="primary"
+                icon="plus"
+                :href="route('transfers.create')"
+                wire:navigate
+            >
+                Nuevo Traslado
+            </flux:button>
 
-        <flux:button
-            variant="outline"
-            icon="bolt"
-            wire:click="showForm"
-        >
-            Traslado Rápido
-        </flux:button>
+            <flux:button
+                variant="outline"
+                icon="bolt"
+                wire:click="showForm"
+            >
+                Traslado Rápido
+            </flux:button>
+        @endcan
 
         <flux:button variant="outline" icon="chart-bar" :href="route('reports.movements.transfers')" wire:navigate>
             Reporte de Traslados
@@ -715,14 +719,16 @@ new #[Layout('components.layouts.app')] class extends Component
     </flux:card>
 
     <!-- Mobile-Friendly Quick Actions -->
-    <div class="fixed bottom-6 right-6 lg:hidden">
-        <flux:button
-            variant="primary"
-            icon="arrow-path"
-            wire:click="showForm"
-            class="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg"
-        >
-            <span class="sr-only">{{ __('Create Transfer') }}</span>
-        </flux:button>
-    </div>
+    @can('transfers.create')
+        <div class="fixed bottom-6 right-6 lg:hidden">
+            <flux:button
+                variant="primary"
+                icon="arrow-path"
+                wire:click="showForm"
+                class="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg"
+            >
+                <span class="sr-only">{{ __('Create Transfer') }}</span>
+            </flux:button>
+        </div>
+    @endcan
 </div>

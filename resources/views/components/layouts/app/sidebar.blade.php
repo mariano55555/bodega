@@ -26,7 +26,9 @@
                 <flux:navlist.group :heading="__('Operaciones de Bodega')" class="grid">
                     <flux:navlist.item icon="cube" :href="route('inventory.products.index')" :current="request()->routeIs('inventory.products.*')" wire:navigate>{{ __('Inventario de Productos') }}</flux:navlist.item>
                     <flux:navlist.item icon="shopping-cart" :href="route('purchases.index')" :current="request()->routeIs('purchases.index') || request()->routeIs('purchases.create') || request()->routeIs('purchases.show') || request()->routeIs('purchases.edit')" wire:navigate>{{ __('Compras') }}</flux:navlist.item>
-                    <flux:navlist.item icon="document-arrow-up" :href="route('dte-imports.index')" :current="request()->routeIs('dte-imports.*')" wire:navigate>{{ __('Importar DTE') }}</flux:navlist.item>
+                    @can('dte.access')
+                        <flux:navlist.item icon="document-arrow-up" :href="route('dte-imports.index')" :current="request()->routeIs('dte-imports.*')" wire:navigate>{{ __('Importar DTE') }}</flux:navlist.item>
+                    @endcan
                     <flux:navlist.item icon="gift" :href="route('donations.index')" :current="request()->routeIs('donations.*')" wire:navigate>{{ __('Donaciones') }}</flux:navlist.item>
                     <flux:navlist.item icon="arrow-path" :href="route('transfers.index')" :current="request()->routeIs('transfers.*')" wire:navigate>{{ __('Traslados') }}</flux:navlist.item>
                     <flux:navlist.item icon="truck" :href="route('dispatches.index')" :current="request()->routeIs('dispatches.*')" wire:navigate>{{ __('Despachos') }}</flux:navlist.item>
@@ -39,14 +41,25 @@
                 <flux:navlist.group :heading="__('Catálogos')" class="grid">
                     <flux:navlist.item icon="clipboard-document-list" :href="route('products.catalog')" :current="request()->routeIs('products.catalog')" wire:navigate>{{ __('Catálogo de Productos') }}</flux:navlist.item>
                     <flux:navlist.item icon="tag" :href="route('admin.categories.index')" :current="request()->routeIs('admin.categories.*')" wire:navigate>{{ __('Categorías de Productos') }}</flux:navlist.item>
-                    <flux:navlist.item icon="scale" :href="route('admin.units.index')" :current="request()->routeIs('admin.units.*')" wire:navigate>{{ __('Unidades de Medida') }}</flux:navlist.item>
-                    <flux:navlist.item icon="building-storefront" :href="route('purchases.suppliers.index')" :current="request()->routeIs('purchases.suppliers.*')" wire:navigate>{{ __('Proveedores') }}</flux:navlist.item>
-                    <flux:navlist.item icon="heart" :href="route('donors.index')" :current="request()->routeIs('donors.*')" wire:navigate>{{ __('Donantes') }}</flux:navlist.item>
-                    <flux:navlist.item icon="users" :href="route('employees.index')" :current="request()->routeIs('employees.*')" wire:navigate>{{ __('Personal') }}</flux:navlist.item>
-                    <flux:navlist.item icon="arrow-up-tray" :href="route('imports.index')" :current="request()->routeIs('imports.*')" wire:navigate>{{ __('Importación de Datos') }}</flux:navlist.item>
+                    @can('units.view')
+                        <flux:navlist.item icon="scale" :href="route('admin.units.index')" :current="request()->routeIs('admin.units.*')" wire:navigate>{{ __('Unidades de Medida') }}</flux:navlist.item>
+                    @endcan
+                    @can('suppliers.view')
+                        <flux:navlist.item icon="building-storefront" :href="route('purchases.suppliers.index')" :current="request()->routeIs('purchases.suppliers.*')" wire:navigate>{{ __('Proveedores') }}</flux:navlist.item>
+                    @endcan
+                    @can('donors.view')
+                        <flux:navlist.item icon="heart" :href="route('donors.index')" :current="request()->routeIs('donors.*')" wire:navigate>{{ __('Donantes') }}</flux:navlist.item>
+                    @endcan
+                    @can('employees.view')
+                        <flux:navlist.item icon="users" :href="route('employees.index')" :current="request()->routeIs('employees.*')" wire:navigate>{{ __('Personal') }}</flux:navlist.item>
+                    @endcan
+                    @can('imports.access')
+                        <flux:navlist.item icon="arrow-up-tray" :href="route('imports.index')" :current="request()->routeIs('imports.*')" wire:navigate>{{ __('Importación de Datos') }}</flux:navlist.item>
+                    @endcan
                 </flux:navlist.group>
 
                 <!-- 🏢 Gestión de Almacenes -->
+                @can('warehouse-management.access')
                 <flux:navlist.group :heading="__('Gestión de Almacenes')" class="grid">
                     <flux:navlist.item icon="building-office-2" :href="route('warehouse.dashboard')" :current="request()->routeIs('warehouse.dashboard')" wire:navigate>{{ __('Resumen General') }}</flux:navlist.item>
                     <flux:navlist.item icon="building-office-2" :href="route('warehouse.companies.index')" :current="request()->routeIs('warehouse.companies.*')" wire:navigate>{{ __('Empresas') }}</flux:navlist.item>
@@ -56,8 +69,10 @@
                     <flux:navlist.item icon="map-pin" :href="route('storage-locations.index')" :current="request()->routeIs('storage-locations.*')" wire:navigate>{{ __('Ubicaciones de Almacenamiento') }}</flux:navlist.item>
                     <flux:navlist.item icon="chart-pie" :href="route('warehouse.capacity.index')" :current="request()->routeIs('warehouse.capacity.*')" wire:navigate>{{ __('Capacidad de Almacenes') }}</flux:navlist.item>
                 </flux:navlist.group>
+                @endcan
 
                 <!-- 🔍 Consultas e Inventario -->
+                @can('inventory-queries.access')
                 <flux:navlist.group :heading="__('Consultas e Inventario')" class="grid">
                     <flux:navlist.item icon="squares-2x2" :href="route('inventory.dashboard')" :current="request()->routeIs('inventory.dashboard')" wire:navigate>{{ __('Resumen de Inventario') }}</flux:navlist.item>
                     <flux:navlist.item icon="magnifying-glass" :href="route('inventory.stock.query')" :current="request()->routeIs('inventory.stock.query')" wire:navigate>{{ __('Consulta de Existencias') }}</flux:navlist.item>
@@ -66,6 +81,7 @@
                     <flux:navlist.item icon="bell" :href="route('inventory.alerts.index')" :current="request()->routeIs('inventory.alerts.*')" wire:navigate>{{ __('Alertas de Stock') }}</flux:navlist.item>
                     <flux:navlist.item icon="clock" :href="route('traceability.product-timeline')" :current="request()->routeIs('traceability.*')" wire:navigate>{{ __('Trazabilidad Histórica') }}</flux:navlist.item>
                 </flux:navlist.group>
+                @endcan
 
                 <!-- 📊 Reportería -->
                 <flux:navlist.group :heading="__('Reportería')" class="grid">
@@ -80,12 +96,14 @@
                 </flux:navlist.group>
 
                 <!-- 👥 Control de Usuarios -->
+                @can('user-management.access')
                 <flux:navlist.group :heading="__('Control de Usuarios')" class="grid">
                     <flux:navlist.item icon="users" :href="route('admin.users.index')" :current="request()->routeIs('admin.users.*')" wire:navigate>{{ __('Gestión de Usuarios') }}</flux:navlist.item>
                     <flux:navlist.item icon="shield-check" :href="route('admin.roles.index')" :current="request()->routeIs('admin.roles.*')" wire:navigate>{{ __('Gestión de Roles') }}</flux:navlist.item>
                     <flux:navlist.item icon="key" :href="route('admin.permissions.index')" :current="request()->routeIs('admin.permissions.*')" wire:navigate>{{ __('Gestión de Permisos') }}</flux:navlist.item>
                     <flux:navlist.item icon="clipboard-document-list" :href="route('admin.activity-logs.index')" :current="request()->routeIs('admin.activity-logs.*')" wire:navigate>{{ __('Bitácora de Actividades') }}</flux:navlist.item>
                 </flux:navlist.group>
+                @endcan
             </flux:navlist>
 
             <flux:spacer />

@@ -62,6 +62,8 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function submit(): void
     {
+        abort_unless(auth()->user()->can('adjustments.edit'), 403);
+
         $adjustment = InventoryAdjustment::find($this->selectedAdjustmentId);
 
         if (! $adjustment || ! $adjustment->canBeSubmitted()) {
@@ -89,6 +91,8 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function approve(): void
     {
+        abort_unless(auth()->user()->can('adjustments.edit'), 403);
+
         $adjustment = InventoryAdjustment::find($this->selectedAdjustmentId);
 
         if (! $adjustment || ! $adjustment->canBeApproved()) {
@@ -116,6 +120,8 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function process(): void
     {
+        abort_unless(auth()->user()->can('adjustments.edit'), 403);
+
         $adjustment = InventoryAdjustment::find($this->selectedAdjustmentId);
 
         if (! $adjustment || ! $adjustment->canBeProcessed()) {
@@ -143,6 +149,8 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function delete(): void
     {
+        abort_unless(auth()->user()->can('adjustments.delete'), 403);
+
         $adjustment = InventoryAdjustment::find($this->selectedAdjustmentId);
 
         if (! $adjustment || ! in_array($adjustment->status, ['borrador', 'rechazado'])) {
@@ -167,9 +175,11 @@ new #[Layout('components.layouts.app')] class extends Component {
             <flux:text class="mt-1">Gestión de ajustes de inventario (daños, pérdidas, correcciones)</flux:text>
         </div>
 
-        <flux:button variant="primary" icon="plus" href="{{ route('adjustments.create') }}" wire:navigate>
-            Nuevo Ajuste
-        </flux:button>
+        @can('adjustments.create')
+            <flux:button variant="primary" icon="plus" href="{{ route('adjustments.create') }}" wire:navigate>
+                Nuevo Ajuste
+            </flux:button>
+        @endcan
     </div>
 
     @if (session('success'))
@@ -299,45 +309,49 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <div class="flex gap-2">
                             <flux:button size="sm" variant="ghost" icon="eye" href="{{ route('adjustments.show', $adjustment->slug) }}" wire:navigate />
 
-                            @if ($adjustment->canBeSubmitted())
-                                <flux:button
-                                    size="sm"
-                                    variant="ghost"
-                                    icon="paper-airplane"
-                                    wire:click="confirmSubmit({{ $adjustment->id }})"
-                                />
-                            @endif
+                            @can('adjustments.edit')
+                                @if ($adjustment->canBeSubmitted())
+                                    <flux:button
+                                        size="sm"
+                                        variant="ghost"
+                                        icon="paper-airplane"
+                                        wire:click="confirmSubmit({{ $adjustment->id }})"
+                                    />
+                                @endif
 
-                            @if ($adjustment->canBeApproved())
-                                <flux:button
-                                    size="sm"
-                                    variant="ghost"
-                                    icon="check"
-                                    wire:click="confirmApprove({{ $adjustment->id }})"
-                                />
-                            @endif
+                                @if ($adjustment->canBeApproved())
+                                    <flux:button
+                                        size="sm"
+                                        variant="ghost"
+                                        icon="check"
+                                        wire:click="confirmApprove({{ $adjustment->id }})"
+                                    />
+                                @endif
 
-                            @if ($adjustment->canBeProcessed())
-                                <flux:button
-                                    size="sm"
-                                    variant="primary"
-                                    icon="cog"
-                                    wire:click="confirmProcess({{ $adjustment->id }})"
-                                />
-                            @endif
+                                @if ($adjustment->canBeProcessed())
+                                    <flux:button
+                                        size="sm"
+                                        variant="primary"
+                                        icon="cog"
+                                        wire:click="confirmProcess({{ $adjustment->id }})"
+                                    />
+                                @endif
 
-                            @if ($adjustment->canBeEdited())
-                                <flux:button size="sm" variant="ghost" icon="pencil" href="{{ route('adjustments.edit', $adjustment->slug) }}" wire:navigate />
-                            @endif
+                                @if ($adjustment->canBeEdited())
+                                    <flux:button size="sm" variant="ghost" icon="pencil" href="{{ route('adjustments.edit', $adjustment->slug) }}" wire:navigate />
+                                @endif
+                            @endcan
 
-                            @if (in_array($adjustment->status, ['borrador', 'rechazado']))
-                                <flux:button
-                                    size="sm"
-                                    variant="ghost"
-                                    icon="trash"
-                                    wire:click="confirmDelete({{ $adjustment->id }})"
-                                />
-                            @endif
+                            @can('adjustments.delete')
+                                @if (in_array($adjustment->status, ['borrador', 'rechazado']))
+                                    <flux:button
+                                        size="sm"
+                                        variant="ghost"
+                                        icon="trash"
+                                        wire:click="confirmDelete({{ $adjustment->id }})"
+                                    />
+                                @endif
+                            @endcan
                         </div>
                     </flux:table.cell>
                 </flux:table.row>

@@ -13,7 +13,9 @@ return new class extends Migration
     public function up(): void
     {
         // Add 'combustible' to dispatch_type ENUM
-        DB::statement("ALTER TABLE dispatches MODIFY COLUMN dispatch_type ENUM('venta','interno','externo','donacion','combustible') DEFAULT 'interno'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE dispatches MODIFY COLUMN dispatch_type ENUM('venta','interno','externo','donacion','combustible') DEFAULT 'interno'");
+        }
 
         Schema::create('dispatch_fuel_details', function (Blueprint $table) {
             $table->id();
@@ -53,6 +55,8 @@ return new class extends Migration
     {
         Schema::dropIfExists('dispatch_fuel_details');
 
-        DB::statement("ALTER TABLE dispatches MODIFY COLUMN dispatch_type ENUM('venta','interno','externo','donacion') DEFAULT 'interno'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE dispatches MODIFY COLUMN dispatch_type ENUM('venta','interno','externo','donacion') DEFAULT 'interno'");
+        }
     }
 };

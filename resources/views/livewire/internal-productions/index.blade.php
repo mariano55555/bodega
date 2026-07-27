@@ -144,6 +144,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function delete(int $productionId): void
     {
+        abort_unless(auth()->user()->can('internal-productions.delete'), 403);
+
         $production = InternalProduction::find($productionId);
 
         if (! $production) {
@@ -174,9 +176,11 @@ new #[Layout('components.layouts.app')] class extends Component
             <flux:button variant="ghost" icon="cube" href="{{ route('inventory.products.create') }}" wire:navigate>
                 Nuevo Producto
             </flux:button>
-            <flux:button variant="primary" icon="plus" href="{{ route('internal-productions.create') }}" wire:navigate>
-                Nueva Producción
-            </flux:button>
+            @can('internal-productions.create')
+                <flux:button variant="primary" icon="plus" href="{{ route('internal-productions.create') }}" wire:navigate>
+                    Nueva Producción
+                </flux:button>
+            @endcan
         </div>
     </div>
 
@@ -330,19 +334,23 @@ new #[Layout('components.layouts.app')] class extends Component
                             <div class="flex items-center gap-2">
                                 <flux:button size="sm" variant="ghost" icon="eye" href="{{ route('internal-productions.show', $production) }}" wire:navigate />
 
-                                @if ($production->canBeEdited())
-                                    <flux:button size="sm" variant="ghost" icon="pencil" href="{{ route('internal-productions.edit', $production) }}" wire:navigate />
-                                @endif
+                                @can('internal-productions.edit')
+                                    @if ($production->canBeEdited())
+                                        <flux:button size="sm" variant="ghost" icon="pencil" href="{{ route('internal-productions.edit', $production) }}" wire:navigate />
+                                    @endif
+                                @endcan
 
-                                @if ($production->status === 'cancelado')
-                                    <flux:button
-                                        size="sm"
-                                        variant="ghost"
-                                        icon="trash"
-                                        wire:click="delete({{ $production->id }})"
-                                        wire:confirm="¿Está seguro de eliminar esta producción?"
-                                    />
-                                @endif
+                                @can('internal-productions.delete')
+                                    @if ($production->status === 'cancelado')
+                                        <flux:button
+                                            size="sm"
+                                            variant="ghost"
+                                            icon="trash"
+                                            wire:click="delete({{ $production->id }})"
+                                            wire:confirm="¿Está seguro de eliminar esta producción?"
+                                        />
+                                    @endif
+                                @endcan
                             </div>
                         </flux:table.cell>
                     </flux:table.row>
