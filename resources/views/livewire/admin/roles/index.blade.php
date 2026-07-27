@@ -104,6 +104,22 @@ new #[Layout('components.layouts.app')] class extends Component
             'reports' => 'Reportes',
             'settings' => 'Configuración',
             'general' => 'General',
+            'dispatches' => 'Despachos',
+            'donations' => 'Donaciones',
+            'transfers' => 'Traslados',
+            'internal-productions' => 'Producción Interna',
+            'adjustments' => 'Ajustes de Inventario',
+            'closures' => 'Cierres de Inventario',
+            'inventory-queries' => 'Consultas e Inventario',
+            'warehouse-management' => 'Gestión de Almacenes',
+            'user-management' => 'Control de Usuarios',
+            'dte' => 'Importación DTE',
+            'imports' => 'Importación de Datos',
+            'units' => 'Unidades de Medida',
+            'donors' => 'Donantes',
+            'employees' => 'Personal',
+            'areas' => 'Áreas',
+            'storage-locations' => 'Ubicaciones de Almacenamiento',
         ];
 
         return $moduleNames[$module] ?? ucfirst(str_replace('-', ' ', $module));
@@ -124,6 +140,7 @@ new #[Layout('components.layouts.app')] class extends Component
         // Action translations
         $actions = [
             'view' => 'Ver',
+            'access' => 'Acceso',
             'create' => 'Crear',
             'edit' => 'Editar',
             'update' => 'Actualizar',
@@ -135,22 +152,21 @@ new #[Layout('components.layouts.app')] class extends Component
             'import' => 'Importar',
         ];
 
-        // Try to parse action-module format (view-branches)
-        if (str_contains($name, '-')) {
-            $parts = explode('-', $name, 2);
-            $action = $parts[0];
-            $actionTranslated = $actions[$action] ?? ucfirst($action);
-
-            return $actionTranslated;
-        }
-
-        // Try to parse module.action format (branches.view)
+        // Standard module.action format (e.g. internal-productions.create) — check the
+        // dot FIRST, since a module name may itself contain hyphens.
         if (str_contains($name, '.')) {
             $parts = explode('.', $name);
             $action = end($parts);
-            $actionTranslated = $actions[$action] ?? ucfirst($action);
 
-            return $actionTranslated;
+            return $actions[$action] ?? ucfirst($action);
+        }
+
+        // Legacy action-module format (e.g. view-branches, create-users)
+        if (str_contains($name, '-')) {
+            $parts = explode('-', $name, 2);
+            $action = $parts[0];
+
+            return $actions[$action] ?? ucfirst($action);
         }
 
         return ucfirst(str_replace(['-', '_', '.'], ' ', $name));

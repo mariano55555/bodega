@@ -4,18 +4,20 @@ declare(strict_types=1);
 
 use App\Models\Role;
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\VisorWarehouseAccessSeeder;
 use Livewire\Volt\Volt;
 
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\seed;
 
 beforeEach(function () {
-    seed([\Database\Seeders\RolesAndPermissionsSeeder::class]);
+    seed([RolesAndPermissionsSeeder::class]);
 
     // The read-only "visor-warehouse" role lives only in production; recreate it here.
     Role::firstOrCreate(['name' => 'visor-warehouse', 'guard_name' => 'web']);
 
-    seed([\Database\Seeders\VisorWarehouseAccessSeeder::class]);
+    seed([VisorWarehouseAccessSeeder::class]);
 
     $this->visor = User::factory()->create();
     $this->visor->assignRole('visor-warehouse');
@@ -88,4 +90,16 @@ it('blocks the viewer from invoking a write action directly on a read-only compo
     Volt::test('dispatches.index')
         ->call('delete', 999999)
         ->assertForbidden();
+});
+
+it('renders role permission labels grouped and in Spanish', function () {
+    actingAs($this->superAdmin);
+
+    Volt::test('admin.roles.index')
+        ->assertSee('Producción Interna')
+        ->assertSee('Consultas e Inventario')
+        ->assertSee('Control de Usuarios')
+        ->assertSee('Gestión de Almacenes')
+        ->assertDontSee('Internal productions')
+        ->assertDontSee('Inventory queries');
 });
