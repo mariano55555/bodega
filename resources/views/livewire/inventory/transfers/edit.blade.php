@@ -171,6 +171,8 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function updatedPhysicalDocumentNumber(): void
     {
+        $this->physical_document_number = preg_replace('/\D+/', '', (string) $this->physical_document_number);
+
         $this->documentNumberExists = false;
 
         if (empty($this->physical_document_number)) {
@@ -196,7 +198,8 @@ new #[Layout('components.layouts.app')] class extends Component {
             return;
         }
 
-        $validated = $this->validate((new UpdateInventoryTransferRequest())->rules());
+        $formRequest = new UpdateInventoryTransferRequest();
+        $validated = $this->validate($formRequest->rules(), $formRequest->messages());
 
         \DB::beginTransaction();
         try {
@@ -342,7 +345,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
                 <flux:field>
                     <flux:label badge="Requerido">Número de Documento Físico</flux:label>
-                    <flux:input wire:model.blur="physical_document_number" placeholder="Ingrese el número de documento físico" maxlength="100" />
+                    <flux:input wire:model.blur="physical_document_number" placeholder="Ingrese el número de documento físico" maxlength="100" inputmode="numeric" />
                     <flux:error name="physical_document_number" />
                     @if ($documentNumberExists)
                         <flux:text size="sm" class="text-red-600">Este número de documento ya existe.</flux:text>

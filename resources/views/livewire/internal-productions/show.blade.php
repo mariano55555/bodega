@@ -49,8 +49,10 @@ new #[Layout('components.layouts.app')] class extends Component
         // Validate dispatch document number if auto dispatch is enabled
         if ($this->createAutoDispatch) {
             $this->validate([
-                'dispatchDocumentNumber' => 'required|string|max:100|unique:dispatches,physical_document_number',
-            ], [], [
+                'dispatchDocumentNumber' => 'required|string|max:100|regex:/^[0-9]+$/|unique:dispatches,physical_document_number',
+            ], [
+                'dispatchDocumentNumber.regex' => 'El número de documento del despacho solo puede contener números.',
+            ], [
                 'dispatchDocumentNumber' => 'número de documento del despacho',
             ]);
         }

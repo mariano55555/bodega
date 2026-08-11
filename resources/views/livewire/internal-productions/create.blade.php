@@ -112,6 +112,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function updatedPhysicalDocumentNumber(): void
     {
+        $this->physical_document_number = preg_replace('/\D+/', '', (string) $this->physical_document_number);
+
         $this->documentNumberExists = false;
 
         if (empty($this->physical_document_number)) {
@@ -139,7 +141,7 @@ new #[Layout('components.layouts.app')] class extends Component
         $rules = [
             'warehouse_id' => 'required|exists:warehouses,id',
             'area_id' => 'required|exists:areas,id',
-            'physical_document_number' => 'required|string|max:100|unique:internal_productions,physical_document_number',
+            'physical_document_number' => 'required|string|max:100|regex:/^[0-9]+$/|unique:internal_productions,physical_document_number',
             'document_date' => ['required', 'date', new \App\Rules\DocumentDateNotTooOld],
             'details' => 'required|array|min:1',
             'details.*.product_id' => 'required|exists:products,id',
@@ -164,7 +166,9 @@ new #[Layout('components.layouts.app')] class extends Component
             'details.*.unit_price' => 'precio unitario',
         ];
 
-        $this->validate($rules, [], $customAttributes);
+        $this->validate($rules, [
+            'physical_document_number.regex' => 'El número de documento físico solo puede contener números.',
+        ], $customAttributes);
 
         $companyId = $this->isSuperAdmin() ? $this->company_id : auth()->user()->company_id;
 
@@ -323,7 +327,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label badge="Requerido">Número de Documento Físico</flux:label>
-                    <flux:input wire:model.blur="physical_document_number" placeholder="Ingrese el número de documento" />
+                    <flux:input wire:model.blur="physical_document_number" placeholder="Ingrese el número de documento" inputmode="numeric" maxlength="100" />
                     <flux:error name="physical_document_number" />
                     @if ($documentNumberExists)
                         <flux:text size="sm" class="text-red-600">Este número de documento ya existe.</flux:text>

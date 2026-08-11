@@ -26,7 +26,7 @@ class UpdateDispatchRequest extends FormRequest
             // 'delivery_address' => ['nullable', 'string', 'max:500'], // Comentado por petición del cliente: quitar dirección de entrega
             'document_type' => ['nullable', 'string', 'max:100'],
             'document_number' => ['nullable', 'string', 'max:100'],
-            'physical_document_number' => ['required', 'string', 'max:100'],
+            'physical_document_number' => ['required', 'string', 'max:100', 'regex:/^[0-9]+$/'],
             'document_date' => ['nullable', 'date', 'before_or_equal:today', new DocumentDateNotTooOld($this->integer('company_id') ?: null)],
             'shipping_cost' => ['nullable', 'numeric', 'min:0', 'max:999999999.99999'],
             'notes' => ['nullable', 'string', 'max:1000'],
@@ -83,6 +83,7 @@ class UpdateDispatchRequest extends FormRequest
             'physical_document_number.required' => 'El número de documento físico es obligatorio.',
             'physical_document_number.string' => 'El número de documento físico debe ser texto.',
             'physical_document_number.max' => 'El número de documento físico no puede exceder 100 caracteres.',
+            'physical_document_number.regex' => 'El número de documento físico solo puede contener números.',
             'document_date.date' => 'La fecha del documento debe ser una fecha válida.',
             'document_date.before_or_equal' => 'La fecha del documento no puede ser futura.',
             'shipping_cost.numeric' => 'El costo de envío debe ser un número.',

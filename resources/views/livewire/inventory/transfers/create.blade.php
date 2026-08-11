@@ -306,7 +306,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 'different:from_warehouse_id',
             ],
             'document_date' => ['required', 'date', new \App\Rules\DocumentDateNotTooOld],
-            'physical_document_number' => ['required', 'string', 'max:100', 'unique:inventory_transfers,physical_document_number'],
+            'physical_document_number' => ['required', 'string', 'max:100', 'regex:/^[0-9]+$/', 'unique:inventory_transfers,physical_document_number'],
             'reason' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'shipping_cost' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
@@ -346,6 +346,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'physical_document_number.required' => 'El número de documento físico es obligatorio.',
             'physical_document_number.string' => 'El número de documento físico debe ser texto.',
             'physical_document_number.max' => 'El número de documento físico no puede exceder 100 caracteres.',
+            'physical_document_number.regex' => 'El número de documento físico solo puede contener números.',
             'physical_document_number.unique' => 'Este número de documento físico ya está registrado.',
             'reason.string' => 'El motivo debe ser texto.',
             'reason.max' => 'El motivo no puede exceder 500 caracteres.',
@@ -370,6 +371,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public function updatedPhysicalDocumentNumber(): void
     {
+        $this->physical_document_number = preg_replace('/\D+/', '', (string) $this->physical_document_number);
+
         $this->documentNumberExists = false;
 
         if (empty($this->physical_document_number)) {
@@ -562,7 +565,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label badge="Requerido">Número de Documento Físico</flux:label>
-                    <flux:input wire:model.blur="physical_document_number" placeholder="Ingrese el número de documento físico" maxlength="100" />
+                    <flux:input wire:model.blur="physical_document_number" placeholder="Ingrese el número de documento físico" maxlength="100" inputmode="numeric" />
                     <flux:error name="physical_document_number" />
                     @if ($documentNumberExists)
                         <flux:text size="sm" class="text-red-600">Este número de documento ya existe.</flux:text>

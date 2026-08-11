@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Rules\DocumentDateNotTooOld;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -19,7 +20,7 @@ class UpdateInventoryTransferRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -49,6 +50,7 @@ class UpdateInventoryTransferRequest extends FormRequest
                 'required',
                 'string',
                 'max:100',
+                'regex:/^[0-9]+$/',
                 Rule::unique('inventory_transfers', 'physical_document_number')->ignore($this->transfer),
             ],
             'reason' => ['nullable', 'string', 'max:500'],
@@ -94,6 +96,7 @@ class UpdateInventoryTransferRequest extends FormRequest
             'physical_document_number.required' => 'El número de documento físico es obligatorio.',
             'physical_document_number.string' => 'El número de documento físico debe ser texto.',
             'physical_document_number.max' => 'El número de documento físico no puede exceder 100 caracteres.',
+            'physical_document_number.regex' => 'El número de documento físico solo puede contener números.',
             'physical_document_number.unique' => 'Este número de documento físico ya está registrado en otro traslado.',
 
             // Reason & Notes
