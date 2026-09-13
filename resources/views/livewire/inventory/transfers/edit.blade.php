@@ -46,6 +46,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                 'id' => $detail->id,
                 'product_id' => $detail->product_id,
                 'quantity' => $detail->quantity,
+                'unit_cost' => (float) ($detail->unit_cost ?? 0),
                 'notes' => $detail->notes ?? '',
             ];
         }
@@ -63,6 +64,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->products[] = [
             'product_id' => '',
             'quantity' => 1,
+            'unit_cost' => 0,
             'notes' => '',
         ];
     }
@@ -199,6 +201,8 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
 
         $formRequest = new UpdateInventoryTransferRequest();
+        // Outside an HTTP route the request cannot resolve {transfer}, so the unique rule needs the id explicitly
+        $formRequest->merge(['transfer' => $this->transfer->id]);
         $validated = $this->validate($formRequest->rules(), $formRequest->messages());
 
         \DB::beginTransaction();
@@ -256,15 +260,13 @@ new #[Layout('components.layouts.app')] class extends Component {
             // Delete existing details and create new ones
             $this->transfer->details()->delete();
 
-            // Create transfer details using already-fetched inventory data
+            // Create transfer details with the unit cost entered by the user
             foreach ($validated['products'] as $product) {
-                $inventoryRecord = $inventories->get($product['product_id']);
-
                 InventoryTransferDetail::create([
                     'transfer_id' => $this->transfer->id,
                     'product_id' => $product['product_id'],
                     'quantity' => round((float) $product['quantity'], 5),
-                    'unit_cost' => $inventoryRecord?->unit_cost ?? 0,
+                    'unit_cost' => round((float) $product['unit_cost'], 5),
                     'notes' => $product['notes'] ?? null,
                 ]);
             }
@@ -429,6 +431,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                             index: {{ $index }},
                             productId: '{{ $product['product_id'] ?? '' }}',
                             quantity: {{ $product['quantity'] ?? 1 }},
+                            unitCost: {{ (float) ($product['unit_cost'] ?? 0) }},
                             notes: `{{ addslashes($product['notes'] ?? '') }}`
                         })" wire:key="product-group-{{ $index }}">
                         <flux:table.row x-bind:class="productId ? '' : 'opacity-60'">
@@ -504,22 +507,35 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 </template>
                             </flux:table.cell>
 
-                            <!-- Unit Cost (read-only from inventory) -->
-                            <flux:table.cell class="text-right tabular-nums">
-                                <template x-if="productInfo && productInfo.unit_cost > 0">
-                                    <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">$<span x-text="productInfo.unit_cost.toFixed(5)"></span></span>
-                                </template>
-                                <template x-if="!productInfo || productInfo.unit_cost == 0">
-                                    <span class="text-zinc-400 text-sm">-</span>
-                                </template>
+                            <!-- Unit Cost (editable, defaults to inventory cost) -->
+                            <flux:table.cell>
+                                <div class="flex flex-col gap-1">
+                                    <input
+                                        type="number"
+                                        step="0.00001"
+                                        min="0"
+                                        x-model.number="unitCost"
+                                        @input="emitTotal()"
+                                        @change="updateUnitCost()"
+                                        :disabled="!productId"
+                                        placeholder="0.00000"
+                                        class="block w-full text-right rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
+                                    />
+                                    <template x-if="productId && inventoryUnitCost > 0 && Math.abs((parseFloat(unitCost) || 0) - inventoryUnitCost) > 0.000005">
+                                        <button type="button" x-on:click="resetUnitCost()" class="text-left text-xs text-amber-600 hover:underline dark:text-amber-400" title="Restablecer al costo del inventario">
+                                            Inventario: $<span x-text="inventoryUnitCost.toFixed(5)"></span>
+                                        </button>
+                                    </template>
+                                    <flux:error name="products.{{ $index }}.unit_cost" />
+                                </div>
                             </flux:table.cell>
 
                             <!-- Total (quantity * unit_cost) -->
                             <flux:table.cell class="text-right tabular-nums">
-                                <template x-if="productInfo && productInfo.unit_cost > 0">
+                                <template x-if="productId">
                                     <span class="text-sm font-semibold text-zinc-700 dark:text-zinc-300">$<span x-text="total.toFixed(5)"></span></span>
                                 </template>
-                                <template x-if="!productInfo || productInfo.unit_cost == 0">
+                                <template x-if="!productId">
                                     <span class="text-zinc-400 text-sm">-</span>
                                 </template>
                             </flux:table.cell>

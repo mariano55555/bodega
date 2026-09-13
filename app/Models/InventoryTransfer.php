@@ -3,7 +3,11 @@
 namespace App\Models;
 
 use App\Jobs\UpdateInventoryLevels;
+use App\Notifications\TransferApprovedNotification;
+use App\Notifications\TransferReceivedNotification;
+use App\Notifications\TransferShippedNotification;
 use App\Services\KardexService;
+use Database\Factories\InventoryTransferFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,7 +19,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 
 class InventoryTransfer extends Model
 {
-    /** @use HasFactory<\Database\Factories\InventoryTransferFactory> */
+    /** @use HasFactory<InventoryTransferFactory> */
     use HasFactory, LogsActivity, SoftDeletes;
 
     public function getRouteKeyName(): string
@@ -212,7 +216,7 @@ class InventoryTransfer extends Model
         if ($this->save()) {
             // Notify the requester
             if ($this->requestedBy) {
-                $this->requestedBy->notify(new \App\Notifications\TransferApprovedNotification($this));
+                $this->requestedBy->notify(new TransferApprovedNotification($this));
             }
 
             return true;
@@ -274,11 +278,7 @@ class InventoryTransfer extends Model
 
             // Create outbound inventory movements from transfer details
             foreach ($this->details as $detail) {
-                // Get unit cost from inventory
-                $inventory = Inventory::where('product_id', $detail->product_id)
-                    ->where('warehouse_id', $this->from_warehouse_id)
-                    ->first();
-                $unitCost = $inventory->unit_cost ?? 0;
+                $unitCost = $this->resolveDetailUnitCost($detail);
 
                 // Create outbound movement (subtract from origin) with automatic balance recalculation
                 $movement = $kardexService->createMovement([
@@ -308,7 +308,7 @@ class InventoryTransfer extends Model
 
             // Notify requester and warehouse staff
             if ($this->requestedBy) {
-                $this->requestedBy->notify(new \App\Notifications\TransferShippedNotification($this));
+                $this->requestedBy->notify(new TransferShippedNotification($this));
             }
 
             return true;
@@ -318,6 +318,24 @@ class InventoryTransfer extends Model
 
             return false;
         }
+    }
+
+    /**
+     * Resolve the unit cost to use for a detail when shipping.
+     * The cost captured on the detail (manual or from inventory at creation) wins;
+     * the current inventory cost is only a fallback for legacy details without one.
+     */
+    protected function resolveDetailUnitCost(InventoryTransferDetail $detail): float
+    {
+        if ($detail->unit_cost !== null) {
+            return (float) $detail->unit_cost;
+        }
+
+        $inventory = Inventory::where('product_id', $detail->product_id)
+            ->where('warehouse_id', $this->from_warehouse_id)
+            ->first();
+
+        return (float) ($inventory?->unit_cost ?? 0);
     }
 
     public function receive(int $userId, ?array $discrepancies = null, ?string $notes = null): bool
@@ -385,10 +403,10 @@ class InventoryTransfer extends Model
 
             // Notify requester and relevant parties
             if ($this->requestedBy) {
-                $this->requestedBy->notify(new \App\Notifications\TransferReceivedNotification($this));
+                $this->requestedBy->notify(new TransferReceivedNotification($this));
             }
             if ($this->approvedBy && $this->approvedBy->id !== $this->requestedBy?->id) {
-                $this->approvedBy->notify(new \App\Notifications\TransferReceivedNotification($this));
+                $this->approvedBy->notify(new TransferReceivedNotification($this));
             }
 
             return true;

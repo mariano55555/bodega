@@ -66,6 +66,7 @@ class UpdateInventoryTransferRequest extends FormRequest
                 }),
             ],
             'products.*.quantity' => ['required', 'numeric', 'min:0.00001', 'max:999999.99999'],
+            'products.*.unit_cost' => ['required', 'numeric', 'min:0', 'max:999999.99999'],
             'products.*.notes' => ['nullable', 'string', 'max:500'],
         ];
     }
@@ -122,6 +123,10 @@ class UpdateInventoryTransferRequest extends FormRequest
             'products.*.quantity.numeric' => 'La cantidad debe ser un número.',
             'products.*.quantity.min' => 'La cantidad debe ser mayor a 0.',
             'products.*.quantity.max' => 'La cantidad no puede exceder 999,999.9999.',
+            'products.*.unit_cost.required' => 'El costo unitario es obligatorio.',
+            'products.*.unit_cost.numeric' => 'El costo unitario debe ser un número.',
+            'products.*.unit_cost.min' => 'El costo unitario no puede ser negativo.',
+            'products.*.unit_cost.max' => 'El costo unitario no puede exceder 999,999.99999.',
             'products.*.notes.string' => 'Las notas del producto deben ser texto.',
             'products.*.notes.max' => 'Las notas del producto no pueden exceder 500 caracteres.',
         ];
@@ -145,6 +150,7 @@ class UpdateInventoryTransferRequest extends FormRequest
             'products' => 'productos',
             'products.*.product_id' => 'producto',
             'products.*.quantity' => 'cantidad',
+            'products.*.unit_cost' => 'costo unitario',
             'products.*.notes' => 'notas del producto',
         ];
     }

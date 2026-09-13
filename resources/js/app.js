@@ -291,6 +291,7 @@ document.addEventListener('alpine:init', () => {
         index: config.index,
         productId: config.productId,
         quantity: config.quantity,
+        unitCost: config.unitCost,
         notes: config.notes,
 
         init() {
@@ -320,9 +321,12 @@ document.addEventListener('alpine:init', () => {
             return (parseFloat(this.quantity) || 0) > this.availableStock;
         },
 
+        get inventoryUnitCost() {
+            return parseFloat(this.productInfo?.unit_cost) || 0;
+        },
+
         get total() {
-            const unitCost = this.productInfo?.unit_cost || 0;
-            return (parseFloat(this.quantity) || 0) * unitCost;
+            return (parseFloat(this.quantity) || 0) * (parseFloat(this.unitCost) || 0);
         },
 
         emitTotal() {
@@ -333,6 +337,10 @@ document.addEventListener('alpine:init', () => {
 
         selectProduct(id) {
             this.productId = id;
+            const productsData = Alpine.store('transferProducts') || {};
+            if (id && productsData[id]) {
+                this.unitCost = parseFloat(productsData[id].unit_cost) || 0;
+            }
             // Cap quantity if it exceeds new product's available stock
             this.capQuantityToStock();
             this.emitTotal();
@@ -343,6 +351,16 @@ document.addEventListener('alpine:init', () => {
             this.capQuantityToStock();
             this.emitTotal();
             this.syncToLivewire();
+        },
+
+        updateUnitCost() {
+            this.emitTotal();
+            this.syncToLivewire();
+        },
+
+        resetUnitCost() {
+            this.unitCost = this.inventoryUnitCost;
+            this.updateUnitCost();
         },
 
         capQuantityToStock() {
@@ -358,6 +376,7 @@ document.addEventListener('alpine:init', () => {
             // Instant client-side clear - no server request
             this.productId = '';
             this.quantity = 1;
+            this.unitCost = 0;
             this.notes = '';
             this.expanded = false;
             this.emitTotal();
@@ -369,6 +388,7 @@ document.addEventListener('alpine:init', () => {
             // Batch update to Livewire (single request with defer)
             this.$wire.set(`products.${this.index}.product_id`, this.productId, false);
             this.$wire.set(`products.${this.index}.quantity`, this.quantity, false);
+            this.$wire.set(`products.${this.index}.unit_cost`, this.unitCost, false);
             this.$wire.set(`products.${this.index}.notes`, this.notes, false);
         }
     }));
