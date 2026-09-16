@@ -24,7 +24,7 @@ class UpdateInventoryTransferRequest extends FormRequest
      */
     public function rules(): array
     {
-        $companyId = auth()->user()->company_id;
+        $companyId = $this->integer('company_id') ?: auth()->user()->company_id;
 
         return [
             'from_warehouse_id' => [

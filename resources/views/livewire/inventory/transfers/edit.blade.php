@@ -9,6 +9,7 @@ use Livewire\Volt\Component;
 
 new #[Layout('components.layouts.app')] class extends Component {
     public InventoryTransfer $transfer;
+    public $company_id = null;
     public $from_warehouse_id = '';
     public $to_warehouse_id = '';
     public $reason = '';
@@ -30,6 +31,9 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
 
         $this->transfer = $transfer;
+
+        // Transfers have no company column: derive it from the origin warehouse
+        $this->company_id = $transfer->fromWarehouse?->company_id ?? auth()->user()->company_id;
 
         // Populate form fields
         $this->from_warehouse_id = $transfer->from_warehouse_id;
@@ -86,7 +90,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     #[Computed]
     public function productsData(): array
     {
-        $companyId = $this->transfer->company_id;
+        $companyId = $this->company_id;
 
         if (! $this->from_warehouse_id) {
             return [];
@@ -142,7 +146,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     #[Computed]
     public function productsWithStock()
     {
-        $companyId = $this->transfer->company_id;
+        $companyId = $this->company_id;
 
         if (! $this->from_warehouse_id) {
             return collect();
@@ -201,8 +205,8 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
 
         $formRequest = new UpdateInventoryTransferRequest();
-        // Outside an HTTP route the request cannot resolve {transfer}, so the unique rule needs the id explicitly
-        $formRequest->merge(['transfer' => $this->transfer->id]);
+        // Outside an HTTP route the request cannot resolve {transfer} nor the company, so pass them explicitly
+        $formRequest->merge(['transfer' => $this->transfer->id, 'company_id' => $this->company_id]);
         $validated = $this->validate($formRequest->rules(), $formRequest->messages());
 
         \DB::beginTransaction();
@@ -290,7 +294,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function with(): array
     {
         return [
-            'warehouses' => Warehouse::where('company_id', $this->transfer->company_id)
+            'warehouses' => Warehouse::where('company_id', $this->company_id)
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(),
