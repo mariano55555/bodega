@@ -103,6 +103,10 @@ new #[Layout('components.layouts.app')] class extends Component
             $this->kilometers_to_travel = $fuel->kilometers_to_travel ?? '';
         }
 
+        // Lines that already left the warehouse keep their historical cost; pending ones show the current average
+        $keepHistoricalCost = in_array($dispatch->status, ['despachado', 'entregado']);
+        $valuationService = app(\App\Services\InventoryValuationService::class);
+
         // Load existing details - cast IDs to strings for Livewire select binding
         foreach ($dispatch->details as $detail) {
             $this->details[] = [
@@ -110,7 +114,9 @@ new #[Layout('components.layouts.app')] class extends Component
                 'product_id' => (string) $detail->product_id,
                 'quantity' => $detail->quantity,
                 'unit_of_measure_id' => (string) $detail->unit_of_measure_id,
-                'unit_price' => $detail->unit_price,
+                'unit_price' => $keepHistoricalCost
+                    ? $detail->unit_price
+                    : $valuationService->currentAverageCost((int) $detail->product_id, (int) $dispatch->warehouse_id),
                 'notes' => $detail->notes,
             ];
         }
@@ -263,6 +269,7 @@ new #[Layout('components.layouts.app')] class extends Component
         \DB::beginTransaction();
         try {
             $isDelivered = in_array($this->dispatch->status, ['despachado', 'entregado']);
+            $valuationService = app(\App\Services\InventoryValuationService::class);
 
             // Validate stock availability inside transaction with lock (aggregate check: same product in multiple rows)
             $productQuantities = [];
@@ -281,16 +288,25 @@ new #[Layout('components.layouts.app')] class extends Component
                 ->get()
                 ->keyBy('product_id');
 
+            // Quantities that already left the warehouse must not be requested again from stock
+            $alreadyDispatched = $isDelivered
+                ? $this->dispatch->details()
+                    ->selectRaw('product_id, SUM(quantity_dispatched) as dispatched')
+                    ->groupBy('product_id')
+                    ->pluck('dispatched', 'product_id')
+                : collect();
+
             $hasStockError = false;
             foreach ($productQuantities as $pid => $data) {
                 $available = $inventories->get($pid)?->available_quantity ?? 0;
-                if ($data['total'] > $available) {
+                $netRequested = $data['total'] - (float) ($alreadyDispatched[$pid] ?? 0);
+                if ($netRequested > $available) {
                     $hasStockError = true;
                     $productName = Product::find($pid)?->name ?? "Producto #{$pid}";
                     foreach ($data['indices'] as $idx) {
                         $this->addError(
                             "details.{$idx}.quantity",
-                            "Stock insuficiente para '{$productName}'. Disponible: ".number_format($available, 5).", solicitado total: ".number_format($data['total'], 5)
+                            "Stock insuficiente para '{$productName}'. Disponible: ".number_format($available, 5).", solicitado adicional: ".number_format($netRequested, 5)
                         );
                     }
                 }
@@ -337,7 +353,9 @@ new #[Layout('components.layouts.app')] class extends Component
                             'product_id' => $detail['product_id'],
                             'quantity' => $detail['quantity'],
                             'unit_of_measure_id' => $detail['unit_of_measure_id'],
-                            'unit_price' => $detail['unit_price'] ?? 0,
+                            'unit_price' => $isDelivered
+                                ? $existingDetail->unit_price
+                                : $valuationService->currentAverageCost((int) $detail['product_id'], (int) $this->warehouse_id),
                             'notes' => $detail['notes'] ?? null,
                         ]);
                         $existingDetail->save();
@@ -349,7 +367,7 @@ new #[Layout('components.layouts.app')] class extends Component
                         'product_id' => $detail['product_id'],
                         'quantity' => round((float) $detail['quantity'], 5),
                         'unit_of_measure_id' => $detail['unit_of_measure_id'],
-                        'unit_price' => $detail['unit_price'] ?? 0,
+                        'unit_price' => $valuationService->currentAverageCost((int) $detail['product_id'], (int) $this->warehouse_id),
                         'notes' => $detail['notes'] ?? null,
                     ]);
                     $newDetails[] = $newDetail;
@@ -405,6 +423,8 @@ new #[Layout('components.layouts.app')] class extends Component
     {
         $dispatch = $this->dispatch;
         $userId = auth()->id();
+        $kardexService = app(\App\Services\KardexService::class);
+        $valuationService = app(\App\Services\InventoryValuationService::class);
 
         $movementReason = MovementReason::where('code', 'DISPATCH')->first()
             ?? MovementReason::where('movement_type', 'out')->first();
@@ -423,8 +443,12 @@ new #[Layout('components.layouts.app')] class extends Component
         };
 
         foreach ($newDetails as $detail) {
+            // Outbound cost is always the current weighted average of the warehouse
+            $unitCost = $valuationService->currentAverageCost((int) $detail->product_id, (int) $dispatch->warehouse_id);
+
             // Marcar como despachado y entregado
             $detail->quantity_dispatched = $detail->quantity;
+            $detail->unit_price = $unitCost;
             $detail->is_reserved = true;
             $detail->reserved_by = $userId;
             $detail->reserved_at = now();
@@ -435,19 +459,8 @@ new #[Layout('components.layouts.app')] class extends Component
 
             $detail->save();
 
-            // Obtener balance actual del producto en la bodega
-            $currentStock = InventoryMovement::where('warehouse_id', $dispatch->warehouse_id)
-                ->where('product_id', $detail->product_id)
-                ->whereNotNull('balance_quantity')
-                ->orderBy('movement_date', 'desc')
-                ->orderBy('id', 'desc')
-                ->first();
-
-            $previousBalance = $currentStock ? $currentStock->balance_quantity : 0;
-            $newBalance = $previousBalance - $detail->quantity;
-
-            // Crear movimiento de inventario
-            InventoryMovement::create([
+            // Crear movimiento de inventario con recálculo automático de saldos
+            $movement = $kardexService->createMovement([
                 'company_id' => $dispatch->company_id,
                 'warehouse_id' => $dispatch->warehouse_id,
                 'product_id' => $detail->product_id,
@@ -458,11 +471,8 @@ new #[Layout('components.layouts.app')] class extends Component
                 'quantity' => $detail->quantity,
                 'quantity_in' => 0,
                 'quantity_out' => $detail->quantity,
-                'balance_quantity' => $newBalance,
-                'previous_quantity' => $previousBalance,
-                'new_quantity' => $newBalance,
-                'unit_cost' => $detail->unit_price,
-                'total_cost' => $detail->quantity * $detail->unit_price,
+                'unit_cost' => $unitCost,
+                'total_cost' => $detail->quantity * $unitCost,
                 'document_type' => $dispatch->document_type,
                 'document_number' => $dispatch->document_number,
                 'notes' => "Despacho {$dispatch->dispatch_number} - Producto agregado post-entrega",
@@ -471,16 +481,8 @@ new #[Layout('components.layouts.app')] class extends Component
                 'created_by' => $userId,
             ]);
 
-            // Actualizar inventario
-            $inventory = Inventory::where('product_id', $detail->product_id)
-                ->where('warehouse_id', $dispatch->warehouse_id)
-                ->first();
-
-            if ($inventory) {
-                $inventory->quantity -= $detail->quantity;
-                $inventory->available_quantity -= $detail->quantity;
-                $inventory->save();
-            }
+            // Reduce stock (the average cost does not change on outbound movements)
+            $valuationService->applyMovement($movement);
         }
     }
 
@@ -516,13 +518,17 @@ new #[Layout('components.layouts.app')] class extends Component
     {
         $companyId = $this->dispatch->company_id;
 
+        // Weighted average cost per product in the selected warehouse
+        $averageCosts = Inventory::where('warehouse_id', $this->warehouse_id)
+            ->pluck('unit_cost', 'product_id');
+
         return Product::with('unitOfMeasure')
             ->where('company_id', $companyId)
             ->where('is_active', true)
             ->get()
             ->keyBy('id')
             ->map(fn ($p) => [
-                'cost' => (float) ($p->cost ?? 0),
+                'cost' => (float) ($averageCosts[$p->id] ?? 0),
                 'unit' => $p->unitOfMeasure?->abbreviation ?? '',
                 'unit_id' => $p->unit_of_measure_id,
             ])->toArray();
@@ -832,21 +838,14 @@ new #[Layout('components.layouts.app')] class extends Component
                                 </div>
                             </flux:table.cell>
 
-                            <!-- Unit Price -->
-                            <flux:table.cell>
-                                <div class="flex flex-col gap-1">
-                                    <input
-                                        type="number"
-                                        step="0.00001"
-                                        min="0"
-                                        x-model.number="unitPrice"
-                                        @input="emitTotal()"
-                                        @change="updateUnitPrice()"
-                                        placeholder="0.00000"
-                                        class="block w-full text-right rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
-                                    />
-                                    <flux:error name="details.{{ $index }}.unit_price" />
-                                </div>
+                            <!-- Unit Price (weighted average cost of the warehouse, read-only) -->
+                            <flux:table.cell class="text-right tabular-nums">
+                                <template x-if="productId">
+                                    <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300" title="Costo promedio ponderado de la bodega">$<span x-text="(parseFloat(unitPrice) || 0).toFixed(5)"></span></span>
+                                </template>
+                                <template x-if="!productId">
+                                    <span class="text-zinc-400 text-sm">-</span>
+                                </template>
                             </flux:table.cell>
 
                             <!-- Total (Calculated with Alpine - instant) -->

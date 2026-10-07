@@ -125,6 +125,26 @@ Esto es lo que los usuarios **creen** que el sistema hace hoy. No es así.
 2. ¿Necesitan que el sistema decida solo el costo o les basta con poder escribirlo a mano (opción 1, ya disponible)?
 3. ¿Usan el costo del traslado para algo más que la valoración (por ejemplo, para cobrar entre sucursales)? Esto define qué tan exacto debe ser.
 
-## 8. Recomendación
+## 8. Decisión tomada (octubre 2026)
+
+Bodega planteó cambiar a PEPS. La contadora de la ENA confirmó que la empresa tiene declarado **Costo Promedio Ponderado** ante Hacienda y que cambiar a PEPS requeriría pedir autorización, así que se descarta. Se implementa la **opción 2 (promedio)** con estos acuerdos:
+
+- El costo unitario en traslados vuelve a ser **solo lectura**: lo calcula el sistema (promedio de la bodega origen al momento de enviar) y el usuario no lo puede modificar.
+- Los saldos actuales arrancan con el costo que tienen hoy como promedio inicial. No se recalcula el historial.
+- Si se anula un traslado ya enviado o recibido, o un despacho ya despachado o entregado, el stock regresa a la bodega de origen y se descuenta de la bodega destino.
+- Al editar un despacho ya entregado solo para cambiar la unidad solicitante, el sistema no debe volver a exigir ni descontar el stock de las líneas que ya salieron.
+- No se manejan lotes ni fechas de vencimiento. No aplica FEFO.
+
+### Cómo quedó implementado
+
+- Un solo servicio de valoración (`InventoryValuationService`) actualiza stock y costo promedio. Lo usan compras, donaciones, producción interna, ajustes, traslados, despachos y las anulaciones.
+- Toda entrada recalcula el promedio: `(saldo x costo actual + cantidad x costo de entrada) / (saldo + cantidad)`. Toda salida solo descuenta cantidad y sale al promedio vigente.
+- Cada movimiento del Kardex guarda el promedio resultante (`balance_unit_cost`). El reporte de valoración y el cierre mensual lo usan en vez del costo del último movimiento.
+- Traslados y despachos muestran el costo como solo lectura. El servidor ignora cualquier costo enviado por el navegador.
+- Al anular un traslado enviado o recibido, o un despacho despachado o entregado, se generan movimientos de reversa al costo original. Se bloquea si el período está cerrado o si la bodega destino ya consumió el stock.
+- Los ajustes negativos salen al promedio. Los ajustes positivos entran al costo indicado y promedian.
+- Las pantallas de traslados y despachos requieren `npm run build` porque cambió el JavaScript de las filas.
+
+## 9. Recomendación original
 
 Usar la opción 1 (costo manual, ya implementada) mientras contabilidad confirma el método declarado. Si confirman **promedio**, implementar la opción 2. Si confirman **PEPS**, planificar la opción 3 como proyecto aparte con migración de saldos. Si confirman **última compra**, no hace falta ningún cambio adicional.

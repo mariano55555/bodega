@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\ProductLot;
+use App\Services\InventoryValuationService;
 use Exception;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -73,47 +74,11 @@ class UpdateInventoryLevels implements ShouldQueue
     }
 
     /**
-     * Update the main inventory record.
+     * Update the main inventory record (stock and weighted average cost).
      */
     private function updateInventoryRecord(): void
     {
-        $inventory = Inventory::firstOrCreate(
-            [
-                'product_id' => $this->movement->product_id,
-                'warehouse_id' => $this->movement->warehouse_id,
-                'storage_location_id' => $this->movement->to_storage_location_id,
-            ],
-            [
-                'quantity' => 0,
-                'reserved_quantity' => 0,
-                'unit_cost' => $this->movement->unit_cost ?? 0,
-                'lot_number' => $this->movement->lot_number,
-                'expiration_date' => $this->movement->expiration_date,
-                'is_active' => true,
-                'active_at' => now(),
-                'created_by' => $this->movement->created_by,
-            ]
-        );
-
-        // Calculate quantity change based on movement type
-        $quantityChange = $this->calculateQuantityChange();
-
-        // Update inventory quantities
-        $inventory->quantity = max(0, $inventory->quantity + $quantityChange);
-
-        // Update cost if it's an inbound movement with cost
-        if ($this->isInboundMovement() && $this->movement->unit_cost) {
-            $inventory->unit_cost = $this->calculateWeightedAverageCost($inventory);
-        }
-
-        $inventory->updated_by = $this->movement->completed_by;
-        $inventory->save();
-
-        // Update movement with actual inventory changes
-        $this->movement->update([
-            'previous_quantity' => $inventory->quantity - $quantityChange,
-            'new_quantity' => $inventory->quantity,
-        ]);
+        app(InventoryValuationService::class)->applyMovement($this->movement);
     }
 
     /**
@@ -192,30 +157,6 @@ class UpdateInventoryLevels implements ShouldQueue
         }
 
         return 0;
-    }
-
-    /**
-     * Check if this is an inbound movement.
-     */
-    private function isInboundMovement(): bool
-    {
-        return in_array($this->movement->movement_type, ['in', 'transfer', 'transfer_in']);
-    }
-
-    /**
-     * Calculate weighted average cost for inventory valuation.
-     */
-    private function calculateWeightedAverageCost(Inventory $inventory): float
-    {
-        $currentValue = $inventory->quantity * $inventory->unit_cost;
-        $incomingValue = $this->movement->quantity * $this->movement->unit_cost;
-        $totalQuantity = $inventory->quantity + $this->movement->quantity;
-
-        if ($totalQuantity == 0) {
-            return $this->movement->unit_cost;
-        }
-
-        return ($currentValue + $incomingValue) / $totalQuantity;
     }
 
     /**

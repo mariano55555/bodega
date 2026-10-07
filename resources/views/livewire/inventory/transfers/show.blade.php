@@ -11,6 +11,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     public $carrier = '';
     public $receivingNotes = '';
     public $discrepancies = [];
+    public $cancellationReason = '';
 
     public function mount(InventoryTransfer $transfer): void
     {
@@ -80,11 +81,18 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function cancel(): void
     {
-        if ($this->transfer->cancel()) {
-            \Flux::toast(variant: 'success', text: 'Traslado anulado exitosamente.');
-            $this->transfer->refresh();
-        } else {
-            \Flux::toast(variant: 'danger', text: 'No se puede anular el traslado en su estado actual.');
+        $this->authorize('cancel', $this->transfer);
+
+        try {
+            if ($this->transfer->cancel(auth()->id(), $this->cancellationReason ?: null)) {
+                $this->modal('cancel-modal')->close();
+                \Flux::toast(variant: 'success', text: 'Traslado anulado exitosamente.');
+                $this->transfer->refresh();
+            } else {
+                \Flux::toast(variant: 'danger', text: 'No se puede anular el traslado en su estado actual.');
+            }
+        } catch (\App\Exceptions\InventoryReversalException $e) {
+            \Flux::toast(variant: 'danger', heading: 'No se pudo anular', text: $e->getMessage());
         }
     }
 }; ?>
@@ -183,10 +191,12 @@ new #[Layout('components.layouts.app')] class extends Component {
             @endcan
 
             @can('cancel', $transfer)
-                @if (in_array($transfer->status, ['pending', 'pendiente', 'approved', 'aprobado']))
-                    <flux:button variant="danger" icon="x-circle" wire:click="cancel" wire:confirm="¿Está seguro de anular este traslado?">
-                        Anular
-                    </flux:button>
+                @if (in_array($transfer->status, ['pending', 'pendiente', 'approved', 'aprobado', 'in_transit', 'en_transito', 'received', 'recibido']))
+                    <flux:modal.trigger name="cancel-modal">
+                        <flux:button variant="danger" icon="x-circle">
+                            Anular
+                        </flux:button>
+                    </flux:modal.trigger>
                 @endif
             @endcan
 
@@ -633,6 +643,38 @@ new #[Layout('components.layouts.app')] class extends Component {
     </flux:modal>
 
     <!-- Ship Modal -->
+    <flux:modal name="cancel-modal" class="max-w-md">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">Anular Traslado</flux:heading>
+                <flux:text class="mt-2 text-zinc-600 dark:text-zinc-400">
+                    @if (in_array($transfer->status, ['in_transit', 'en_transito']))
+                        El traslado ya fue enviado. Al anularlo, las cantidades regresan a la bodega origen <strong>{{ $transfer->fromWarehouse->name }}</strong> al costo con el que salieron.
+                    @elseif (in_array($transfer->status, ['received', 'recibido']))
+                        El traslado ya fue recibido. Al anularlo, las cantidades salen de la bodega destino <strong>{{ $transfer->toWarehouse->name }}</strong> y regresan a la bodega origen <strong>{{ $transfer->fromWarehouse->name }}</strong>. La bodega destino debe tener todavía ese stock disponible.
+                    @else
+                        El traslado aún no ha movido inventario. Solo cambiará su estado a anulado.
+                    @endif
+                </flux:text>
+            </div>
+
+            <flux:field>
+                <flux:label>Motivo de la anulación</flux:label>
+                <flux:textarea wire:model="cancellationReason" rows="3" placeholder="Opcional. Ej: cantidad incorrecta, bodega destino equivocada" />
+            </flux:field>
+
+            <div class="flex gap-2">
+                <flux:spacer />
+                <flux:modal.close>
+                    <flux:button variant="ghost">Volver</flux:button>
+                </flux:modal.close>
+                <flux:button variant="danger" icon="x-circle" wire:click="cancel">
+                    Confirmar Anulación
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
     <flux:modal name="ship-modal" class="max-w-md">
         <div class="space-y-6">
             <div>

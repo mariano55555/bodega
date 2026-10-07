@@ -84,11 +84,6 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        updateUnitPrice() {
-            this.emitTotal();
-            this.syncToLivewire();
-        },
-
         clearRow() {
             // Instant client-side clear - no server request
             this.productId = '';
@@ -295,6 +290,10 @@ document.addEventListener('alpine:init', () => {
         notes: config.notes,
 
         init() {
+            // The cost is read-only: always show the current average of the origin warehouse
+            if (this.productId && this.productInfo) {
+                this.unitCost = this.inventoryUnitCost;
+            }
             this.emitTotal();
             this._recalcHandler = () => this.emitTotal();
             window.addEventListener('transfer-recalculate-totals', this._recalcHandler);
@@ -351,16 +350,6 @@ document.addEventListener('alpine:init', () => {
             this.capQuantityToStock();
             this.emitTotal();
             this.syncToLivewire();
-        },
-
-        updateUnitCost() {
-            this.emitTotal();
-            this.syncToLivewire();
-        },
-
-        resetUnitCost() {
-            this.unitCost = this.inventoryUnitCost;
-            this.updateUnitCost();
         },
 
         capQuantityToStock() {

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\InventoryMovementFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class InventoryMovement extends Model
 {
-    /** @use HasFactory<\Database\Factories\InventoryMovementFactory> */
+    /** @use HasFactory<InventoryMovementFactory> */
     use HasFactory, SoftDeletes;
 
     /**
@@ -30,6 +31,8 @@ class InventoryMovement extends Model
         'quantity_in',
         'quantity_out',
         'balance_quantity',
+        'balance_unit_cost',
+        'balance_total_cost',
         'previous_quantity',
         'new_quantity',
         'unit_cost',
@@ -88,6 +91,8 @@ class InventoryMovement extends Model
             'quantity_in' => 'decimal:5',
             'quantity_out' => 'decimal:5',
             'balance_quantity' => 'decimal:5',
+            'balance_unit_cost' => 'decimal:5',
+            'balance_total_cost' => 'decimal:5',
             'previous_quantity' => 'decimal:5',
             'new_quantity' => 'decimal:5',
             'unit_cost' => 'decimal:5',

@@ -322,7 +322,6 @@ new #[Layout('components.layouts.app')] class extends Component
                 }),
             ],
             'products.*.quantity' => ['required', 'numeric', 'min:0.0001', 'max:999999.9999'],
-            'products.*.unit_cost' => ['required', 'numeric', 'min:0', 'max:999999.99999'],
             'products.*.notes' => ['nullable', 'string', 'max:500'],
         ];
 
@@ -367,10 +366,6 @@ new #[Layout('components.layouts.app')] class extends Component
             'products.*.quantity.numeric' => 'La cantidad debe ser un número.',
             'products.*.quantity.min' => 'La cantidad debe ser mayor a 0.',
             'products.*.quantity.max' => 'La cantidad no puede exceder 999,999.9999.',
-            'products.*.unit_cost.required' => 'El costo unitario es obligatorio.',
-            'products.*.unit_cost.numeric' => 'El costo unitario debe ser un número.',
-            'products.*.unit_cost.min' => 'El costo unitario no puede ser negativo.',
-            'products.*.unit_cost.max' => 'El costo unitario no puede exceder 999,999.99999.',
             'products.*.notes.string' => 'Las notas del producto deben ser texto.',
             'products.*.notes.max' => 'Las notas del producto no pueden exceder 500 caracteres.',
         ];
@@ -460,13 +455,13 @@ new #[Layout('components.layouts.app')] class extends Component
                 'status' => 'pending',
             ]);
 
-            // Create transfer details with the unit cost entered by the user
+            // Create transfer details with the current weighted average cost of the origin warehouse
             foreach ($validated['products'] as $product) {
                 InventoryTransferDetail::create([
                     'transfer_id' => $transfer->id,
                     'product_id' => $product['product_id'],
                     'quantity' => round((float) $product['quantity'], 5),
-                    'unit_cost' => round((float) $product['unit_cost'], 5),
+                    'unit_cost' => round((float) ($inventories->get($product['product_id'])?->unit_cost ?? 0), 5),
                     'notes' => $product['notes'] ?? null,
                 ]);
             }
@@ -813,27 +808,14 @@ new #[Layout('components.layouts.app')] class extends Component
                                 </template>
                             </flux:table.cell>
 
-                            <!-- Unit Cost (editable, defaults to inventory cost) -->
-                            <flux:table.cell>
-                                <div class="flex flex-col gap-1">
-                                    <input
-                                        type="number"
-                                        step="0.00001"
-                                        min="0"
-                                        x-model.number="unitCost"
-                                        @input="emitTotal()"
-                                        @change="updateUnitCost()"
-                                        :disabled="!productId"
-                                        placeholder="0.00000"
-                                        class="block w-full text-right rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
-                                    />
-                                    <template x-if="productId && inventoryUnitCost > 0 && Math.abs((parseFloat(unitCost) || 0) - inventoryUnitCost) > 0.000005">
-                                        <button type="button" x-on:click="resetUnitCost()" class="text-left text-xs text-amber-600 hover:underline dark:text-amber-400" title="Restablecer al costo del inventario">
-                                            Inventario: $<span x-text="inventoryUnitCost.toFixed(5)"></span>
-                                        </button>
-                                    </template>
-                                    <flux:error name="products.{{ $index }}.unit_cost" />
-                                </div>
+                            <!-- Unit Cost (weighted average of the origin warehouse, read-only) -->
+                            <flux:table.cell class="text-right tabular-nums">
+                                <template x-if="productId">
+                                    <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300" title="Costo promedio ponderado de la bodega origen">$<span x-text="(parseFloat(unitCost) || 0).toFixed(5)"></span></span>
+                                </template>
+                                <template x-if="!productId">
+                                    <span class="text-zinc-400 text-sm">-</span>
+                                </template>
                             </flux:table.cell>
 
                             <!-- Total (quantity * unit_cost) -->

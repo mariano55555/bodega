@@ -207,28 +207,31 @@ test('can cancel a pending transfer', function () {
         ->and($transfer->fresh()->status)->toBe('cancelled');
 });
 
-test('cannot cancel a transfer in transit', function () {
+test('can cancel a transfer in transit', function () {
     $transfer = InventoryTransfer::factory()->create([
         'from_warehouse_id' => $this->fromWarehouse->id,
         'to_warehouse_id' => $this->toWarehouse->id,
         'status' => 'in_transit',
     ]);
 
-    $result = $transfer->cancel();
+    $result = $transfer->cancel($this->user->id);
 
-    expect($result)->toBeFalse();
+    expect($result)->toBeTrue()
+        ->and($transfer->fresh()->status)->toBe('cancelled')
+        ->and($transfer->fresh()->cancelled_by)->toBe($this->user->id);
 });
 
-test('cannot cancel a received transfer', function () {
+test('can cancel a received transfer', function () {
     $transfer = InventoryTransfer::factory()->create([
         'from_warehouse_id' => $this->fromWarehouse->id,
         'to_warehouse_id' => $this->toWarehouse->id,
         'status' => 'received',
     ]);
 
-    $result = $transfer->cancel();
+    $result = $transfer->cancel($this->user->id);
 
-    expect($result)->toBeFalse();
+    expect($result)->toBeTrue()
+        ->and($transfer->fresh()->status)->toBe('cancelled');
 });
 
 test('transfer with discrepancies records them correctly', function () {

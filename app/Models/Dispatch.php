@@ -2,7 +2,10 @@
 
 namespace App\Models;
 
+use App\Exceptions\InventoryReversalException;
+use App\Services\InventoryValuationService;
 use App\Services\KardexService;
+use Database\Factories\DispatchFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,7 +18,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 
 class Dispatch extends Model
 {
-    /** @use HasFactory<\Database\Factories\DispatchFactory> */
+    /** @use HasFactory<DispatchFactory> */
     use HasFactory, LogsActivity, SoftDeletes;
 
     protected $fillable = [
@@ -52,6 +55,9 @@ class Dispatch extends Model
         'delivered_by',
         'received_by_name',
         'delivery_notes',
+        'cancelled_at',
+        'cancelled_by',
+        'cancellation_reason',
         'notes',
         'admin_notes',
         'attachments',
@@ -78,6 +84,7 @@ class Dispatch extends Model
             'approved_at' => 'datetime',
             'dispatched_at' => 'datetime',
             'delivered_at' => 'datetime',
+            'cancelled_at' => 'datetime',
             'attachments' => 'array',
             'is_active' => 'boolean',
             'is_internal_use' => 'boolean',
@@ -395,10 +402,17 @@ class Dispatch extends Model
 
             $kardexService = app(KardexService::class);
 
+            $valuationService = app(InventoryValuationService::class);
+
             // Create inventory movements for each dispatch detail
             foreach ($this->details as $detail) {
+                // Outbound cost is always the current weighted average of the warehouse
+                $unitCost = $valuationService->currentAverageCost((int) $detail->product_id, (int) $this->warehouse_id);
+                $detail->unit_price = $unitCost;
+                $detail->save();
+
                 // Create the inventory movement (outbound) with automatic balance recalculation
-                $kardexService->createMovement([
+                $movement = $kardexService->createMovement([
                     'company_id' => $this->company_id,
                     'warehouse_id' => $this->warehouse_id,
                     'product_id' => $detail->product_id,
@@ -409,8 +423,8 @@ class Dispatch extends Model
                     'quantity' => $detail->quantity_dispatched,
                     'quantity_in' => 0,
                     'quantity_out' => $detail->quantity_dispatched,
-                    'unit_cost' => $detail->unit_price,
-                    'total_cost' => $detail->quantity_dispatched * $detail->unit_price,
+                    'unit_cost' => $unitCost,
+                    'total_cost' => $detail->quantity_dispatched * $unitCost,
                     'document_type' => $this->document_type,
                     'document_number' => $this->document_number,
                     'notes' => $detail->notes ?? "Despacho {$this->dispatch_number} - {$this->dispatch_type}",
@@ -419,17 +433,13 @@ class Dispatch extends Model
                     'created_by' => $userId,
                 ]);
 
-                // Update inventory record
-                $inventory = Inventory::where('product_id', $detail->product_id)
-                    ->where('warehouse_id', $this->warehouse_id)
-                    ->first();
-
-                if ($inventory) {
-                    $inventory->quantity -= $detail->quantity_dispatched;
-                    $inventory->available_quantity -= $detail->quantity_dispatched;
-                    $inventory->save();
-                }
+                // Reduce stock (the average cost does not change on outbound movements)
+                $valuationService->applyMovement($movement);
             }
+
+            // Totals must reflect the average cost applied at dispatch time
+            $this->load('details');
+            $this->calculateTotals();
 
             \DB::commit();
 
@@ -463,25 +473,103 @@ class Dispatch extends Model
         return $this->save();
     }
 
-    public function cancel(): bool
+    /**
+     * Cancel the dispatch. A dispatch that already left the warehouse is reversed:
+     * the quantities return to the warehouse at the cost they left with.
+     *
+     * @throws InventoryReversalException when the reversal is not possible (closed period)
+     */
+    public function cancel(?int $userId = null, ?string $reason = null): bool
     {
-        if (in_array($this->status, ['despachado', 'entregado'])) {
-            return false; // Cannot cancel dispatched or delivered dispatches
+        if ($this->status === 'cancelado') {
+            return false;
         }
 
-        // Release reservations if any
-        foreach ($this->details as $detail) {
-            if ($detail->is_reserved) {
-                $detail->is_reserved = false;
-                $detail->reserved_by = null;
-                $detail->reserved_at = null;
-                $detail->save();
+        \DB::beginTransaction();
+        try {
+            if (in_array($this->status, ['despachado', 'entregado'])) {
+                $this->reverseOutboundMovements($userId);
             }
+
+            // Release reservations if any
+            foreach ($this->details as $detail) {
+                if ($detail->is_reserved) {
+                    $detail->is_reserved = false;
+                    $detail->reserved_by = null;
+                    $detail->reserved_at = null;
+                    $detail->save();
+                }
+            }
+
+            $this->status = 'cancelado';
+            $this->cancelled_at = now();
+            $this->cancelled_by = $userId;
+            $this->cancellation_reason = $reason;
+            $this->save();
+
+            \DB::commit();
+
+            return true;
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            \Log::error('Error cancelling dispatch: '.$e->getMessage());
+
+            throw new InventoryReversalException($e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
+     * Put the dispatched quantities back into the warehouse at the cost they left with.
+     */
+    protected function reverseOutboundMovements(?int $userId): void
+    {
+        $outboundMovements = $this->inventoryMovements()
+            ->where('warehouse_id', $this->warehouse_id)
+            ->where('quantity_out', '>', 0)
+            ->get();
+
+        if ($outboundMovements->isEmpty()) {
+            return;
         }
 
-        $this->status = 'cancelado';
+        InventoryClosure::validatePeriodOpen($this->company_id, $this->warehouse_id, now());
 
-        return $this->save();
+        $movementReason = MovementReason::where('code', 'REENTRY')->first()
+            ?? MovementReason::where('movement_type', 'in')->first();
+
+        if (! $movementReason) {
+            throw new InventoryReversalException('No existe un motivo de movimiento de entrada para registrar la anulación.');
+        }
+
+        $kardexService = app(KardexService::class);
+        $valuationService = app(InventoryValuationService::class);
+
+        foreach ($outboundMovements as $movement) {
+            $quantity = (float) $movement->quantity_out;
+
+            $reversal = $kardexService->createMovement([
+                'company_id' => $this->company_id,
+                'warehouse_id' => $this->warehouse_id,
+                'product_id' => $movement->product_id,
+                'movement_reason_id' => $movementReason->id,
+                'dispatch_id' => $this->id,
+                'movement_type' => 'return',
+                'movement_date' => now(),
+                'quantity' => $quantity,
+                'quantity_in' => $quantity,
+                'quantity_out' => 0,
+                'unit_cost' => $movement->unit_cost,
+                'total_cost' => $quantity * (float) $movement->unit_cost,
+                'document_type' => 'dispatch_cancellation',
+                'metadata' => ['reverses_movement_id' => $movement->id],
+                'notes' => "Anulación de despacho {$this->dispatch_number}: devolución a bodega",
+                'is_active' => true,
+                'active_at' => now(),
+                'created_by' => $userId,
+            ]);
+
+            $valuationService->applyMovement($reversal);
+        }
     }
 
     public function getStatusSpanishAttribute(): string
@@ -544,7 +632,7 @@ class Dispatch extends Model
 
     public function canBeCancelled(): bool
     {
-        return ! in_array($this->status, ['despachado', 'entregado', 'cancelado']);
+        return $this->status !== 'cancelado';
     }
 
     public function canBeEdited(): bool

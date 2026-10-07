@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -286,7 +287,7 @@ class InventoryClosure extends Model
         // Calculate closing balance - prefer balance_quantity from last movement if available
         if ($lastMovementInPeriod && $lastMovementInPeriod->balance_quantity !== null) {
             $closingQuantity = (float) $lastMovementInPeriod->balance_quantity;
-            $unitCost = (float) ($lastMovementInPeriod->unit_cost ?? $opening['unit_cost']);
+            $unitCost = (float) ($lastMovementInPeriod->balance_unit_cost ?? $lastMovementInPeriod->unit_cost ?? $opening['unit_cost']);
         } else {
             $closingQuantity = $opening['quantity'] + $movements['quantity_in'] - $movements['quantity_out'];
             $unitCost = $opening['unit_cost'];
@@ -358,10 +359,12 @@ class InventoryClosure extends Model
             ->first();
 
         if ($lastMovement) {
+            $unitCost = $lastMovement->balance_unit_cost ?? $lastMovement->unit_cost ?? 0;
+
             return [
                 'quantity' => $lastMovement->balance_quantity ?? 0,
-                'unit_cost' => $lastMovement->unit_cost ?? 0,
-                'value' => ($lastMovement->balance_quantity ?? 0) * ($lastMovement->unit_cost ?? 0),
+                'unit_cost' => $unitCost,
+                'value' => ($lastMovement->balance_quantity ?? 0) * $unitCost,
             ];
         }
 
@@ -528,7 +531,7 @@ class InventoryClosure extends Model
      */
     public static function validatePeriodOpen(int $companyId, int $warehouseId, $date): void
     {
-        $date = \Carbon\Carbon::parse($date);
+        $date = Carbon::parse($date);
 
         $closure = static::where('company_id', $companyId)
             ->where('warehouse_id', $warehouseId)

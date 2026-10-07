@@ -8,6 +8,8 @@ use Livewire\Volt\Component;
 new #[Layout('components.layouts.app')] class extends Component {
     public Dispatch $dispatch;
 
+    public $cancellationReason = '';
+
     public function mount(Dispatch $dispatch): void
     {
         $this->dispatch = $dispatch->load(['employee', 'warehouse', 'details.product', 'details.unitOfMeasure', 'approver', 'dispatcher', 'deliverer', 'creator', 'fuelDetail']);
@@ -59,11 +61,18 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function cancel(): void
     {
-        if ($this->dispatch->cancel()) {
-            Flux::toast(heading: 'Despacho anulado', text: 'El despacho fue anulado exitosamente.', variant: 'success');
-            $this->dispatch->refresh();
-        } else {
-            Flux::toast(heading: 'Error', text: 'No se pudo anular el despacho.', variant: 'danger');
+        $this->authorize('cancel', $this->dispatch);
+
+        try {
+            if ($this->dispatch->cancel(auth()->id(), $this->cancellationReason ?: null)) {
+                $this->modal('cancel-modal')->close();
+                Flux::toast(heading: 'Despacho anulado', text: 'El despacho fue anulado exitosamente.', variant: 'success');
+                $this->dispatch->refresh();
+            } else {
+                Flux::toast(heading: 'Error', text: 'No se pudo anular el despacho.', variant: 'danger');
+            }
+        } catch (\App\Exceptions\InventoryReversalException $e) {
+            Flux::toast(heading: 'No se pudo anular', text: $e->getMessage(), variant: 'danger');
         }
     }
 }; ?>
@@ -660,9 +669,16 @@ new #[Layout('components.layouts.app')] class extends Component {
                     <flux:heading size="lg">Anular Despacho</flux:heading>
                     <flux:text class="mt-2">
                         <p>¿Está seguro de que desea anular este despacho?</p>
+                        @if (in_array($dispatch->status, ['despachado', 'entregado']))
+                            <p class="mt-1">El despacho ya salió de bodega. Al anularlo, las cantidades regresan a <strong>{{ $dispatch->warehouse->name }}</strong> al costo con el que salieron.</p>
+                        @endif
                         <p class="mt-1 font-semibold text-red-600 dark:text-red-400">Esta acción no se puede deshacer.</p>
                     </flux:text>
                 </div>
+                <flux:field>
+                    <flux:label>Motivo de la anulación</flux:label>
+                    <flux:textarea wire:model="cancellationReason" rows="3" placeholder="Opcional. Ej: despacho duplicado, cantidad incorrecta" />
+                </flux:field>
                 <div class="flex gap-2">
                     <flux:spacer />
                     <flux:modal.close>

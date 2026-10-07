@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Services\InventoryValuationService;
 use App\Services\KardexService;
+use Database\Factories\DonationFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,7 +17,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 
 class Donation extends Model
 {
-    /** @use HasFactory<\Database\Factories\DonationFactory> */
+    /** @use HasFactory<DonationFactory> */
     use HasFactory, LogsActivity, SoftDeletes;
 
     protected $fillable = [
@@ -266,11 +268,12 @@ class Donation extends Model
             $movementReason = MovementReason::where('code', 'DONATION_IN')->firstOrFail();
 
             $kardexService = app(KardexService::class);
+            $valuationService = app(InventoryValuationService::class);
 
             // Create inventory movements for each donation detail
             foreach ($this->details as $detail) {
                 // Create the inventory movement with automatic balance recalculation
-                $kardexService->createMovement([
+                $movement = $kardexService->createMovement([
                     'company_id' => $this->company_id,
                     'warehouse_id' => $this->warehouse_id,
                     'product_id' => $detail->product_id,
@@ -294,19 +297,8 @@ class Donation extends Model
                     'status' => 'completed',
                 ]);
 
-                // Update or create inventory record for stock tracking
-                $inventory = Inventory::firstOrNew([
-                    'product_id' => $detail->product_id,
-                    'warehouse_id' => $this->warehouse_id,
-                ]);
-
-                $inventory->quantity = ($inventory->quantity ?? 0) + $detail->quantity;
-                $inventory->unit_cost = $detail->estimated_unit_value;
-                $inventory->lot_number = $detail->lot_number;
-                $inventory->expiration_date = $detail->expiration_date;
-                $inventory->is_active = true;
-                $inventory->active_at = $inventory->active_at ?? now();
-                $inventory->save();
+                // Add stock and recalculate the weighted average cost of the warehouse
+                $valuationService->applyMovement($movement);
             }
 
             \DB::commit();

@@ -207,18 +207,18 @@ class InventoryReportController extends Controller
 
             $currentStock = (float) $initialStock + (float) $entries - (float) $exits;
 
-            // Get unit cost from the most recent movement
+            // Weighted average cost at the end of the period (stored on the last movement), legacy movements fall back to their cost
             $lastCostMovement = InventoryMovement::where('company_id', $companyId)
                 ->where('product_id', $product->product_id)
                 ->when(! $isAllWarehouses, fn ($q) => $q->where('warehouse_id', $warehouseId))
                 ->where('movement_date', '<=', $endDate)
                 ->whereNotNull('balance_quantity')
-                ->where('unit_cost', '>', 0)
+                ->where(fn ($q) => $q->whereNotNull('balance_unit_cost')->orWhere('unit_cost', '>', 0))
                 ->orderByDesc('movement_date')
                 ->orderByDesc('id')
                 ->first();
 
-            $unitCost = (float) ($lastCostMovement?->unit_cost ?? $product->product_cost ?? 0);
+            $unitCost = (float) ($lastCostMovement?->balance_unit_cost ?? $lastCostMovement?->unit_cost ?? $product->product_cost ?? 0);
             $totalCost = $currentStock * $unitCost;
 
             return (object) [

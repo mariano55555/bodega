@@ -102,9 +102,9 @@ class InventoryTransferPolicy
      */
     public function cancel(User $user, InventoryTransfer $inventoryTransfer): bool
     {
-        // User can cancel if same company and transfer is pending or approved
+        // User can cancel if same company and the transfer has not been cancelled; shipped or received transfers are reversed
         return $this->belongsToSameCompany($user, $inventoryTransfer)
-            && $this->hasStatus($inventoryTransfer, ['pending', 'pendiente', 'approved', 'aprobado']);
+            && $this->hasStatus($inventoryTransfer, ['pending', 'pendiente', 'approved', 'aprobado', 'in_transit', 'en_transito', 'received', 'recibido']);
     }
 
     /**

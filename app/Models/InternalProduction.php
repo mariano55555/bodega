@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\InventoryValuationService;
 use App\Services\KardexService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -288,9 +289,10 @@ class InternalProduction extends Model
             }
 
             $kardexService = app(KardexService::class);
+            $valuationService = app(InventoryValuationService::class);
 
             foreach ($this->details as $detail) {
-                $kardexService->createMovement([
+                $movement = $kardexService->createMovement([
                     'company_id' => $this->company_id,
                     'warehouse_id' => $this->warehouse_id,
                     'product_id' => $detail->product_id,
@@ -311,18 +313,8 @@ class InternalProduction extends Model
                     'created_by' => $userId,
                 ]);
 
-                // Update or create inventory record for stock tracking
-                $inventory = Inventory::firstOrNew([
-                    'product_id' => $detail->product_id,
-                    'warehouse_id' => $this->warehouse_id,
-                ]);
-
-                $inventory->quantity = ($inventory->quantity ?? 0) + $detail->quantity;
-                $inventory->available_quantity = ($inventory->available_quantity ?? 0) + $detail->quantity;
-                $inventory->unit_cost = $detail->unit_price;
-                $inventory->is_active = true;
-                $inventory->active_at = $inventory->active_at ?? now();
-                $inventory->save();
+                // Add stock and recalculate the weighted average cost of the warehouse
+                $valuationService->applyMovement($movement);
             }
 
             $this->status = 'completado';

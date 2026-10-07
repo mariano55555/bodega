@@ -349,7 +349,6 @@ new #[Layout('components.layouts.app')] class extends Component
             'details.*.product_id' => 'required|exists:products,id',
             'details.*.quantity' => 'required|numeric|min:0.0001',
             'details.*.unit_of_measure_id' => 'required|exists:units_of_measure,id',
-            'details.*.unit_price' => 'required|numeric|min:0.00001',
         ];
 
         // Add fuel-specific validation rules
@@ -379,7 +378,6 @@ new #[Layout('components.layouts.app')] class extends Component
             'details.*.product_id' => 'producto',
             'details.*.quantity' => 'cantidad',
             'details.*.unit_of_measure_id' => 'unidad de medida',
-            'details.*.unit_price' => 'precio unitario',
             'vehicle_class' => 'clase del vehículo',
             'vehicle_brand' => 'marca del vehículo',
             'vehicle_model' => 'modelo del vehículo',
@@ -437,13 +435,16 @@ new #[Layout('components.layouts.app')] class extends Component
                 'shipping_cost' => 0,
             ]);
 
+            // The unit price is always the current weighted average cost of the warehouse
+            $valuationService = app(\App\Services\InventoryValuationService::class);
+
             foreach ($this->details as $detail) {
                 DispatchDetail::create([
                     'dispatch_id' => $dispatch->id,
                     'product_id' => $detail['product_id'],
                     'quantity' => round((float) $detail['quantity'], 5),
                     'unit_of_measure_id' => $detail['unit_of_measure_id'],
-                    'unit_price' => $detail['unit_price'] ?? 0,
+                    'unit_price' => $valuationService->currentAverageCost((int) $detail['product_id'], (int) $this->warehouse_id),
                     'notes' => $detail['notes'] ?? null,
                 ]);
             }
@@ -564,6 +565,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 'inventory.quantity as stock_quantity',
                 'inventory.reserved_quantity as stock_reserved',
                 'inventory.available_quantity as stock_available',
+                'inventory.unit_cost as inventory_unit_cost',
                 'units_of_measure.abbreviation as unit_abbreviation'
             )
             ->orderBy('products.name')
@@ -591,7 +593,7 @@ new #[Layout('components.layouts.app')] class extends Component
     public function productsData(): array
     {
         return $this->products->keyBy('id')->map(fn($p) => [
-            'cost' => (float) ($p->cost ?? 0),
+            'cost' => (float) ($p->inventory_unit_cost ?? 0),
             'unit' => $p->unit_abbreviation ?? '',
             'unit_id' => $p->unit_of_measure_id,
             'stock' => (float) ($p->stock_available ?? 0),
@@ -1002,21 +1004,14 @@ new #[Layout('components.layouts.app')] class extends Component
                                 </div>
                             </flux:table.cell>
 
-                            <!-- Unit Price -->
-                            <flux:table.cell>
-                                <div class="flex flex-col gap-1">
-                                    <input
-                                        type="number"
-                                        step="0.00001"
-                                        min="0"
-                                        x-model.number="unitPrice"
-                                        @input="emitTotal()"
-                                        @change="updateUnitPrice()"
-                                        placeholder="0.00000"
-                                        class="block w-full text-right rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
-                                    />
-                                    <flux:error name="details.{{ $index }}.unit_price" />
-                                </div>
+                            <!-- Unit Price (weighted average cost of the warehouse, read-only) -->
+                            <flux:table.cell class="text-right tabular-nums">
+                                <template x-if="productId">
+                                    <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300" title="Costo promedio ponderado de la bodega">$<span x-text="(parseFloat(unitPrice) || 0).toFixed(5)"></span></span>
+                                </template>
+                                <template x-if="!productId">
+                                    <span class="text-zinc-400 text-sm">-</span>
+                                </template>
                             </flux:table.cell>
 
                             <!-- Total (Calculated with Alpine - instant) -->

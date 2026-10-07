@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Services\InventoryValuationService;
 use App\Services\KardexService;
+use Database\Factories\InventoryAdjustmentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,7 +15,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 
 class InventoryAdjustment extends Model
 {
-    /** @use HasFactory<\Database\Factories\InventoryAdjustmentFactory> */
+    /** @use HasFactory<InventoryAdjustmentFactory> */
     use HasFactory, LogsActivity, SoftDeletes;
 
     protected $fillable = [
@@ -334,6 +336,14 @@ class InventoryAdjustment extends Model
             $isInbound = $this->quantity >= 0;
             $absoluteQuantity = abs($this->quantity);
 
+            $valuationService = app(InventoryValuationService::class);
+
+            // Outbound adjustments always leave at the current weighted average cost
+            if (! $isInbound) {
+                $this->unit_cost = $valuationService->currentAverageCost($this->product_id, $this->warehouse_id);
+                $this->total_value = $absoluteQuantity * $this->unit_cost;
+            }
+
             // Create inventory movement with automatic balance recalculation
             $kardexService = app(KardexService::class);
             $movement = $kardexService->createMovement([
@@ -356,24 +366,8 @@ class InventoryAdjustment extends Model
                 'created_by' => $userId,
             ]);
 
-            // Update inventory record
-            $inventory = Inventory::firstOrNew([
-                'product_id' => $this->product_id,
-                'warehouse_id' => $this->warehouse_id,
-            ]);
-
-            if ($isInbound) {
-                $inventory->quantity = ($inventory->quantity ?? 0) + $absoluteQuantity;
-                $inventory->available_quantity = ($inventory->available_quantity ?? 0) + $absoluteQuantity;
-            } else {
-                $inventory->quantity = ($inventory->quantity ?? 0) - $absoluteQuantity;
-                $inventory->available_quantity = ($inventory->available_quantity ?? 0) - $absoluteQuantity;
-            }
-
-            $inventory->unit_cost = $this->unit_cost ?? $inventory->unit_cost;
-            $inventory->is_active = true;
-            $inventory->active_at = $inventory->active_at ?? now();
-            $inventory->save();
+            // Update stock and (for inbound adjustments) the weighted average cost
+            $valuationService->applyMovement($movement);
 
             // Update adjustment with processing information
             $this->status = 'procesado';

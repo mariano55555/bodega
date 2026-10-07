@@ -79,9 +79,9 @@ class DispatchPolicy
      */
     public function cancel(User $user, Dispatch $dispatch): bool
     {
-        // User can cancel if same company and dispatch is not yet dispatched or delivered
+        // User can cancel if same company and the dispatch is not already cancelled; dispatched or delivered ones are reversed
         return $user->company_id === $dispatch->company_id
-            && ! in_array($dispatch->status, ['despachado', 'entregado', 'cancelado']);
+            && $dispatch->status !== 'cancelado';
     }
 
     /**
