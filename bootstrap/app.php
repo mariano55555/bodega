@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Middleware\EnsureUserHasPermission;
+use App\Http\Middleware\EnsureUserHasRole;
+use App\Http\Middleware\EnsureWarehouseAccess;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -16,10 +19,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ])
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
-            'warehouse.access' => \App\Http\Middleware\EnsureWarehouseAccess::class,
-            'role' => \App\Http\Middleware\EnsureUserHasRole::class,
-            'permission' => \App\Http\Middleware\EnsureUserHasPermission::class,
+            'warehouse.access' => EnsureWarehouseAccess::class,
+            'role' => EnsureUserHasRole::class,
+            'permission' => EnsureUserHasPermission::class,
         ]);
+
+        // Trust the Cloudflare tunnel so HTTPS, host and client IP come from the forwarded headers
+        $middleware->trustProxies(at: '*');
 
         // Rate limiting for authentication routes
         $middleware->throttleApi();
