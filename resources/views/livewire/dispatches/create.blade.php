@@ -327,6 +327,17 @@ new #[Layout('components.layouts.app')] class extends Component
             ->exists();
     }
 
+    /**
+     * Whether the selected company currently allows typing the unit cost.
+     */
+    #[\Livewire\Attributes\Computed]
+    public function manualUnitCostAllowed(): bool
+    {
+        $companyId = $this->isSuperAdmin() ? $this->company_id : auth()->user()->company_id;
+
+        return \App\Models\Company::manualUnitCostAllowedFor($companyId ? (int) $companyId : null);
+    }
+
     public function save(): void
     {
         // Filter out empty rows (rows without product_id)
@@ -350,6 +361,10 @@ new #[Layout('components.layouts.app')] class extends Component
             'details.*.quantity' => 'required|numeric|min:0.0001',
             'details.*.unit_of_measure_id' => 'required|exists:units_of_measure,id',
         ];
+
+        if ($this->manualUnitCostAllowed) {
+            $rules['details.*.unit_price'] = 'required|numeric|min:0|max:999999.99999';
+        }
 
         // Add fuel-specific validation rules
         if ($this->dispatch_type === 'combustible') {
@@ -378,6 +393,7 @@ new #[Layout('components.layouts.app')] class extends Component
             'details.*.product_id' => 'producto',
             'details.*.quantity' => 'cantidad',
             'details.*.unit_of_measure_id' => 'unidad de medida',
+            'details.*.unit_price' => 'costo unitario',
             'vehicle_class' => 'clase del vehículo',
             'vehicle_brand' => 'marca del vehículo',
             'vehicle_model' => 'modelo del vehículo',
@@ -444,7 +460,9 @@ new #[Layout('components.layouts.app')] class extends Component
                     'product_id' => $detail['product_id'],
                     'quantity' => round((float) $detail['quantity'], 5),
                     'unit_of_measure_id' => $detail['unit_of_measure_id'],
-                    'unit_price' => $valuationService->currentAverageCost((int) $detail['product_id'], (int) $this->warehouse_id),
+                    'unit_price' => $this->manualUnitCostAllowed
+                        ? round((float) ($detail['unit_price'] ?? 0), 5)
+                        : $valuationService->currentAverageCost((int) $detail['product_id'], (int) $this->warehouse_id),
                     'notes' => $detail['notes'] ?? null,
                 ]);
             }
@@ -1004,7 +1022,30 @@ new #[Layout('components.layouts.app')] class extends Component
                                 </div>
                             </flux:table.cell>
 
-                            <!-- Unit Price (weighted average cost of the warehouse, read-only) -->
+                            <!-- Unit Price: weighted average (read-only) unless the company allows the manual cost -->
+                            @if ($this->manualUnitCostAllowed && ! ($detail['locked'] ?? false))
+                            <flux:table.cell>
+                                <div class="flex flex-col gap-1">
+                                    <input
+                                        type="number"
+                                        step="0.00001"
+                                        min="0"
+                                        x-model.number="unitPrice"
+                                        @input="emitTotal()"
+                                        @change="updateUnitPrice()"
+                                        :disabled="!productId"
+                                        placeholder="0.00000"
+                                        class="block w-full text-right rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:opacity-50 dark:border-amber-700 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:ring-amber-800"
+                                    />
+                                    <template x-if="productId && productInfo && Math.abs((parseFloat(unitPrice) || 0) - (parseFloat(productInfo.cost) || 0)) > 0.000005">
+                                        <button type="button" x-on:click="resetUnitPrice()" class="text-left text-xs text-amber-600 hover:underline dark:text-amber-400" title="Restablecer al costo promedio">
+                                            Promedio: $<span x-text="(parseFloat(productInfo.cost) || 0).toFixed(5)"></span>
+                                        </button>
+                                    </template>
+                                    <flux:error name="details.{{ $index }}.unit_price" />
+                                </div>
+                            </flux:table.cell>
+                            @else
                             <flux:table.cell class="text-right tabular-nums">
                                 <template x-if="productId">
                                     <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300" title="Costo promedio ponderado de la bodega">$<span x-text="(parseFloat(unitPrice) || 0).toFixed(5)"></span></span>
@@ -1013,6 +1054,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                     <span class="text-zinc-400 text-sm">-</span>
                                 </template>
                             </flux:table.cell>
+                            @endif
 
                             <!-- Total (Calculated with Alpine - instant) -->
                             <flux:table.cell class="text-right font-semibold">

@@ -280,11 +280,16 @@ class InventoryTransfer extends Model
 
             $kardexService = app(KardexService::class);
             $valuationService = app(InventoryValuationService::class);
+            $manualCostAllowed = (bool) $this->fromWarehouse->company?->allowsManualUnitCost();
 
             // Create outbound inventory movements from transfer details
             foreach ($this->details as $detail) {
-                // Outbound cost is always the current weighted average of the origin warehouse
-                $unitCost = $valuationService->currentAverageCost((int) $detail->product_id, (int) $this->from_warehouse_id);
+                $averageCost = $valuationService->currentAverageCost((int) $detail->product_id, (int) $this->from_warehouse_id);
+
+                // The weighted average is the rule; the typed cost is honoured only while the company allows it
+                $unitCost = ($manualCostAllowed && $detail->unit_cost !== null) ? (float) $detail->unit_cost : $averageCost;
+                $isManualCost = abs($unitCost - $averageCost) > 0.000005;
+
                 $detail->unit_cost = $unitCost;
                 $detail->save();
 
@@ -302,6 +307,7 @@ class InventoryTransfer extends Model
                     'quantity_out' => $detail->quantity,
                     'unit_cost' => $unitCost,
                     'total_cost' => $unitCost * $detail->quantity,
+                    'metadata' => $isManualCost ? ['manual_unit_cost' => true, 'average_unit_cost' => $averageCost, 'manual_cost_user_id' => $userId] : null,
                     'notes' => $detail->notes ?? "Envío de traslado {$this->transfer_number}",
                     'is_active' => true,
                     'active_at' => now(),

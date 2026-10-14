@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
+use Database\Factories\CompanyFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,7 +13,7 @@ use Illuminate\Support\Str;
 
 class Company extends Model
 {
-    /** @use HasFactory<\Database\Factories\CompanyFactory> */
+    /** @use HasFactory<CompanyFactory> */
     use HasFactory, SoftDeletes;
 
     /**
@@ -187,6 +189,51 @@ class Company extends Model
     }
 
     /**
+     * Whether users may type the unit cost by hand in transfers and dispatches.
+     * Enabled per company by a super admin, optionally until a given date (inclusive).
+     */
+    public function allowsManualUnitCost(): bool
+    {
+        if (! ($this->settings['manual_unit_cost_enabled'] ?? false)) {
+            return false;
+        }
+
+        $until = $this->manualUnitCostUntil();
+
+        return $until === null || ! now()->startOfDay()->greaterThan($until);
+    }
+
+    /**
+     * Last day (inclusive) the manual unit cost stays enabled, or null when it has no end date.
+     */
+    public function manualUnitCostUntil(): ?CarbonImmutable
+    {
+        $value = $this->settings['manual_unit_cost_until'] ?? null;
+
+        if (empty($value)) {
+            return null;
+        }
+
+        try {
+            return CarbonImmutable::parse($value)->startOfDay();
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    /**
+     * Whether the manual unit cost of the given company is enabled right now.
+     */
+    public static function manualUnitCostAllowedFor(?int $companyId): bool
+    {
+        if (! $companyId) {
+            return false;
+        }
+
+        return (bool) static::query()->find($companyId)?->allowsManualUnitCost();
+    }
+
+    /**
      * Get the configured minimum allowed age (in years back) for document dates.
      * Returns null when the company has no restriction configured.
      */
@@ -205,7 +252,7 @@ class Company extends Model
      * Get the earliest allowed document date based on the company configuration.
      * Returns null when no restriction is configured.
      */
-    public function minDocumentDate(): ?\Carbon\CarbonImmutable
+    public function minDocumentDate(): ?CarbonImmutable
     {
         $yearsBack = $this->documentDateMinYearsBack();
 
@@ -213,7 +260,7 @@ class Company extends Model
             return null;
         }
 
-        return \Carbon\CarbonImmutable::now()->startOfYear()->subYears($yearsBack);
+        return CarbonImmutable::now()->startOfYear()->subYears($yearsBack);
     }
 
     /**

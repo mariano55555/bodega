@@ -108,16 +108,20 @@ new #[Layout('components.layouts.app')] class extends Component
         $valuationService = app(\App\Services\InventoryValuationService::class);
 
         // Load existing details - cast IDs to strings for Livewire select binding
+        $manualCostAllowed = $dispatch->company?->allowsManualUnitCost() ?? false;
+
         foreach ($dispatch->details as $detail) {
             $this->details[] = [
                 'id' => $detail->id,
                 'product_id' => (string) $detail->product_id,
                 'quantity' => $detail->quantity,
                 'unit_of_measure_id' => (string) $detail->unit_of_measure_id,
-                'unit_price' => $keepHistoricalCost
+                'unit_price' => ($keepHistoricalCost || $manualCostAllowed)
                     ? $detail->unit_price
                     : $valuationService->currentAverageCost((int) $detail->product_id, (int) $dispatch->warehouse_id),
                 'notes' => $detail->notes,
+                // Lines that already left the warehouse keep the cost of their kardex movement
+                'locked' => $keepHistoricalCost,
             ];
         }
 
@@ -224,6 +228,15 @@ new #[Layout('components.layouts.app')] class extends Component
             ->exists();
     }
 
+    /**
+     * Whether the company of this dispatch currently allows typing the unit cost.
+     */
+    #[\Livewire\Attributes\Computed]
+    public function manualUnitCostAllowed(): bool
+    {
+        return \App\Models\Company::manualUnitCostAllowedFor((int) $this->dispatch->company_id);
+    }
+
     public function save(): void
     {
         // Filter out empty rows (rows without product_id)
@@ -248,6 +261,10 @@ new #[Layout('components.layouts.app')] class extends Component
             'details.*.quantity' => 'required|numeric|min:0.0001',
             'details.*.unit_of_measure_id' => 'required|exists:units_of_measure,id',
         ];
+
+        if ($this->manualUnitCostAllowed) {
+            $rules['details.*.unit_price'] = 'required|numeric|min:0|max:999999.99999';
+        }
 
         // Add fuel-specific validation rules
         if ($this->dispatch_type === 'combustible') {
@@ -353,9 +370,11 @@ new #[Layout('components.layouts.app')] class extends Component
                             'product_id' => $detail['product_id'],
                             'quantity' => $detail['quantity'],
                             'unit_of_measure_id' => $detail['unit_of_measure_id'],
-                            'unit_price' => $isDelivered
-                                ? $existingDetail->unit_price
-                                : $valuationService->currentAverageCost((int) $detail['product_id'], (int) $this->warehouse_id),
+                            'unit_price' => match (true) {
+                                $isDelivered => $existingDetail->unit_price,
+                                $this->manualUnitCostAllowed => round((float) ($detail['unit_price'] ?? 0), 5),
+                                default => $valuationService->currentAverageCost((int) $detail['product_id'], (int) $this->warehouse_id),
+                            },
                             'notes' => $detail['notes'] ?? null,
                         ]);
                         $existingDetail->save();
@@ -367,7 +386,9 @@ new #[Layout('components.layouts.app')] class extends Component
                         'product_id' => $detail['product_id'],
                         'quantity' => round((float) $detail['quantity'], 5),
                         'unit_of_measure_id' => $detail['unit_of_measure_id'],
-                        'unit_price' => $valuationService->currentAverageCost((int) $detail['product_id'], (int) $this->warehouse_id),
+                        'unit_price' => $this->manualUnitCostAllowed
+                            ? round((float) ($detail['unit_price'] ?? 0), 5)
+                            : $valuationService->currentAverageCost((int) $detail['product_id'], (int) $this->warehouse_id),
                         'notes' => $detail['notes'] ?? null,
                     ]);
                     $newDetails[] = $newDetail;
@@ -442,9 +463,13 @@ new #[Layout('components.layouts.app')] class extends Component
             default => 'sale',
         };
 
+        $manualCostAllowed = $this->manualUnitCostAllowed;
+
         foreach ($newDetails as $detail) {
-            // Outbound cost is always the current weighted average of the warehouse
-            $unitCost = $valuationService->currentAverageCost((int) $detail->product_id, (int) $dispatch->warehouse_id);
+            // The weighted average is the rule; the typed price is honoured only while the company allows it
+            $averageCost = $valuationService->currentAverageCost((int) $detail->product_id, (int) $dispatch->warehouse_id);
+            $unitCost = $manualCostAllowed ? (float) $detail->unit_price : $averageCost;
+            $isManualCost = abs($unitCost - $averageCost) > 0.000005;
 
             // Marcar como despachado y entregado
             $detail->quantity_dispatched = $detail->quantity;
@@ -473,6 +498,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 'quantity_out' => $detail->quantity,
                 'unit_cost' => $unitCost,
                 'total_cost' => $detail->quantity * $unitCost,
+                'metadata' => $isManualCost ? ['manual_unit_cost' => true, 'average_unit_cost' => $averageCost, 'manual_cost_user_id' => $userId] : null,
                 'document_type' => $dispatch->document_type,
                 'document_number' => $dispatch->document_number,
                 'notes' => "Despacho {$dispatch->dispatch_number} - Producto agregado post-entrega",
@@ -838,7 +864,30 @@ new #[Layout('components.layouts.app')] class extends Component
                                 </div>
                             </flux:table.cell>
 
-                            <!-- Unit Price (weighted average cost of the warehouse, read-only) -->
+                            <!-- Unit Price: weighted average (read-only) unless the company allows the manual cost -->
+                            @if ($this->manualUnitCostAllowed && ! ($detail['locked'] ?? false))
+                            <flux:table.cell>
+                                <div class="flex flex-col gap-1">
+                                    <input
+                                        type="number"
+                                        step="0.00001"
+                                        min="0"
+                                        x-model.number="unitPrice"
+                                        @input="emitTotal()"
+                                        @change="updateUnitPrice()"
+                                        :disabled="!productId"
+                                        placeholder="0.00000"
+                                        class="block w-full text-right rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:opacity-50 dark:border-amber-700 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:ring-amber-800"
+                                    />
+                                    <template x-if="productId && productInfo && Math.abs((parseFloat(unitPrice) || 0) - (parseFloat(productInfo.cost) || 0)) > 0.000005">
+                                        <button type="button" x-on:click="resetUnitPrice()" class="text-left text-xs text-amber-600 hover:underline dark:text-amber-400" title="Restablecer al costo promedio">
+                                            Promedio: $<span x-text="(parseFloat(productInfo.cost) || 0).toFixed(5)"></span>
+                                        </button>
+                                    </template>
+                                    <flux:error name="details.{{ $index }}.unit_price" />
+                                </div>
+                            </flux:table.cell>
+                            @else
                             <flux:table.cell class="text-right tabular-nums">
                                 <template x-if="productId">
                                     <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300" title="Costo promedio ponderado de la bodega">$<span x-text="(parseFloat(unitPrice) || 0).toFixed(5)"></span></span>
@@ -847,6 +896,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                     <span class="text-zinc-400 text-sm">-</span>
                                 </template>
                             </flux:table.cell>
+                            @endif
 
                             <!-- Total (Calculated with Alpine - instant) -->
                             <flux:table.cell class="text-right font-semibold">

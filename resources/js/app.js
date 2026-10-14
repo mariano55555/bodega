@@ -84,6 +84,17 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Only used when the company allows the manual unit cost
+        updateUnitPrice() {
+            this.emitTotal();
+            this.syncToLivewire();
+        },
+
+        resetUnitPrice() {
+            this.unitPrice = parseFloat(this.productInfo?.cost) || 0;
+            this.updateUnitPrice();
+        },
+
         clearRow() {
             // Instant client-side clear - no server request
             this.productId = '';
@@ -287,11 +298,12 @@ document.addEventListener('alpine:init', () => {
         productId: config.productId,
         quantity: config.quantity,
         unitCost: config.unitCost,
+        manualCost: config.manualCost || false,
         notes: config.notes,
 
         init() {
-            // The cost is read-only: always show the current average of the origin warehouse
-            if (this.productId && this.productInfo) {
+            // Read-only cost: always show the current average of the origin warehouse
+            if (!this.manualCost && this.productId && this.productInfo) {
                 this.unitCost = this.inventoryUnitCost;
             }
             this.emitTotal();
@@ -350,6 +362,17 @@ document.addEventListener('alpine:init', () => {
             this.capQuantityToStock();
             this.emitTotal();
             this.syncToLivewire();
+        },
+
+        // Only used when the company allows the manual unit cost
+        updateUnitCost() {
+            this.emitTotal();
+            this.syncToLivewire();
+        },
+
+        resetUnitCost() {
+            this.unitCost = this.inventoryUnitCost;
+            this.updateUnitCost();
         },
 
         capQuantityToStock() {

@@ -145,6 +145,15 @@ Bodega planteó cambiar a PEPS. La contadora de la ENA confirmó que la empresa 
 - Los ajustes negativos salen al promedio. Los ajustes positivos entran al costo indicado y promedian.
 - Las pantallas de traslados y despachos requieren `npm run build` porque cambió el JavaScript de las filas.
 
+### Excepción temporal: costo unitario manual (octubre 2026)
+
+Bodega tenía despachos y traslados atrasados registrados en papel con el costo anterior al promedio. Contabilidad pidió poder escribir el costo a mano solo durante octubre para cuadrar el corte, y rechazó recalcular el historial.
+
+- En Configuración General, el super administrador habilita el costo manual por empresa con una fecha de vencimiento inclusiva. Si no se indica fecha, vence el último día del mes.
+- Mientras está habilitado, traslados y despachos muestran el campo editable, sugiriendo el costo promedio. Al vencer vuelve a ser solo lectura, y el servidor ignora cualquier costo enviado.
+- Cada movimiento con costo distinto al promedio guarda en `metadata` la marca `manual_unit_cost`, el promedio vigente y el usuario.
+- Una salida con costo manual no cambia el promedio de la bodega origen. En traslados, la bodega destino promedia con el costo escrito.
+
 ## 9. Recomendación original
 
 Usar la opción 1 (costo manual, ya implementada) mientras contabilidad confirma el método declarado. Si confirman **promedio**, implementar la opción 2. Si confirman **PEPS**, planificar la opción 3 como proyecto aparte con migración de saldos. Si confirman **última compra**, no hace falta ningún cambio adicional.

@@ -403,11 +403,16 @@ class Dispatch extends Model
             $kardexService = app(KardexService::class);
 
             $valuationService = app(InventoryValuationService::class);
+            $manualCostAllowed = (bool) $this->company?->allowsManualUnitCost();
 
             // Create inventory movements for each dispatch detail
             foreach ($this->details as $detail) {
-                // Outbound cost is always the current weighted average of the warehouse
-                $unitCost = $valuationService->currentAverageCost((int) $detail->product_id, (int) $this->warehouse_id);
+                $averageCost = $valuationService->currentAverageCost((int) $detail->product_id, (int) $this->warehouse_id);
+
+                // The weighted average is the rule; the typed price is honoured only while the company allows it
+                $unitCost = ($manualCostAllowed && $detail->unit_price !== null) ? (float) $detail->unit_price : $averageCost;
+                $isManualCost = abs($unitCost - $averageCost) > 0.000005;
+
                 $detail->unit_price = $unitCost;
                 $detail->save();
 
@@ -425,6 +430,7 @@ class Dispatch extends Model
                     'quantity_out' => $detail->quantity_dispatched,
                     'unit_cost' => $unitCost,
                     'total_cost' => $detail->quantity_dispatched * $unitCost,
+                    'metadata' => $isManualCost ? ['manual_unit_cost' => true, 'average_unit_cost' => $averageCost, 'manual_cost_user_id' => $userId] : null,
                     'document_type' => $this->document_type,
                     'document_number' => $this->document_number,
                     'notes' => $detail->notes ?? "Despacho {$this->dispatch_number} - {$this->dispatch_type}",

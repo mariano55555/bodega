@@ -15,6 +15,10 @@ new #[Layout('components.layouts.app')] class extends Component
 
     public array $company_document_date_years_back = [];
 
+    public array $company_manual_unit_cost = [];
+
+    public array $company_manual_unit_cost_until = [];
+
     public bool $isSuperAdmin = false;
 
     /**
@@ -32,6 +36,8 @@ new #[Layout('components.layouts.app')] class extends Component
                 $this->company_settings[$company->id] = $company->settings['auto_generate_sku'] ?? false;
                 $this->company_employee_code_settings[$company->id] = $company->settings['auto_generate_employee_code'] ?? false;
                 $this->company_document_date_years_back[$company->id] = $company->settings['document_date_min_years_back'] ?? '';
+                $this->company_manual_unit_cost[$company->id] = (bool) ($company->settings['manual_unit_cost_enabled'] ?? false);
+                $this->company_manual_unit_cost_until[$company->id] = $company->settings['manual_unit_cost_until'] ?? '';
             }
         } else {
             // Si es company admin, solo puede ver y modificar su empresa
@@ -212,6 +218,91 @@ new #[Layout('components.layouts.app')] class extends Component
             text: $normalized === null
                 ? 'Restricción de fecha de documento desactivada para '.$company->name
                 : 'Restricción de fecha de documento actualizada para '.$company->name,
+        );
+    }
+
+    /**
+     * Enable or disable the manual unit cost in transfers and dispatches for a company (super admin only).
+     * Enabling without an end date defaults to the last day of the current month.
+     */
+    public function updateManualUnitCost(int $companyId, bool $value): void
+    {
+        abort_unless(auth()->user()->isSuperAdmin(), 403, 'Solo el super administrador puede cambiar esta configuración.');
+
+        $company = Company::find($companyId);
+
+        if (! $company) {
+            \Flux::toast(variant: 'danger', heading: 'Error', text: 'Empresa no encontrada.');
+
+            return;
+        }
+
+        $settings = $company->settings ?? [];
+        $settings['manual_unit_cost_enabled'] = $value;
+
+        if ($value && empty($settings['manual_unit_cost_until'])) {
+            $settings['manual_unit_cost_until'] = now()->endOfMonth()->toDateString();
+        }
+
+        $company->update(['settings' => $settings]);
+
+        $this->company_manual_unit_cost[$companyId] = $value;
+        $this->company_manual_unit_cost_until[$companyId] = $settings['manual_unit_cost_until'] ?? '';
+
+        \Flux::toast(
+            variant: 'success',
+            heading: '¡Éxito!',
+            text: $value
+                ? 'Costo unitario manual habilitado para '.$company->name
+                : 'Costo unitario manual deshabilitado para '.$company->name,
+        );
+    }
+
+    /**
+     * Set the last day (inclusive) the manual unit cost stays enabled. An empty value means no end date.
+     */
+    public function updateManualUnitCostUntil(int $companyId, mixed $value): void
+    {
+        abort_unless(auth()->user()->isSuperAdmin(), 403, 'Solo el super administrador puede cambiar esta configuración.');
+
+        $company = Company::find($companyId);
+
+        if (! $company) {
+            \Flux::toast(variant: 'danger', heading: 'Error', text: 'Empresa no encontrada.');
+
+            return;
+        }
+
+        $date = null;
+
+        if (! empty($value)) {
+            try {
+                $date = \Carbon\CarbonImmutable::parse($value)->toDateString();
+            } catch (\Exception) {
+                $this->addError("company_manual_unit_cost_until.{$companyId}", 'La fecha no es válida.');
+
+                return;
+            }
+        }
+
+        $settings = $company->settings ?? [];
+
+        if ($date === null) {
+            unset($settings['manual_unit_cost_until']);
+        } else {
+            $settings['manual_unit_cost_until'] = $date;
+        }
+
+        $company->update(['settings' => $settings]);
+
+        $this->company_manual_unit_cost_until[$companyId] = $date ?? '';
+
+        \Flux::toast(
+            variant: 'success',
+            heading: '¡Éxito!',
+            text: $date === null
+                ? 'El costo unitario manual de '.$company->name.' ya no tiene fecha de vencimiento'
+                : 'Costo unitario manual de '.$company->name.' habilitado hasta el '.\Carbon\CarbonImmutable::parse($date)->format('d/m/Y'),
         );
     }
 
@@ -526,6 +617,75 @@ new #[Layout('components.layouts.app')] class extends Component
             </flux:card>
 
             @if($isSuperAdmin)
+            <!-- Manual Unit Cost Card -->
+            <flux:card>
+                <flux:heading size="lg" class="mb-6">Costo Unitario Manual en Traslados y Despachos</flux:heading>
+
+                <div class="space-y-4">
+                    <flux:text class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Por defecto el costo unitario de traslados y despachos es el costo promedio ponderado de la bodega y no se puede editar.
+                        Al habilitarlo, los usuarios de la empresa podrán escribir el costo a mano hasta la fecha indicada (inclusive).
+                        Si se habilita sin fecha, vence el último día del mes actual. Deje la fecha vacía para que no venza.
+                    </flux:text>
+
+                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-800">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Empresa</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Estado</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Habilitado hasta</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                                @foreach($this->companies as $company)
+                                @php
+                                    $manualEnabled = $company_manual_unit_cost[$company->id] ?? false;
+                                    $manualUntil = $company_manual_unit_cost_until[$company->id] ?? '';
+                                    $manualExpired = $manualEnabled && $manualUntil !== '' && now()->startOfDay()->greaterThan(\Carbon\Carbon::parse($manualUntil));
+                                @endphp
+                                <tr wire:key="manual-cost-{{ $company->id }}">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $company->name }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        @if($manualExpired)
+                                            <flux:badge color="amber" size="sm">Vencido</flux:badge>
+                                        @elseif($manualEnabled)
+                                            <flux:badge color="green" size="sm">Habilitado</flux:badge>
+                                        @else
+                                            <flux:badge color="zinc" size="sm">Deshabilitado</flux:badge>
+                                        @endif
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <flux:input
+                                            type="date"
+                                            class="max-w-44"
+                                            wire:model="company_manual_unit_cost_until.{{ $company->id }}"
+                                            wire:change="updateManualUnitCostUntil({{ $company->id }}, $event.target.value)" />
+                                        <flux:error name="company_manual_unit_cost_until.{{ $company->id }}" />
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                                        <flux:switch
+                                            wire:model.live="company_manual_unit_cost.{{ $company->id }}"
+                                            wire:change="updateManualUnitCost({{ $company->id }}, $event.target.checked)" />
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 mt-4">
+                        <flux:text class="text-sm text-amber-700 dark:text-amber-300">
+                            <strong>Importante:</strong> una salida con costo manual no cambia el costo promedio de la bodega origen, por lo que el valor del Kardex puede diferir del valor del inventario.
+                            En traslados, la bodega destino promedia con el costo escrito. Los movimientos con costo distinto al promedio quedan marcados como costo manual.
+                        </flux:text>
+                    </div>
+                </div>
+            </flux:card>
+
             <!-- Maintenance Card -->
             <flux:card>
                 <flux:heading size="lg" class="mb-6">Mantenimiento del Sistema</flux:heading>

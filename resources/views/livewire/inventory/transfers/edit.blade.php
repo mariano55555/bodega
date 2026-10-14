@@ -192,6 +192,24 @@ new #[Layout('components.layouts.app')] class extends Component {
             ->exists();
     }
 
+    /**
+     * Whether the company of this transfer currently allows typing the unit cost.
+     */
+    #[Computed]
+    public function manualUnitCostAllowed(): bool
+    {
+        return \App\Models\Company::manualUnitCostAllowedFor($this->company_id ? (int) $this->company_id : null);
+    }
+
+    /**
+     * End date of the manual unit cost permission, formatted for display.
+     */
+    #[Computed]
+    public function manualUnitCostUntil(): ?string
+    {
+        return \App\Models\Company::query()->find($this->company_id)?->manualUnitCostUntil()?->format('d/m/Y');
+    }
+
     public function save(): void
     {
         // Filter out empty rows before validation
@@ -207,7 +225,20 @@ new #[Layout('components.layouts.app')] class extends Component {
         $formRequest = new UpdateInventoryTransferRequest();
         // Outside an HTTP route the request cannot resolve {transfer} nor the company, so pass them explicitly
         $formRequest->merge(['transfer' => $this->transfer->id, 'company_id' => $this->company_id]);
-        $validated = $this->validate($formRequest->rules(), $formRequest->messages());
+        $rules = $formRequest->rules();
+        $messages = $formRequest->messages();
+
+        if ($this->manualUnitCostAllowed) {
+            $rules['products.*.unit_cost'] = ['required', 'numeric', 'min:0', 'max:999999.99999'];
+            $messages += [
+                'products.*.unit_cost.required' => 'El costo unitario es obligatorio.',
+                'products.*.unit_cost.numeric' => 'El costo unitario debe ser un número.',
+                'products.*.unit_cost.min' => 'El costo unitario no puede ser negativo.',
+                'products.*.unit_cost.max' => 'El costo unitario no puede exceder 999,999.99999.',
+            ];
+        }
+
+        $validated = $this->validate($rules, $messages);
 
         \DB::beginTransaction();
         try {
@@ -270,7 +301,9 @@ new #[Layout('components.layouts.app')] class extends Component {
                     'transfer_id' => $this->transfer->id,
                     'product_id' => $product['product_id'],
                     'quantity' => round((float) $product['quantity'], 5),
-                    'unit_cost' => round((float) ($inventories->get($product['product_id'])?->unit_cost ?? 0), 5),
+                    'unit_cost' => $this->manualUnitCostAllowed
+                        ? round((float) ($product['unit_cost'] ?? 0), 5)
+                        : round((float) ($inventories->get($product['product_id'])?->unit_cost ?? 0), 5),
                     'notes' => $product['notes'] ?? null,
                 ]);
             }
@@ -436,6 +469,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                             productId: '{{ $product['product_id'] ?? '' }}',
                             quantity: {{ $product['quantity'] ?? 1 }},
                             unitCost: {{ (float) ($product['unit_cost'] ?? 0) }},
+                            manualCost: {{ $this->manualUnitCostAllowed ? 'true' : 'false' }},
                             notes: `{{ addslashes($product['notes'] ?? '') }}`
                         })" wire:key="product-group-{{ $index }}">
                         <flux:table.row x-bind:class="productId ? '' : 'opacity-60'">
@@ -511,7 +545,30 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 </template>
                             </flux:table.cell>
 
-                            <!-- Unit Cost (weighted average of the origin warehouse, read-only) -->
+                            <!-- Unit Cost: weighted average (read-only) unless the company allows the manual cost -->
+                            @if ($this->manualUnitCostAllowed)
+                            <flux:table.cell>
+                                <div class="flex flex-col gap-1">
+                                    <input
+                                        type="number"
+                                        step="0.00001"
+                                        min="0"
+                                        x-model.number="unitCost"
+                                        @input="emitTotal()"
+                                        @change="updateUnitCost()"
+                                        :disabled="!productId"
+                                        placeholder="0.00000"
+                                        class="block w-full text-right rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm shadow-sm transition placeholder:text-zinc-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:opacity-50 dark:border-amber-700 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:ring-amber-800"
+                                    />
+                                    <template x-if="productId && Math.abs((parseFloat(unitCost) || 0) - inventoryUnitCost) > 0.000005">
+                                        <button type="button" x-on:click="resetUnitCost()" class="text-left text-xs text-amber-600 hover:underline dark:text-amber-400" title="Restablecer al costo promedio">
+                                            Promedio: $<span x-text="inventoryUnitCost.toFixed(5)"></span>
+                                        </button>
+                                    </template>
+                                    <flux:error name="products.{{ $index }}.unit_cost" />
+                                </div>
+                            </flux:table.cell>
+                            @else
                             <flux:table.cell class="text-right tabular-nums">
                                 <template x-if="productId">
                                     <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300" title="Costo promedio ponderado de la bodega origen">$<span x-text="(parseFloat(unitCost) || 0).toFixed(5)"></span></span>
@@ -520,6 +577,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                                     <span class="text-zinc-400 text-sm">-</span>
                                 </template>
                             </flux:table.cell>
+                            @endif
 
                             <!-- Total (quantity * unit_cost) -->
                             <flux:table.cell class="text-right tabular-nums">
