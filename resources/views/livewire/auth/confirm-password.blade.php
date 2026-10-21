@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -17,15 +18,28 @@ new #[Layout('components.layouts.auth')] class extends Component {
             'password' => ['required', 'string'],
         ]);
 
+        $key = 'confirm-password|'.Auth::id();
+
+        if (RateLimiter::tooManyAttempts($key, (int) config('auth.limits.login_attempts_per_email', 5))) {
+            $seconds = RateLimiter::availableIn($key);
+
+            throw ValidationException::withMessages([
+                'password' => __('auth.throttle', ['seconds' => $seconds, 'minutes' => ceil($seconds / 60)]),
+            ]);
+        }
+
         if (! Auth::guard('web')->validate([
             'email' => Auth::user()->email,
             'password' => $this->password,
         ])) {
+            RateLimiter::hit($key, (int) config('auth.limits.login_lockout_seconds', 300));
+
             throw ValidationException::withMessages([
                 'password' => __('auth.password'),
             ]);
         }
 
+        RateLimiter::clear($key);
         session(['auth.password_confirmed_at' => time()]);
 
         $this->redirectIntended(default: route('dashboard', absolute: false), navigate: true);

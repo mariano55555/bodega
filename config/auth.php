@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\User;
+
 return [
 
     /*
@@ -62,7 +64,7 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', App\Models\User::class),
+            'model' => env('AUTH_MODEL', User::class),
         ],
 
         // 'users' => [
@@ -111,5 +113,32 @@ return [
     */
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Public Registration And Brute Force Limits
+    |--------------------------------------------------------------------------
+    |
+    | Users are created by administrators, so public self registration is off
+    | unless explicitly enabled. The limits protect the login, password reset
+    | and password confirmation screens when the app is exposed to internet.
+    |
+    */
+
+    'registration_enabled' => (bool) env('AUTH_REGISTRATION_ENABLED', false),
+
+    'limits' => [
+        // Failed logins for the same email from the same IP before a lockout
+        'login_attempts_per_email' => (int) env('AUTH_LOGIN_ATTEMPTS_PER_EMAIL', 5),
+        'login_lockout_seconds' => (int) env('AUTH_LOGIN_LOCKOUT_SECONDS', 300),
+
+        // Failed logins from one IP for any email (stops password spraying)
+        'login_attempts_per_ip' => (int) env('AUTH_LOGIN_ATTEMPTS_PER_IP', 20),
+        'login_ip_window_seconds' => (int) env('AUTH_LOGIN_IP_WINDOW_SECONDS', 900),
+
+        // Password reset requests from one IP
+        'password_reset_attempts_per_ip' => (int) env('AUTH_PASSWORD_RESET_ATTEMPTS_PER_IP', 5),
+        'password_reset_window_seconds' => (int) env('AUTH_PASSWORD_RESET_WINDOW_SECONDS', 900),
+    ],
 
 ];

@@ -1,16 +1,25 @@
 <?php
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
 
-uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(RefreshDatabase::class);
 
-test('registration screen can be rendered', function () {
-    $response = $this->get(route('register'));
+test('public registration is disabled by default', function () {
+    $this->get('/register')->assertNotFound();
 
-    $response->assertStatus(200);
+    Volt::test('auth.register')->assertNotFound();
 });
 
-test('new users can register', function () {
+test('registration screen can be rendered when registration is enabled', function () {
+    config(['auth.registration_enabled' => true]);
+
+    Volt::test('auth.register')->assertOk();
+});
+
+test('new users can register when registration is enabled', function () {
+    config(['auth.registration_enabled' => true]);
+
     $response = Volt::test('auth.register')
         ->set('name', 'Test User')
         ->set('email', 'test@example.com')

@@ -30,13 +30,15 @@ new #[Layout('components.layouts.auth')] class extends Component {
         $this->ensureIsNotRateLimited();
 
         if (! Auth::attempt(['email' => $this->email, 'password' => $this->password], $this->remember)) {
-            RateLimiter::hit($this->throttleKey());
+            RateLimiter::hit($this->throttleKey(), (int) config('auth.limits.login_lockout_seconds', 300));
+            RateLimiter::hit($this->ipThrottleKey(), (int) config('auth.limits.login_ip_window_seconds', 900));
 
             throw ValidationException::withMessages([
                 'email' => __('auth.failed'),
             ]);
         }
 
+        // Only the email lock is cleared: a valid account must not reset the per IP counter
         RateLimiter::clear($this->throttleKey());
         Session::regenerate();
 
@@ -48,13 +50,19 @@ new #[Layout('components.layouts.auth')] class extends Component {
      */
     protected function ensureIsNotRateLimited(): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
+        $emailLocked = RateLimiter::tooManyAttempts($this->throttleKey(), (int) config('auth.limits.login_attempts_per_email', 5));
+        $ipLocked = RateLimiter::tooManyAttempts($this->ipThrottleKey(), (int) config('auth.limits.login_attempts_per_ip', 20));
+
+        if (! $emailLocked && ! $ipLocked) {
             return;
         }
 
         event(new Lockout(request()));
 
-        $seconds = RateLimiter::availableIn($this->throttleKey());
+        $seconds = max(
+            $emailLocked ? RateLimiter::availableIn($this->throttleKey()) : 0,
+            $ipLocked ? RateLimiter::availableIn($this->ipThrottleKey()) : 0,
+        );
 
         throw ValidationException::withMessages([
             'email' => __('auth.throttle', [
@@ -70,6 +78,14 @@ new #[Layout('components.layouts.auth')] class extends Component {
     protected function throttleKey(): string
     {
         return Str::transliterate(Str::lower($this->email).'|'.request()->ip());
+    }
+
+    /**
+     * Rate limiting key shared by every email tried from the same IP.
+     */
+    protected function ipThrottleKey(): string
+    {
+        return 'login-ip|'.request()->ip();
     }
 }; ?>
 
