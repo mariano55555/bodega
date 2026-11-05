@@ -110,9 +110,10 @@ new #[Layout('components.layouts.app')] class extends Component
         // Load existing details - cast IDs to strings for Livewire select binding
         $manualCostAllowed = $dispatch->company?->allowsManualUnitCost() ?? false;
 
-        foreach ($dispatch->details as $detail) {
+        foreach ($dispatch->details()->with('product')->get() as $detail) {
             $this->details[] = [
                 'id' => $detail->id,
+                'product_label' => trim(($detail->product?->name ?? '').($detail->product?->sku ? ' - '.$detail->product->sku : '')),
                 'product_id' => (string) $detail->product_id,
                 'quantity' => $detail->quantity,
                 'unit_of_measure_id' => (string) $detail->unit_of_measure_id,
@@ -237,8 +238,25 @@ new #[Layout('components.layouts.app')] class extends Component
         return \App\Models\Company::manualUnitCostAllowedFor((int) $this->dispatch->company_id);
     }
 
+    /**
+     * Whether this dispatch already left the warehouse, so its kardex movements exist.
+     */
+    #[\Livewire\Attributes\Computed]
+    public function stockAlreadyMoved(): bool
+    {
+        return in_array($this->dispatch->status, ['despachado', 'entregado']);
+    }
+
     public function save(): void
     {
+        // Data that the kardex depends on cannot change once the stock left the warehouse
+        if ($this->stockAlreadyMoved) {
+            $this->warehouse_id = $this->dispatch->warehouse_id;
+            $this->dispatch_type = $this->dispatch->dispatch_type;
+            $this->document_date = $this->dispatch->document_date?->format('Y-m-d');
+            $this->status = $this->dispatch->status;
+        }
+
         // Filter out empty rows (rows without product_id)
         $filledDetails = array_filter($this->details, fn ($detail) => ! empty($detail['product_id']));
 
@@ -291,6 +309,11 @@ new #[Layout('components.layouts.app')] class extends Component
             // Validate stock availability inside transaction with lock (aggregate check: same product in multiple rows)
             $productQuantities = [];
             foreach ($this->details as $index => $detail) {
+                // Lines that already left the warehouse are not requested from stock again
+                if ($isDelivered && ! empty($detail['id'])) {
+                    continue;
+                }
+
                 $pid = $detail['product_id'];
                 if (! isset($productQuantities[$pid])) {
                     $productQuantities[$pid] = ['total' => 0, 'indices' => []];
@@ -305,25 +328,28 @@ new #[Layout('components.layouts.app')] class extends Component
                 ->get()
                 ->keyBy('product_id');
 
-            // Quantities that already left the warehouse must not be requested again from stock
-            $alreadyDispatched = $isDelivered
-                ? $this->dispatch->details()
-                    ->selectRaw('product_id, SUM(quantity_dispatched) as dispatched')
-                    ->groupBy('product_id')
-                    ->pluck('dispatched', 'product_id')
-                : collect();
+            // New lines on a dispatched document create movements in its month, which must be open
+            if ($isDelivered && ! empty($productQuantities)) {
+                try {
+                    \App\Models\InventoryClosure::validatePeriodOpen($this->dispatch->company_id, (int) $this->warehouse_id, $this->dispatch->dispatched_at ?? now());
+                } catch (\Exception $e) {
+                    \DB::rollBack();
+                    $this->addError('stock', $e->getMessage());
+
+                    return;
+                }
+            }
 
             $hasStockError = false;
             foreach ($productQuantities as $pid => $data) {
                 $available = $inventories->get($pid)?->available_quantity ?? 0;
-                $netRequested = $data['total'] - (float) ($alreadyDispatched[$pid] ?? 0);
-                if ($netRequested > $available) {
+                if ($data['total'] > $available) {
                     $hasStockError = true;
                     $productName = Product::find($pid)?->name ?? "Producto #{$pid}";
                     foreach ($data['indices'] as $idx) {
                         $this->addError(
                             "details.{$idx}.quantity",
-                            "Stock insuficiente para '{$productName}'. Disponible: ".number_format($available, 5).", solicitado adicional: ".number_format($netRequested, 5)
+                            "Stock insuficiente para '{$productName}'. Disponible: ".number_format($available, 5).", solicitado total: ".number_format($data['total'], 5)
                         );
                     }
                 }
@@ -364,17 +390,16 @@ new #[Layout('components.layouts.app')] class extends Component
             foreach ($this->details as $detail) {
                 if (isset($detail['id']) && $detail['id']) {
                     // Update existing (use Eloquent save to trigger saving event that recalculates subtotal/total)
-                    $existingDetail = DispatchDetail::find($detail['id']);
+                    $existingDetail = $this->dispatch->details()->find($detail['id']);
                     if ($existingDetail) {
-                        $existingDetail->fill([
+                        // A line that left the warehouse must keep matching its kardex movement: only notes change
+                        $existingDetail->fill($isDelivered ? ['notes' => $detail['notes'] ?? null] : [
                             'product_id' => $detail['product_id'],
                             'quantity' => $detail['quantity'],
                             'unit_of_measure_id' => $detail['unit_of_measure_id'],
-                            'unit_price' => match (true) {
-                                $isDelivered => $existingDetail->unit_price,
-                                $this->manualUnitCostAllowed => round((float) ($detail['unit_price'] ?? 0), 5),
-                                default => $valuationService->currentAverageCost((int) $detail['product_id'], (int) $this->warehouse_id),
-                            },
+                            'unit_price' => $this->manualUnitCostAllowed
+                                ? round((float) ($detail['unit_price'] ?? 0), 5)
+                                : $valuationService->currentAverageCost((int) $detail['product_id'], (int) $this->warehouse_id),
                             'notes' => $detail['notes'] ?? null,
                         ]);
                         $existingDetail->save();
@@ -590,10 +615,19 @@ new #[Layout('components.layouts.app')] class extends Component
         <flux:card>
             <flux:heading size="lg">Información del Despacho</flux:heading>
 
+            @if ($this->stockAlreadyMoved)
+                <flux:callout icon="lock-closed" color="amber" class="mt-4">
+                    <flux:callout.heading>Este despacho ya salió de bodega</flux:callout.heading>
+                    <flux:callout.text>
+                        La bodega, el tipo, la fecha y las líneas ya despachadas no se pueden cambiar porque tienen movimientos en el Kardex. Puede cambiar la unidad solicitante, el solicitante, las notas y agregar productos faltantes.
+                    </flux:callout.text>
+                </flux:callout>
+            @endif
+
             <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <flux:field>
                     <flux:label>Bodega *</flux:label>
-                    <flux:select wire:model="warehouse_id" required>
+                    <flux:select wire:model="warehouse_id" required :disabled="$this->stockAlreadyMoved">
                         <option value="">Seleccione bodega</option>
                         @foreach ($warehouses as $warehouse)
                             <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
@@ -604,7 +638,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label>Tipo de Despacho *</flux:label>
-                    <flux:select wire:model.live="dispatch_type" required>
+                    <flux:select wire:model.live="dispatch_type" required :disabled="$this->stockAlreadyMoved">
                         <option value="interno">Interno</option>
                         <option value="combustible">Combustibles y Lubricantes</option>
                         <option value="venta">Venta</option>
@@ -624,7 +658,7 @@ new #[Layout('components.layouts.app')] class extends Component
 
                 <flux:field>
                     <flux:label badge="Requerido">Fecha del Documento</flux:label>
-                    <flux:input type="date" wire:model="document_date" />
+                    <flux:input type="date" wire:model="document_date" :disabled="$this->stockAlreadyMoved" />
                     <flux:error name="document_date" />
                 </flux:field>
 
@@ -808,6 +842,10 @@ new #[Layout('components.layouts.app')] class extends Component
                             <!-- Product Select with Unit Badge -->
                             <flux:table.cell>
                                 <div class="flex flex-col gap-1">
+                                    @if ($detail['locked'] ?? false)
+                                        <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">{{ $detail['product_label'] ?? '' }}</span>
+                                        <span class="text-xs text-zinc-500 dark:text-zinc-400">Ya despachado</span>
+                                    @else
                                     <flux:select
                                         variant="listbox"
                                         searchable
@@ -821,6 +859,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                             </flux:select.option>
                                         @endforeach
                                     </flux:select>
+                                    @endif
 
                                     <!-- Unit Badge (Alpine.js - instant) -->
                                     <template x-if="productInfo">
@@ -837,6 +876,11 @@ new #[Layout('components.layouts.app')] class extends Component
                             </flux:table.cell>
 
                             <!-- Quantity -->
+                            @if ($detail['locked'] ?? false)
+                            <flux:table.cell class="text-center tabular-nums">
+                                <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300" x-text="(parseFloat(quantity) || 0).toFixed(5)"></span>
+                            </flux:table.cell>
+                            @else
                             <flux:table.cell>
                                 <div class="flex flex-col gap-1">
                                     <input
@@ -863,6 +907,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                     <flux:error name="details.{{ $index }}.quantity" />
                                 </div>
                             </flux:table.cell>
+                            @endif
 
                             <!-- Unit Price: weighted average (read-only) unless the company allows the manual cost -->
                             @if ($this->manualUnitCostAllowed && ! ($detail['locked'] ?? false))
@@ -918,6 +963,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                     </flux:button>
 
                                     <!-- Clear Button (Alpine.js - instant) -->
+                                    @unless ($detail['locked'] ?? false)
                                     <flux:button
                                         type="button"
                                         variant="ghost"
@@ -925,6 +971,7 @@ new #[Layout('components.layouts.app')] class extends Component
                                         icon="trash"
                                         x-on:click="clearRow()"
                                     />
+                                    @endunless
                                 </div>
                             </flux:table.cell>
                         </flux:table.row>
