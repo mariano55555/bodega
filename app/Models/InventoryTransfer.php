@@ -470,7 +470,7 @@ class InventoryTransfer extends Model
             return;
         }
 
-        InventoryClosure::validatePeriodOpen($this->fromWarehouse->company_id, $this->from_warehouse_id, now());
+        InventoryClosure::validateReversalPeriodsOpen($this->fromWarehouse->company_id, $this->from_warehouse_id, $outboundMovements);
 
         $movementReason = $this->resolveMovementReason('TRANSFER_IN', 'in');
         $kardexService = app(KardexService::class);
@@ -519,7 +519,7 @@ class InventoryTransfer extends Model
             return;
         }
 
-        InventoryClosure::validatePeriodOpen($this->toWarehouse->company_id, $this->to_warehouse_id, now());
+        InventoryClosure::validateReversalPeriodsOpen($this->toWarehouse->company_id, $this->to_warehouse_id, $inboundMovements);
 
         $movementReason = $this->resolveMovementReason('TRANSFER_OUT', 'out');
         $kardexService = app(KardexService::class);

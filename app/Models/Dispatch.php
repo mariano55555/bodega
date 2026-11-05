@@ -538,7 +538,7 @@ class Dispatch extends Model
             return;
         }
 
-        InventoryClosure::validatePeriodOpen($this->company_id, $this->warehouse_id, now());
+        InventoryClosure::validateReversalPeriodsOpen($this->company_id, $this->warehouse_id, $outboundMovements);
 
         $movementReason = MovementReason::where('code', 'REENTRY')->first()
             ?? MovementReason::where('movement_type', 'in')->first();

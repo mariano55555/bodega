@@ -526,8 +526,26 @@ class InventoryClosure extends Model
     }
 
     /**
-     * Validate that the period is open for the given warehouse and date.
-     * Throws an exception if the period is closed.
+     * Validate that a reversal does not touch a closed period: neither the months of the
+     * original movements nor the current month, where the reversal itself is recorded.
+     *
+     * @param  iterable<InventoryMovement>  $movements
+     *
+     * @throws \Exception when any of those periods is closed
+     */
+    public static function validateReversalPeriodsOpen(int $companyId, int $warehouseId, iterable $movements): void
+    {
+        collect($movements)
+            ->pluck('movement_date')
+            ->push(now())
+            ->unique(fn ($date) => Carbon::parse($date)->format('Y-m'))
+            ->each(fn ($date) => static::validatePeriodOpen($companyId, $warehouseId, $date));
+    }
+
+    /**
+     * Validate that the period of the given date is not closed for the warehouse.
+     *
+     * @throws \Exception when the monthly closure of that period is already closed
      */
     public static function validatePeriodOpen(int $companyId, int $warehouseId, $date): void
     {

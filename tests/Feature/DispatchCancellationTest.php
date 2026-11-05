@@ -139,3 +139,43 @@ test('cancelling a dispatch that has not left the warehouse only changes its sta
         ->and((float) $this->inventory->fresh()->quantity)->toBe(100.0)
         ->and(InventoryMovement::query()->where('dispatch_id', $this->dispatch->id)->count())->toBe(0);
 });
+
+test('a dispatched dispatch of a closed month cannot be cancelled even if the current month is open', function () {
+    $documentDate = now()->startOfMonth()->subMonthNoOverflow();
+    $this->dispatch->update(['document_date' => $documentDate->toDateString()]);
+
+    expect($this->dispatch->fresh()->dispatch($this->user->id))->toBeTrue();
+
+    InventoryClosure::factory()->create([
+        'company_id' => $this->company->id,
+        'warehouse_id' => $this->warehouse->id,
+        'year' => $documentDate->year,
+        'month' => $documentDate->month,
+        'status' => 'cerrado',
+    ]);
+
+    $dispatch = $this->dispatch->fresh();
+
+    expect(fn () => $dispatch->cancel($this->user->id))
+        ->toThrow(InventoryReversalException::class, 'cierre mensual');
+
+    expect($this->dispatch->fresh()->status)->toBe('despachado')
+        ->and((float) $this->inventory->fresh()->quantity)->toBe(70.0)
+        ->and(InventoryMovement::query()->where('document_type', 'dispatch_cancellation')->count())->toBe(0);
+});
+
+test('a dispatch of a closed month that never left the warehouse can still be cancelled', function () {
+    $documentDate = now()->startOfMonth()->subMonthNoOverflow();
+    $this->dispatch->update(['document_date' => $documentDate->toDateString()]);
+
+    InventoryClosure::factory()->create([
+        'company_id' => $this->company->id,
+        'warehouse_id' => $this->warehouse->id,
+        'year' => $documentDate->year,
+        'month' => $documentDate->month,
+        'status' => 'cerrado',
+    ]);
+
+    expect($this->dispatch->fresh()->cancel($this->user->id))->toBeTrue()
+        ->and($this->dispatch->fresh()->status)->toBe('cancelado');
+});

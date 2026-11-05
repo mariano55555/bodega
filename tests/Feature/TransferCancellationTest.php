@@ -156,3 +156,64 @@ test('an already cancelled transfer cannot be cancelled again', function () {
     expect($this->transfer->cancel($this->user->id))->toBeTrue()
         ->and($this->transfer->fresh()->cancel($this->user->id))->toBeFalse();
 });
+
+function closePeriod(int $warehouseId, DateTimeInterface $date): InventoryClosure
+{
+    return InventoryClosure::factory()->create([
+        'company_id' => test()->company->id,
+        'warehouse_id' => $warehouseId,
+        'year' => (int) $date->format('Y'),
+        'month' => (int) $date->format('n'),
+        'status' => 'cerrado',
+    ]);
+}
+
+test('a shipped transfer of a closed month cannot be cancelled even if the current month is open', function () {
+    $documentDate = now()->startOfMonth()->subMonthNoOverflow();
+    $this->transfer->update(['document_date' => $documentDate->toDateString()]);
+
+    expect($this->transfer->fresh()->ship($this->user->id))->toBeTrue();
+
+    closePeriod($this->fromWarehouse->id, $documentDate);
+
+    $transfer = $this->transfer->fresh();
+
+    expect(fn () => $transfer->cancel($this->user->id))
+        ->toThrow(InventoryReversalException::class, 'cierre mensual');
+
+    expect($this->transfer->fresh()->status)->toBe('in_transit')
+        ->and((float) $this->origin->fresh()->quantity)->toBe(60.0)
+        ->and(InventoryMovement::query()->where('document_type', 'transfer_cancellation')->count())->toBe(0);
+});
+
+test('a received transfer cannot be cancelled when only the destination month is closed', function () {
+    $documentDate = now()->startOfMonth()->subMonthNoOverflow();
+    $this->transfer->update(['document_date' => $documentDate->toDateString()]);
+
+    expect($this->transfer->fresh()->ship($this->user->id))->toBeTrue()
+        ->and($this->transfer->fresh()->receive($this->user->id))->toBeTrue();
+
+    closePeriod($this->toWarehouse->id, $documentDate);
+
+    $transfer = $this->transfer->fresh();
+
+    expect(fn () => $transfer->cancel($this->user->id))
+        ->toThrow(InventoryReversalException::class, 'cierre mensual');
+
+    expect($this->transfer->fresh()->status)->toBe('received')
+        ->and((float) destinationInventory()->quantity)->toBe(40.0)
+        ->and((float) $this->origin->fresh()->quantity)->toBe(60.0);
+});
+
+test('a transfer of a closed month can be cancelled after the closure is reopened', function () {
+    $documentDate = now()->startOfMonth()->subMonthNoOverflow();
+    $this->transfer->update(['document_date' => $documentDate->toDateString()]);
+
+    expect($this->transfer->fresh()->ship($this->user->id))->toBeTrue();
+
+    $closure = closePeriod($this->fromWarehouse->id, $documentDate);
+    $closure->update(['status' => 'en_proceso']);
+
+    expect($this->transfer->fresh()->cancel($this->user->id))->toBeTrue()
+        ->and($this->origin->fresh()->quantity)->toEqual(100);
+});
