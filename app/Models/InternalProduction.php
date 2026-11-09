@@ -4,10 +4,12 @@ namespace App\Models;
 
 use App\Services\InventoryValuationService;
 use App\Services\KardexService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\LogOptions;
@@ -122,6 +124,14 @@ class InternalProduction extends Model
         return $this->belongsTo(Employee::class);
     }
 
+    /**
+     * Corrections applied after this document moved stock, newest first.
+     */
+    public function corrections(): MorphMany
+    {
+        return $this->morphMany(DocumentCorrection::class, 'correctable')->latest();
+    }
+
     public function details(): HasMany
     {
         return $this->hasMany(InternalProductionDetail::class);
@@ -155,6 +165,32 @@ class InternalProduction extends Model
     public function inventoryMovements(): HasMany
     {
         return $this->hasMany(InventoryMovement::class);
+    }
+
+    /**
+     * Kardex movements of this production (they are linked by document number, not by a foreign key),
+     * including corrections applied to it.
+     *
+     * @return Builder<InventoryMovement>
+     */
+    public function stockMovements(): Builder
+    {
+        return InventoryMovement::query()
+            ->where('company_id', $this->company_id)
+            ->where('document_type', 'production')
+            ->where('document_number', $this->production_number);
+    }
+
+    /**
+     * Dispatches generated automatically when this production was completed.
+     *
+     * @return Builder<Dispatch>
+     */
+    public function autoDispatches(): Builder
+    {
+        return Dispatch::query()
+            ->where('company_id', $this->company_id)
+            ->where('notes', "Despacho automático desde Producción Interna {$this->production_number}");
     }
 
     public function scopeForCompany($query, int $companyId)

@@ -180,6 +180,14 @@ new #[Layout('components.layouts.app')] class extends Component {
                 @endif
             @endcan
 
+            @can('documents.correct')
+                @if (in_array($transfer->status, ['in_transit', 'received']))
+                    <flux:button variant="outline" icon="wrench-screwdriver" href="{{ route('transfers.correct', $transfer) }}" wire:navigate>
+                        Corregir
+                    </flux:button>
+                @endif
+            @endcan
+
             @can('receive', $transfer)
                 @if (in_array($transfer->status, ['in_transit', 'en_transito']))
                     <flux:modal.trigger name="receive-modal">
@@ -205,6 +213,8 @@ new #[Layout('components.layouts.app')] class extends Component {
             </flux:button>
         </div>
     </div>
+
+    @include('partials.document-corrections-history', ['corrections' => $transfer->corrections()->with('creator')->get()])
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Main Content -->

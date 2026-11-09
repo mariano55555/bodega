@@ -1,9 +1,15 @@
 <?php
 
 use App\Http\Controllers\BranchController;
+use App\Http\Controllers\DigitizedDataReportController;
+use App\Http\Controllers\DispatchReportController;
+use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\DonationReportController;
+use App\Http\Controllers\InventoryClosureExportController;
 use App\Http\Controllers\InventoryReportController;
 use App\Http\Controllers\KardexController;
 use App\Http\Controllers\MovementReportController;
+use App\Http\Controllers\PurchaseReportController;
 use App\Http\Controllers\WarehouseController;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
@@ -94,6 +100,7 @@ Route::middleware(['auth'])->group(function () {
         Volt::route('create', 'inventory.transfers.create')->name('create')->middleware('permission:transfers.create');
         Volt::route('{transfer}', 'inventory.transfers.show')->name('show');
         Volt::route('{transfer}/edit', 'inventory.transfers.edit')->name('edit')->middleware('permission:transfers.edit');
+        Volt::route('{transfer}/corregir', 'inventory.transfers.correct')->name('correct')->middleware('permission:documents.correct');
     });
 
     // Supplier Management Routes (must be before Purchase routes to avoid route collision)
@@ -117,7 +124,8 @@ Route::middleware(['auth'])->group(function () {
         Volt::route('create', 'dispatches.create')->name('create')->middleware('permission:dispatches.create');
         Volt::route('{dispatch:slug}', 'dispatches.show')->name('show');
         Volt::route('{dispatch:slug}/edit', 'dispatches.edit')->name('edit')->middleware('permission:dispatches.edit');
-        Route::get('{dispatch:slug}/fuel-pdf', [\App\Http\Controllers\DispatchReportController::class, 'exportFuelDispatchPdf'])->name('fuel-pdf');
+        Volt::route('{dispatch:slug}/corregir', 'dispatches.correct')->name('correct')->middleware('permission:documents.correct');
+        Route::get('{dispatch:slug}/fuel-pdf', [DispatchReportController::class, 'exportFuelDispatchPdf'])->name('fuel-pdf');
     });
 
     // Internal Production Management Routes
@@ -126,6 +134,7 @@ Route::middleware(['auth'])->group(function () {
         Volt::route('create', 'internal-productions.create')->name('create')->middleware('permission:internal-productions.create');
         Volt::route('{internalProduction:slug}', 'internal-productions.show')->name('show');
         Volt::route('{internalProduction:slug}/edit', 'internal-productions.edit')->name('edit')->middleware('permission:internal-productions.edit');
+        Volt::route('{internalProduction:slug}/corregir', 'internal-productions.correct')->name('correct')->middleware('permission:documents.correct');
     });
 
     // Donation Management Routes
@@ -163,7 +172,7 @@ Route::middleware(['auth'])->group(function () {
         Volt::route('/', 'closures.index')->name('index');
         Volt::route('create', 'closures.create')->name('create')->middleware('permission:closures.create');
         Volt::route('{closure:slug}', 'closures.show')->name('show');
-        Route::get('{closure:slug}/export', \App\Http\Controllers\InventoryClosureExportController::class)->name('export');
+        Route::get('{closure:slug}/export', InventoryClosureExportController::class)->name('export');
     });
 
     // Notifications Routes
@@ -225,45 +234,45 @@ Route::middleware(['auth'])->group(function () {
         // Administrative Reports
         Volt::route('administrative', 'reports.administrative')->name('administrative');
         Volt::route('purchases-by-supplier', 'reports.purchases-by-supplier')->name('purchases-by-supplier');
-        Route::get('purchases-by-supplier/pdf', [\App\Http\Controllers\PurchaseReportController::class, 'exportBySupplierPdf'])->name('purchases-by-supplier.pdf');
-        Route::get('purchases-by-supplier/excel', [\App\Http\Controllers\PurchaseReportController::class, 'exportBySupplierExcel'])->name('purchases-by-supplier.excel');
+        Route::get('purchases-by-supplier/pdf', [PurchaseReportController::class, 'exportBySupplierPdf'])->name('purchases-by-supplier.pdf');
+        Route::get('purchases-by-supplier/excel', [PurchaseReportController::class, 'exportBySupplierExcel'])->name('purchases-by-supplier.excel');
         Volt::route('self-consumption', 'reports.self-consumption')->name('self-consumption');
         Volt::route('donations-consolidated', 'reports.donations-consolidated')->name('donations-consolidated');
-        Route::get('donations-consolidated/pdf', [\App\Http\Controllers\DonationReportController::class, 'exportConsolidatedPdf'])->name('donations-consolidated.pdf');
-        Route::get('donations-consolidated/excel', [\App\Http\Controllers\DonationReportController::class, 'exportConsolidatedExcel'])->name('donations-consolidated.excel');
+        Route::get('donations-consolidated/pdf', [DonationReportController::class, 'exportConsolidatedPdf'])->name('donations-consolidated.pdf');
+        Route::get('donations-consolidated/excel', [DonationReportController::class, 'exportConsolidatedExcel'])->name('donations-consolidated.excel');
         Volt::route('pre-closure-differences', 'reports.pre-closure-differences')->name('pre-closure-differences');
 
         // Digitized Data Report (Datos Digitados)
         Volt::route('digitized-data', 'reports.digitized-data')->name('digitized-data');
-        Route::get('digitized-data/pdf', [\App\Http\Controllers\DigitizedDataReportController::class, 'exportPdf'])->name('digitized-data.pdf');
-        Route::get('digitized-data/excel', [\App\Http\Controllers\DigitizedDataReportController::class, 'exportExcel'])->name('digitized-data.excel');
+        Route::get('digitized-data/pdf', [DigitizedDataReportController::class, 'exportPdf'])->name('digitized-data.pdf');
+        Route::get('digitized-data/excel', [DigitizedDataReportController::class, 'exportExcel'])->name('digitized-data.excel');
 
         // Purchase Reports Hub
         Route::prefix('purchases')->name('purchases.')->group(function () {
             Volt::route('/', 'reports.purchases.hub')->name('hub');
             Volt::route('detailed', 'reports.purchases.detailed')->name('detailed');
-            Route::get('detailed/pdf', [\App\Http\Controllers\PurchaseReportController::class, 'exportDetailedPdf'])->name('detailed.pdf');
-            Route::get('detailed/excel', [\App\Http\Controllers\PurchaseReportController::class, 'exportDetailedExcel'])->name('detailed.excel');
+            Route::get('detailed/pdf', [PurchaseReportController::class, 'exportDetailedPdf'])->name('detailed.pdf');
+            Route::get('detailed/excel', [PurchaseReportController::class, 'exportDetailedExcel'])->name('detailed.excel');
             Volt::route('summary-by-line', 'reports.purchases.summary-by-line')->name('summary-by-line');
-            Route::get('summary-by-line/pdf', [\App\Http\Controllers\PurchaseReportController::class, 'exportSummaryByLinePdf'])->name('summary-by-line.pdf');
-            Route::get('summary-by-line/excel', [\App\Http\Controllers\PurchaseReportController::class, 'exportSummaryByLineExcel'])->name('summary-by-line.excel');
+            Route::get('summary-by-line/pdf', [PurchaseReportController::class, 'exportSummaryByLinePdf'])->name('summary-by-line.pdf');
+            Route::get('summary-by-line/excel', [PurchaseReportController::class, 'exportSummaryByLineExcel'])->name('summary-by-line.excel');
         });
 
         // Dispatch Reports Hub (Salidas)
         Route::prefix('dispatches')->name('dispatches.')->group(function () {
             Volt::route('/', 'reports.dispatches.hub')->name('hub');
             Volt::route('monthly', 'reports.dispatches.monthly')->name('monthly');
-            Route::get('monthly/pdf', [\App\Http\Controllers\DispatchReportController::class, 'exportMonthlyPdf'])->name('monthly.pdf');
-            Route::get('monthly/excel', [\App\Http\Controllers\DispatchReportController::class, 'exportMonthlyExcel'])->name('monthly.excel');
+            Route::get('monthly/pdf', [DispatchReportController::class, 'exportMonthlyPdf'])->name('monthly.pdf');
+            Route::get('monthly/excel', [DispatchReportController::class, 'exportMonthlyExcel'])->name('monthly.excel');
             Volt::route('summary-by-line', 'reports.dispatches.summary-by-line')->name('summary-by-line');
-            Route::get('summary-by-line/pdf', [\App\Http\Controllers\DispatchReportController::class, 'exportSummaryByLinePdf'])->name('summary-by-line.pdf');
-            Route::get('summary-by-line/excel', [\App\Http\Controllers\DispatchReportController::class, 'exportSummaryByLineExcel'])->name('summary-by-line.excel');
+            Route::get('summary-by-line/pdf', [DispatchReportController::class, 'exportSummaryByLinePdf'])->name('summary-by-line.pdf');
+            Route::get('summary-by-line/excel', [DispatchReportController::class, 'exportSummaryByLineExcel'])->name('summary-by-line.excel');
             Volt::route('summary-by-line-quantity', 'reports.dispatches.summary-by-line-quantity')->name('summary-by-line-quantity');
-            Route::get('summary-by-line-quantity/pdf', [\App\Http\Controllers\DispatchReportController::class, 'exportSummaryByLineQuantityPdf'])->name('summary-by-line-quantity.pdf');
-            Route::get('summary-by-line-quantity/excel', [\App\Http\Controllers\DispatchReportController::class, 'exportSummaryByLineQuantityExcel'])->name('summary-by-line-quantity.excel');
+            Route::get('summary-by-line-quantity/pdf', [DispatchReportController::class, 'exportSummaryByLineQuantityPdf'])->name('summary-by-line-quantity.pdf');
+            Route::get('summary-by-line-quantity/excel', [DispatchReportController::class, 'exportSummaryByLineQuantityExcel'])->name('summary-by-line-quantity.excel');
             Volt::route('stock-movements', 'reports.dispatches.stock-movements')->name('stock-movements');
-            Route::get('stock-movements/pdf', [\App\Http\Controllers\DispatchReportController::class, 'exportStockMovementsPdf'])->name('stock-movements.pdf');
-            Route::get('stock-movements/excel', [\App\Http\Controllers\DispatchReportController::class, 'exportStockMovementsExcel'])->name('stock-movements.excel');
+            Route::get('stock-movements/pdf', [DispatchReportController::class, 'exportStockMovementsPdf'])->name('stock-movements.pdf');
+            Route::get('stock-movements/excel', [DispatchReportController::class, 'exportStockMovementsExcel'])->name('stock-movements.excel');
         });
 
         // Custom Reports
@@ -288,11 +297,11 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('documents')->name('documents.')->group(function () {
         Volt::route('/', 'documents.index')->name('index');
         Volt::route('/upload', 'documents.upload')->name('upload');
-        Route::get('{document}/download', [\App\Http\Controllers\DocumentController::class, 'download'])->name('download');
-        Route::get('{document}/view', [\App\Http\Controllers\DocumentController::class, 'view'])->name('view');
-        Route::delete('{document}', [\App\Http\Controllers\DocumentController::class, 'destroy'])->name('destroy');
-        Route::post('{document}/approve', [\App\Http\Controllers\DocumentController::class, 'approve'])->name('approve');
-        Route::post('{document}/create-version', [\App\Http\Controllers\DocumentController::class, 'createVersion'])->name('create-version');
+        Route::get('{document}/download', [DocumentController::class, 'download'])->name('download');
+        Route::get('{document}/view', [DocumentController::class, 'view'])->name('view');
+        Route::delete('{document}', [DocumentController::class, 'destroy'])->name('destroy');
+        Route::post('{document}/approve', [DocumentController::class, 'approve'])->name('approve');
+        Route::post('{document}/create-version', [DocumentController::class, 'createVersion'])->name('create-version');
     });
 
     // User Management Routes

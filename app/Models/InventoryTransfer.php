@@ -7,6 +7,7 @@ use App\Jobs\UpdateInventoryLevels;
 use App\Notifications\TransferApprovedNotification;
 use App\Notifications\TransferReceivedNotification;
 use App\Notifications\TransferShippedNotification;
+use App\Services\DocumentStockService;
 use App\Services\InventoryValuationService;
 use App\Services\KardexService;
 use Database\Factories\InventoryTransferFactory;
@@ -14,6 +15,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\LogOptions;
@@ -177,6 +179,14 @@ class InventoryTransfer extends Model
     public function inventoryMovements(): HasMany
     {
         return $this->hasMany(InventoryMovement::class, 'transfer_id');
+    }
+
+    /**
+     * Corrections applied after this document moved stock, newest first.
+     */
+    public function corrections(): MorphMany
+    {
+        return $this->morphMany(DocumentCorrection::class, 'correctable')->latest();
     }
 
     public function details(): HasMany
@@ -365,14 +375,24 @@ class InventoryTransfer extends Model
             if ($movementReason) {
                 $kardexService = app(KardexService::class);
 
-                foreach ($this->inventoryMovements()->where('movement_type', 'transfer_out')->get() as $outboundMovement) {
-                    $receivedQuantity = $outboundMovement->quantity_out; // Use the shipped quantity
+                // Receive the net quantity that left the origin, so corrections made in transit are respected
+                $shipped = app(DocumentStockService::class)->netEffects(
+                    $this->inventoryMovements()->where('warehouse_id', $this->from_warehouse_id)->get()
+                );
+
+                foreach ($shipped as $effect) {
+                    if ($effect['quantity'] >= 0) {
+                        continue;
+                    }
+
+                    $receivedQuantity = round(abs($effect['quantity']), 5);
+                    $unitCost = round(abs($effect['value'] / $effect['quantity']), 5);
 
                     // Create inbound movement at destination with automatic balance recalculation
                     $movement = $kardexService->createMovement([
-                        'company_id' => $outboundMovement->company_id,
+                        'company_id' => $this->fromWarehouse->company_id,
                         'warehouse_id' => $this->to_warehouse_id,
-                        'product_id' => $outboundMovement->product_id,
+                        'product_id' => $effect['product_id'],
                         'movement_reason_id' => $movementReason->id,
                         'transfer_id' => $this->id,
                         'movement_type' => 'transfer_in',
@@ -380,10 +400,8 @@ class InventoryTransfer extends Model
                         'quantity' => $receivedQuantity,
                         'quantity_in' => $receivedQuantity,
                         'quantity_out' => 0,
-                        'unit_cost' => $outboundMovement->unit_cost,
-                        'total_cost' => $outboundMovement->unit_cost * $receivedQuantity,
-                        'lot_number' => $outboundMovement->lot_number,
-                        'expiration_date' => $outboundMovement->expiration_date,
+                        'unit_cost' => $unitCost,
+                        'total_cost' => $unitCost * $receivedQuantity,
                         'notes' => "Recepción de traslado {$this->transfer_number}",
                         'is_active' => true,
                         'active_at' => now(),
@@ -428,12 +446,8 @@ class InventoryTransfer extends Model
 
         \DB::beginTransaction();
         try {
-            if ($this->status === 'received') {
-                $this->reverseInboundMovements($userId);
-            }
-
             if (in_array($this->status, ['in_transit', 'received'])) {
-                $this->reverseOutboundMovements($userId);
+                $this->reverseStock($userId);
             }
 
             $this->status = 'cancelled';
@@ -457,127 +471,38 @@ class InventoryTransfer extends Model
     }
 
     /**
-     * Put the shipped quantities back into the origin warehouse at the cost they left with.
+     * Undo the net stock effect of this transfer, including any correction applied to it:
+     * quantities return to where they came from at the cost they moved with.
      */
-    protected function reverseOutboundMovements(?int $userId): void
+    protected function reverseStock(?int $userId): void
     {
-        $outboundMovements = $this->inventoryMovements()
-            ->where('movement_type', 'transfer_out')
-            ->where('warehouse_id', $this->from_warehouse_id)
-            ->get();
+        $movements = $this->inventoryMovements()->get();
 
-        if ($outboundMovements->isEmpty()) {
+        if ($movements->isEmpty()) {
             return;
         }
 
-        InventoryClosure::validateReversalPeriodsOpen($this->fromWarehouse->company_id, $this->from_warehouse_id, $outboundMovements);
+        $service = app(DocumentStockService::class);
+        $companyId = (int) $this->fromWarehouse->company_id;
 
-        $movementReason = $this->resolveMovementReason('TRANSFER_IN', 'in');
-        $kardexService = app(KardexService::class);
-        $valuationService = app(InventoryValuationService::class);
+        $service->validatePeriods($companyId, $movements, [], now());
 
-        foreach ($outboundMovements as $movement) {
-            $quantity = (float) $movement->quantity_out;
-
-            $reversal = $kardexService->createMovement([
-                'company_id' => $movement->company_id,
-                'warehouse_id' => $this->from_warehouse_id,
-                'product_id' => $movement->product_id,
-                'movement_reason_id' => $movementReason->id,
-                'transfer_id' => $this->id,
-                'movement_type' => 'transfer_in',
-                'movement_date' => now(),
-                'quantity' => $quantity,
-                'quantity_in' => $quantity,
-                'quantity_out' => 0,
-                'unit_cost' => $movement->unit_cost,
-                'total_cost' => $quantity * (float) $movement->unit_cost,
-                'document_type' => 'transfer_cancellation',
-                'metadata' => ['reverses_movement_id' => $movement->id],
-                'notes' => "Anulación de traslado {$this->transfer_number}: devolución a bodega origen",
-                'is_active' => true,
-                'active_at' => now(),
-                'created_by' => $userId,
-            ]);
-
-            $valuationService->applyMovement($reversal);
-        }
-    }
-
-    /**
-     * Take the received quantities out of the destination warehouse. Fails if the destination already consumed them.
-     */
-    protected function reverseInboundMovements(?int $userId): void
-    {
-        $inboundMovements = $this->inventoryMovements()
-            ->where('movement_type', 'transfer_in')
-            ->where('warehouse_id', $this->to_warehouse_id)
-            ->with('product')
-            ->get();
-
-        if ($inboundMovements->isEmpty()) {
-            return;
-        }
-
-        InventoryClosure::validateReversalPeriodsOpen($this->toWarehouse->company_id, $this->to_warehouse_id, $inboundMovements);
-
-        $movementReason = $this->resolveMovementReason('TRANSFER_OUT', 'out');
-        $kardexService = app(KardexService::class);
-        $valuationService = app(InventoryValuationService::class);
-
-        foreach ($inboundMovements as $movement) {
-            $quantity = (float) $movement->quantity_in;
-
-            $inventory = Inventory::where('product_id', $movement->product_id)
-                ->where('warehouse_id', $this->to_warehouse_id)
-                ->lockForUpdate()
-                ->first();
-
-            $available = (float) ($inventory?->available_quantity ?? 0);
-            if ($available < $quantity) {
-                $productName = $movement->product?->name ?? "Producto #{$movement->product_id}";
-
-                throw new InventoryReversalException(
-                    "No se puede anular el traslado: la bodega destino {$this->toWarehouse->name} ya no tiene las "
-                    .number_format($quantity, 2)." unidades de {$productName} (disponible ".number_format($available, 2).')'
-                );
-            }
-
-            $reversal = $kardexService->createMovement([
-                'company_id' => $movement->company_id,
-                'warehouse_id' => $this->to_warehouse_id,
-                'product_id' => $movement->product_id,
-                'movement_reason_id' => $movementReason->id,
-                'transfer_id' => $this->id,
-                'movement_type' => 'transfer_out',
-                'movement_date' => now(),
-                'quantity' => -$quantity,
-                'quantity_in' => 0,
-                'quantity_out' => $quantity,
-                'unit_cost' => $movement->unit_cost,
-                'total_cost' => $quantity * (float) $movement->unit_cost,
-                'document_type' => 'transfer_cancellation',
-                'metadata' => ['reverses_movement_id' => $movement->id],
-                'notes' => "Anulación de traslado {$this->transfer_number}: salida de bodega destino",
-                'is_active' => true,
-                'active_at' => now(),
-                'created_by' => $userId,
-            ]);
-
-            $valuationService->applyMovement($reversal);
-        }
-    }
-
-    protected function resolveMovementReason(string $code, string $movementType): MovementReason
-    {
-        $movementReason = MovementReason::where('code', $code)->first()
-            ?? MovementReason::where('movement_type', $movementType)->where('category', 'transfer')->first()
-            ?? MovementReason::where('movement_type', $movementType)->first();
-
-        if (! $movementReason) {
-            throw new InventoryReversalException("No existe un motivo de movimiento {$code} para registrar la anulación.");
-        }
-
-        return $movementReason;
+        $service->rebalance($service->netEffects($movements), [], [
+            'company_id' => $companyId,
+            'movement_date' => now(),
+            'links' => ['transfer_id' => $this->id],
+            'document_type' => 'transfer_cancellation',
+            'inbound_type' => 'transfer_in',
+            'outbound_type' => 'transfer_out',
+            'inbound_reason' => $service->reason('TRANSFER_IN', 'in', 'transfer'),
+            'outbound_reason' => $service->reason('TRANSFER_OUT', 'out', 'transfer'),
+            'inbound_notes' => "Anulación de traslado {$this->transfer_number}: devolución a bodega",
+            'outbound_notes' => "Anulación de traslado {$this->transfer_number}: salida de bodega",
+            'metadata' => ['cancellation' => true],
+            'user_id' => $userId,
+            'shortage_message' => fn (int $warehouseId, int $productId, float $needed, float $available) => 'No se puede anular el traslado: la bodega '
+                .(Warehouse::find($warehouseId)?->name ?? "#{$warehouseId}").' ya no tiene las '.number_format($needed, 2)
+                .' unidades de '.(Product::find($productId)?->name ?? "Producto #{$productId}").' (disponible '.number_format($available, 2).')',
+        ]);
     }
 }

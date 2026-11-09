@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Exceptions\InventoryReversalException;
+use App\Services\DocumentStockService;
 use App\Services\InventoryValuationService;
 use App\Services\KardexService;
 use Database\Factories\DispatchFactory;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\LogOptions;
@@ -168,6 +170,14 @@ class Dispatch extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    /**
+     * Corrections applied after this document moved stock, newest first.
+     */
+    public function corrections(): MorphMany
+    {
+        return $this->morphMany(DocumentCorrection::class, 'correctable')->latest();
     }
 
     public function details(): HasMany
@@ -494,7 +504,7 @@ class Dispatch extends Model
         \DB::beginTransaction();
         try {
             if (in_array($this->status, ['despachado', 'entregado'])) {
-                $this->reverseOutboundMovements($userId);
+                $this->reverseStock($userId);
             }
 
             // Release reservations if any
@@ -521,60 +531,6 @@ class Dispatch extends Model
             \Log::error('Error cancelling dispatch: '.$e->getMessage());
 
             throw new InventoryReversalException($e->getMessage(), 0, $e);
-        }
-    }
-
-    /**
-     * Put the dispatched quantities back into the warehouse at the cost they left with.
-     */
-    protected function reverseOutboundMovements(?int $userId): void
-    {
-        $outboundMovements = $this->inventoryMovements()
-            ->where('warehouse_id', $this->warehouse_id)
-            ->where('quantity_out', '>', 0)
-            ->get();
-
-        if ($outboundMovements->isEmpty()) {
-            return;
-        }
-
-        InventoryClosure::validateReversalPeriodsOpen($this->company_id, $this->warehouse_id, $outboundMovements);
-
-        $movementReason = MovementReason::where('code', 'REENTRY')->first()
-            ?? MovementReason::where('movement_type', 'in')->first();
-
-        if (! $movementReason) {
-            throw new InventoryReversalException('No existe un motivo de movimiento de entrada para registrar la anulación.');
-        }
-
-        $kardexService = app(KardexService::class);
-        $valuationService = app(InventoryValuationService::class);
-
-        foreach ($outboundMovements as $movement) {
-            $quantity = (float) $movement->quantity_out;
-
-            $reversal = $kardexService->createMovement([
-                'company_id' => $this->company_id,
-                'warehouse_id' => $this->warehouse_id,
-                'product_id' => $movement->product_id,
-                'movement_reason_id' => $movementReason->id,
-                'dispatch_id' => $this->id,
-                'movement_type' => 'return',
-                'movement_date' => now(),
-                'quantity' => $quantity,
-                'quantity_in' => $quantity,
-                'quantity_out' => 0,
-                'unit_cost' => $movement->unit_cost,
-                'total_cost' => $quantity * (float) $movement->unit_cost,
-                'document_type' => 'dispatch_cancellation',
-                'metadata' => ['reverses_movement_id' => $movement->id],
-                'notes' => "Anulación de despacho {$this->dispatch_number}: devolución a bodega",
-                'is_active' => true,
-                'active_at' => now(),
-                'created_by' => $userId,
-            ]);
-
-            $valuationService->applyMovement($reversal);
         }
     }
 
@@ -645,5 +601,51 @@ class Dispatch extends Model
     {
         // TEMPORAL: Se permite editar despachos entregados para agregar productos faltantes
         return in_array($this->status, ['borrador', 'pendiente', 'entregado']);
+    }
+
+    /**
+     * Kardex movement type used when stock leaves the warehouse with this dispatch.
+     */
+    public function outboundMovementType(): string
+    {
+        return match ($this->dispatch_type) {
+            'interno', 'externo', 'combustible' => 'transfer_out',
+            default => 'sale',
+        };
+    }
+
+    /**
+     * Undo the net stock effect of this dispatch, including any correction applied to it:
+     * quantities return to the warehouse at the cost they left with.
+     */
+    protected function reverseStock(?int $userId): void
+    {
+        $movements = $this->inventoryMovements()->get();
+
+        if ($movements->isEmpty()) {
+            return;
+        }
+
+        $service = app(DocumentStockService::class);
+
+        $service->validatePeriods((int) $this->company_id, $movements, [], now());
+
+        $service->rebalance($service->netEffects($movements), [], [
+            'company_id' => (int) $this->company_id,
+            'movement_date' => now(),
+            'links' => ['dispatch_id' => $this->id],
+            'document_type' => 'dispatch_cancellation',
+            'inbound_type' => 'return',
+            'outbound_type' => $this->outboundMovementType(),
+            'inbound_reason' => $service->reason('REENTRY', 'in'),
+            'outbound_reason' => $service->reason('DISPATCH', 'out'),
+            'inbound_notes' => "Anulación de despacho {$this->dispatch_number}: devolución a bodega",
+            'outbound_notes' => "Anulación de despacho {$this->dispatch_number}: salida de bodega",
+            'metadata' => ['cancellation' => true],
+            'user_id' => $userId,
+            'shortage_message' => fn (int $warehouseId, int $productId, float $needed, float $available) => 'No se puede anular el despacho: la bodega '
+                .(Warehouse::find($warehouseId)?->name ?? "#{$warehouseId}").' ya no tiene las '.number_format($needed, 2)
+                .' unidades de '.(Product::find($productId)?->name ?? "Producto #{$productId}").' (disponible '.number_format($available, 2).')',
+        ]);
     }
 }

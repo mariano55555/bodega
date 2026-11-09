@@ -115,6 +115,14 @@ new #[Layout('components.layouts.app')] class extends Component {
                 </flux:button>
             @endif
 
+            @can('documents.correct')
+                @if (in_array($dispatch->status, ['despachado', 'entregado']))
+                    <flux:button variant="outline" icon="wrench-screwdriver" href="{{ route('dispatches.correct', $dispatch) }}" wire:navigate>
+                        Corregir
+                    </flux:button>
+                @endif
+            @endcan
+
             @if ($dispatch->canBeEdited())
                 <flux:button variant="primary" icon="pencil" href="{{ route('dispatches.edit', $dispatch) }}" wire:navigate>
                     Editar
@@ -122,6 +130,8 @@ new #[Layout('components.layouts.app')] class extends Component {
             @endif
         </div>
     </div>
+
+    @include('partials.document-corrections-history', ['corrections' => $dispatch->corrections()->with('creator')->get()])
 
     {{-- Workflow Progress --}}
     @if ($dispatch->status !== 'cancelado')

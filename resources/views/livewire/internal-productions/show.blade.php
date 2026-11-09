@@ -122,6 +122,14 @@ new #[Layout('components.layouts.app')] class extends Component
                 </flux:button>
             @endif
 
+            @can('documents.correct')
+                @if ($internalProduction->status === 'completado')
+                    <flux:button variant="outline" icon="wrench-screwdriver" href="{{ route('internal-productions.correct', $internalProduction) }}" wire:navigate>
+                        Corregir
+                    </flux:button>
+                @endif
+            @endcan
+
             @if ($internalProduction->canBeEdited())
                 <flux:button variant="primary" icon="pencil" href="{{ route('internal-productions.edit', $internalProduction) }}" wire:navigate>
                     Editar
@@ -142,6 +150,8 @@ new #[Layout('components.layouts.app')] class extends Component
             {{ session('error') }}
         </flux:callout>
     @endif
+
+    @include('partials.document-corrections-history', ['corrections' => $internalProduction->corrections()->with('creator')->get()])
 
     {{-- Workflow Progress --}}
     @if ($internalProduction->status !== 'cancelado')
