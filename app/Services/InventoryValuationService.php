@@ -88,6 +88,39 @@ class InventoryValuationService
     }
 
     /**
+     * Rebuild the weighted average of every product and warehouse from its kardex,
+     * in the order the movements were registered, using the cost each movement recorded.
+     *
+     * Deleted and cancelled movements are ignored. Nothing is written.
+     *
+     * @return array<string, array{quantity: float, unit_cost: float}> keyed by "productId-warehouseId"
+     */
+    public function replayAverageCosts(?int $productId = null): array
+    {
+        $balances = [];
+
+        InventoryMovement::query()
+            ->where('status', '!=', 'cancelled')
+            ->when($productId, fn ($query) => $query->where('product_id', $productId))
+            ->select(['id', 'product_id', 'warehouse_id', 'quantity_in', 'quantity_out', 'unit_cost'])
+            ->lazyById(2000)
+            ->each(function (InventoryMovement $movement) use (&$balances): void {
+                $key = $movement->product_id.'-'.$movement->warehouse_id;
+                $balance = $balances[$key] ?? ['quantity' => 0.0, 'unit_cost' => 0.0];
+                $quantityIn = (float) ($movement->quantity_in ?? 0);
+
+                if ($quantityIn > 0 && $movement->unit_cost !== null) {
+                    $balance['unit_cost'] = round($this->weightedAverage($balance['quantity'], $balance['unit_cost'], $quantityIn, (float) $movement->unit_cost), 5);
+                }
+
+                $balance['quantity'] += $quantityIn - (float) ($movement->quantity_out ?? 0);
+                $balances[$key] = $balance;
+            });
+
+        return $balances;
+    }
+
+    /**
      * Weighted average: (existing value + incoming value) / total quantity.
      * When nothing is in stock the incoming cost becomes the new average.
      */
